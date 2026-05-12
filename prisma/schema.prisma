@@ -1,0 +1,192 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model events {
+  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizer_id      String              @db.Uuid
+  venue_id          String              @db.Uuid
+  title             String              @db.VarChar(300)
+  description       String?
+  start_at          DateTime            @db.Timestamptz(6)
+  end_at            DateTime            @db.Timestamptz(6)
+  status            String              @default("draft") @db.VarChar(20)
+  created_at        DateTime            @default(now()) @db.Timestamptz(6)
+  users             users               @relation(fields: [organizer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  venues            venues              @relation(fields: [venue_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  invitations       invitations[]
+  staff_profiles    staff_profiles[]
+  ticket_categories ticket_categories[]
+
+  @@index([organizer_id], map: "idx_events_organizer")
+  @@index([start_at], map: "idx_events_start")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model guest_profiles {
+  id                                     String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                                String  @unique @db.Uuid
+  tier                                   String? @default("standard") @db.VarChar(30)
+  invited_by                             String? @db.Uuid
+  notes                                  String?
+  users_guest_profiles_invited_byTousers users?  @relation("guest_profiles_invited_byTousers", fields: [invited_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_guest_profiles_user_idTousers    users   @relation("guest_profiles_user_idTousers", fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model invitations {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  event_id   String   @db.Uuid
+  invited_by String   @db.Uuid
+  email      String   @db.VarChar(255)
+  role       String   @default("guest") @db.VarChar(30)
+  token      String   @unique @db.VarChar(512)
+  status     String   @default("pending") @db.VarChar(20)
+  expires_at DateTime @db.Timestamptz(6)
+  events     events   @relation(fields: [event_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users      users    @relation(fields: [invited_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model notifications {
+  id       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id  String    @db.Uuid
+  order_id String?   @db.Uuid
+  channel  String    @db.VarChar(20)
+  subject  String?   @db.VarChar(300)
+  status   String    @default("pending") @db.VarChar(20)
+  sent_at  DateTime? @db.Timestamptz(6)
+  orders   orders?   @relation(fields: [order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users    users     @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([user_id], map: "idx_notifications_user")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model order_items {
+  id                 String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_id           String            @db.Uuid
+  ticket_category_id String            @db.Uuid
+  quantity           Int
+  unit_price         Decimal           @db.Decimal(10, 2)
+  orders             orders            @relation(fields: [order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  ticket_categories  ticket_categories @relation(fields: [ticket_category_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tickets            tickets[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model orders {
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id       String          @db.Uuid
+  status        String          @default("pending") @db.VarChar(20)
+  total_amount  Decimal         @db.Decimal(10, 2)
+  expires_at    DateTime?       @db.Timestamptz(6)
+  created_at    DateTime        @default(now()) @db.Timestamptz(6)
+  notifications notifications[]
+  order_items   order_items[]
+  users         users           @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  payments      payments?
+
+  @@index([status], map: "idx_orders_status")
+  @@index([user_id], map: "idx_orders_user")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model payments {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_id String @unique(map: "uidx_payments_order_success") @db.Uuid
+  provider       String    @db.VarChar(50)
+  provider_tx_id String    @unique @db.VarChar(255)
+  amount         Decimal   @db.Decimal(10, 2)
+  currency       String    @default("USD") @db.Char(3)
+  status         String    @db.VarChar(20)
+  paid_at        DateTime? @db.Timestamptz(6)
+  orders         orders    @relation(fields: [order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model staff_profiles {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      String    @unique @db.Uuid
+  event_id     String    @db.Uuid
+  position     String?   @db.VarChar(100)
+  access_level String    @default("scanner") @db.VarChar(30)
+  shift_start  DateTime? @db.Timestamptz(6)
+  shift_end    DateTime? @db.Timestamptz(6)
+  assigned_at  DateTime  @default(now()) @db.Timestamptz(6)
+  events       events    @relation(fields: [event_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users        users     @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model ticket_categories {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  event_id        String        @db.Uuid
+  name            String        @db.VarChar(100)
+  description     String?
+  price           Decimal       @db.Decimal(10, 2)
+  total_seats     Int
+  seats_remaining Int
+  sale_starts_at  DateTime?     @db.Timestamptz(6)
+  sale_ends_at    DateTime?     @db.Timestamptz(6)
+  order_items     order_items[]
+  events          events        @relation(fields: [event_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([event_id], map: "idx_ticket_cat_event")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tickets {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_item_id String      @db.Uuid
+  user_id       String      @db.Uuid
+  ticket_code   String      @unique @db.VarChar(50)
+  qr_hash       String      @unique @db.VarChar(512)
+  status        String      @default("issued") @db.VarChar(20)
+  issued_at     DateTime    @default(now()) @db.Timestamptz(6)
+  scanned_at    DateTime?   @db.Timestamptz(6)
+  order_items   order_items @relation(fields: [order_item_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users         users       @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([status], map: "idx_tickets_status")
+  @@index([user_id], map: "idx_tickets_user")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model users {
+  id                                              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  first_name                                      String           @db.VarChar(100)
+  last_name                                       String           @db.VarChar(100)
+  email                                           String           @unique @db.VarChar(255)
+  password_hash                                   String           @db.VarChar(255)
+  phone                                           String?          @db.VarChar(30)
+  role                                            String           @default("customer") @db.VarChar(20)
+  is_verified                                     Boolean          @default(false)
+  created_at                                      DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at                                      DateTime         @default(now()) @db.Timestamptz(6)
+  events                                          events[]
+  guest_profiles_guest_profiles_invited_byTousers guest_profiles[] @relation("guest_profiles_invited_byTousers")
+  guest_profiles_guest_profiles_user_idTousers    guest_profiles?  @relation("guest_profiles_user_idTousers")
+  invitations                                     invitations[]
+  notifications                                   notifications[]
+  orders                                          orders[]
+  staff_profiles                                  staff_profiles?
+  tickets                                         tickets[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model venues {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String   @db.VarChar(200)
+  address        String
+  city           String   @db.VarChar(100)
+  country        String   @db.VarChar(100)
+  total_capacity Int
+  events         events[]
+}
