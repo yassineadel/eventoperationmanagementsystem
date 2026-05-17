@@ -1,5 +1,7 @@
 import express from 'express'
 import authRoutes from './modules/auth/auth.routes'
+import eventRoutes from './modules/events/events.routes'
+import ticketCategoryRoutes from './modules/tickets-categories/ticket-categories.routes'
 import passport from 'passport'
 import './config/google'
 
@@ -14,5 +16,11 @@ app.get('/', (req, res) => {
 
 // Auth routes
 app.use('/api/auth', authRoutes)
+
+// Event routes
+app.use('/api/events', eventRoutes)
+
+// Ticket category routes
+app.use('/api/ticket-categories', ticketCategoryRoutes)
 
 export default app

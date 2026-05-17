@@ -4,7 +4,7 @@ import redis from '../config/redis'
 
 const JWT_SECRET = process.env.JWT_SECRET as string
 
-// Extend Request type to include user
+// Extend Express User type to include id and role
 export interface AuthUser {
   id: string
   role: string
@@ -12,11 +12,9 @@ export interface AuthUser {
 
 declare global {
   namespace Express {
-    interface Request {
-      user?: {
-        id: string
-        role: string
-      }
+    interface User {
+      id: string
+      role: string
     }
   }
 }
@@ -41,11 +39,8 @@ export const protect = async (req: Request, res: Response, next: NextFunction): 
       return
     }
 
-    // Verify token
-    const decoded = jwt.verify(token, JWT_SECRET) as { id: string, role: string }
-    req.user = decoded
-
-    // Attach user to request
+    // Verify token and attach user to request
+    const decoded = jwt.verify(token, JWT_SECRET) as AuthUser
     req.user = decoded
 
     // Continue to the next function
@@ -61,7 +56,7 @@ export const protect = async (req: Request, res: Response, next: NextFunction): 
  */
 export const restrictTo = (...roles: string[]) => {
   return (req: Request, res: Response, next: NextFunction): void => {
-   if (!req.user || !roles.includes(req.user!.role)) {
+    if (!req.user || !roles.includes((req.user as any).role)) {
       res.status(403).json({ message: 'You do not have permission to perform this action.' })
       return
     }
