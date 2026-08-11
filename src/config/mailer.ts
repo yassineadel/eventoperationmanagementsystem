@@ -1,11 +1,12 @@
 import nodemailer from 'nodemailer'
+import { env } from './env'
 
 // Create a transporter using Gmail
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: process.env.MAIL_USER,
-    pass: process.env.MAIL_PASS
+    user: env.MAIL_USER,
+    pass: env.MAIL_PASS
   }
 })
 
@@ -16,7 +17,7 @@ const transporter = nodemailer.createTransport({
  */
 export const sendVerificationEmail = async (to: string, code: string) => {
   await transporter.sendMail({
-    from: `"Hafletna" <${process.env.MAIL_USER}>`,
+    from: `"Hafletna" <${env.MAIL_USER}>`,
     to,
     subject: 'Verify your Hafletna account',
     html: `

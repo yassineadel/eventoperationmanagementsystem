@@ -1,7 +1,7 @@
 import Redis from 'ioredis'
+import { env } from './env'
 
-// Connect to Redis
-const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379')
+const redis = new Redis(env.REDIS_URL)
 
 redis.on('connect', () => {
   console.log('Redis connected!')

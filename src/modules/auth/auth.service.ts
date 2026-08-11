@@ -1,16 +1,18 @@
 import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
+import crypto from 'crypto'
 import prisma from '../../config/db'
 import redis from '../../config/redis'
 import { sendVerificationEmail } from '../../config/mailer'
+import { env } from '../../config/env'
 
-const JWT_SECRET = process.env.JWT_SECRET as string
+const JWT_SECRET = env.JWT_SECRET
 
 /**
  * Generates a random 6 digit verification code
  */
 const generateVerificationCode = (): string => {
-  return Math.floor(100000 + Math.random() * 900000).toString()
+  return crypto.randomInt(100000, 1000000).toString()
 }
 
 /**
@@ -54,6 +56,14 @@ export const registerUser = async (
  * Verifies the code and saves the user to the database
  */
 export const verifyEmail = async (email: string, code: string) => {
+  // Count failed attempts — max 5 per registration
+  const attemptKey = `verify_attempts:${email}`
+  const attempts = await redis.incr(attemptKey)
+  if (attempts === 1) await redis.expire(attemptKey, 600)
+  if (attempts > 5) {
+    throw new Error('Too many incorrect attempts. Please register again.')
+  }
+
   // Get the code from Redis
   const storedCode = await redis.get(`verify:${email}`)
 
@@ -71,7 +81,7 @@ export const verifyEmail = async (email: string, code: string) => {
   const userData = JSON.parse(pendingUser)
 
   // Now save the user to the database
-  const user = await prisma.users.create({
+  await prisma.users.create({
     data: {
       first_name: userData.first_name,
       last_name: userData.last_name,
@@ -83,9 +93,10 @@ export const verifyEmail = async (email: string, code: string) => {
     }
   })
 
-  // Delete both keys from Redis
+  // Delete all keys from Redis
   await redis.del(`verify:${email}`)
   await redis.del(`pending:${email}`)
+  await redis.del(attemptKey)
 
   return { message: 'Email verified successfully! You can now login.' }
 }
@@ -94,22 +105,40 @@ export const verifyEmail = async (email: string, code: string) => {
  * Logs in a user and returns a JWT token
  */
 export const loginUser = async (email: string, password: string) => {
-  // Find user by email
-  const user = await prisma.users.findUnique({ where: { email } })
+  // Ask for exactly the columns we need — nothing more
+  const user = await prisma.users.findUnique({
+    where: { email },
+    select: {
+      id: true,
+      first_name: true,
+      last_name: true,
+      email: true,
+      role: true,
+      is_verified: true,
+      password_hash: true,   // needed to compare, stripped before returning
+    },
+  })
+
   if (!user) throw new Error('Invalid credentials')
 
-  // Compare entered password with hashed password
   const isMatch = await bcrypt.compare(password, user.password_hash)
   if (!isMatch) throw new Error('Invalid credentials')
 
-  // Generate JWT token
+  // Only check verification AFTER the password is confirmed correct
+  if (!user.is_verified) {
+    throw new Error('Please verify your email before logging in')
+  }
+
+  // Separate the hash from everything else
+  const { password_hash, ...safeUser } = user
+
   const token = jwt.sign(
     { id: user.id, role: user.role },
     JWT_SECRET,
     { expiresIn: '7d' }
   )
 
-  return { token, user }
+  return { token, user: safeUser }
 }
 
 /**
@@ -136,6 +165,14 @@ export const forgotPassword = async (email: string) => {
  * Resets the user's password after verifying the code
  */
 export const resetPassword = async (email: string, code: string, newPassword: string) => {
+  // Count failed attempts — max 5 per reset code
+  const attemptKey = `reset_attempts:${email}`
+  const attempts = await redis.incr(attemptKey)
+  if (attempts === 1) await redis.expire(attemptKey, 600)
+  if (attempts > 5) {
+    throw new Error('Too many incorrect attempts. Please request a new code.')
+  }
+
   // Get the code from Redis
   const storedCode = await redis.get(`reset:${email}`)
 
@@ -154,8 +191,9 @@ export const resetPassword = async (email: string, code: string, newPassword: st
     data: { password_hash }
   })
 
-  // Delete the code from Redis
+  // Delete the code and attempt counter from Redis
   await redis.del(`reset:${email}`)
+  await redis.del(attemptKey)
 
   return { message: 'Password reset successfully! You can now login.' }
 }
@@ -168,4 +206,24 @@ export const logoutUser = async (token: string) => {
   await redis.set(`blacklist:${token}`, 'blacklisted', 'EX', 60 * 60 * 24 * 7)
 
   return { message: 'Logged out successfully' }
+}
+
+/**
+ * Returns the logged-in user's profile
+ */
+export const getCurrentUser = async (userId: string) => {
+  const user = await prisma.users.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      first_name: true,
+      last_name: true,
+      email: true,
+      role: true,
+      is_verified: true,
+    },
+  })
+
+  if (!user) throw new Error('User not found')
+  return user
 }

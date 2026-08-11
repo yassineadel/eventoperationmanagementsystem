@@ -1,8 +1,9 @@
 import { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 import redis from '../config/redis'
+import { env } from '../config/env'
 
-const JWT_SECRET = process.env.JWT_SECRET as string
+const JWT_SECRET = env.JWT_SECRET
 
 // Extend Express User type to include id and role
 export interface AuthUser {
@@ -25,7 +26,7 @@ declare global {
 export const protect = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     // Get token from headers
-    const token = req.headers.authorization?.split(' ')[1]
+    const token = req.cookies?.token || req.headers.authorization?.split(' ')[1]
 
     if (!token) {
       res.status(401).json({ message: 'Access denied. No token provided.' })
