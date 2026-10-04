@@ -8,27 +8,6 @@ datasource db {
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model events {
-  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organizer_id      String              @db.Uuid
-  venue_id          String              @db.Uuid
-  title             String              @db.VarChar(300)
-  description       String?
-  start_at          DateTime            @db.Timestamptz(6)
-  end_at            DateTime            @db.Timestamptz(6)
-  status            String              @default("draft") @db.VarChar(20)
-  created_at        DateTime            @default(now()) @db.Timestamptz(6)
-  users             User                @relation(fields: [organizer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  venues            venues              @relation(fields: [venue_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  invitations       invitations[]
-  staff_profiles    staff_profiles[]
-  ticket_categories ticket_categories[]
-
-  @@index([organizer_id], map: "idx_events_organizer")
-  @@index([start_at], map: "idx_events_start")
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model guest_profiles {
   id                                     String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   user_id                                String  @unique @db.Uuid
@@ -49,7 +28,7 @@ model invitations {
   token      String   @unique @db.VarChar(512)
   status     String   @default("pending") @db.VarChar(20)
   expires_at DateTime @db.Timestamptz(6)
-  events     events   @relation(fields: [event_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  events     Event    @relation(fields: [event_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   users      User     @relation(fields: [invited_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
@@ -70,13 +49,13 @@ model notifications {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model order_items {
-  id                 String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  order_id           String            @db.Uuid
-  ticket_category_id String            @db.Uuid
+  id                 String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_id           String         @db.Uuid
+  ticket_category_id String         @db.Uuid
   quantity           Int
-  unit_price         Decimal           @db.Decimal(10, 2)
-  orders             orders            @relation(fields: [order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  ticket_categories  ticket_categories @relation(fields: [ticket_category_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  unit_price         Decimal        @db.Decimal(10, 2)
+  orders             orders         @relation(fields: [order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  ticket_categories  TicketCategory @relation(fields: [ticket_category_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   tickets            tickets[]
 }
 
@@ -120,25 +99,8 @@ model staff_profiles {
   shift_start  DateTime? @db.Timestamptz(6)
   shift_end    DateTime? @db.Timestamptz(6)
   assigned_at  DateTime  @default(now()) @db.Timestamptz(6)
-  events       events    @relation(fields: [event_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  events       Event     @relation(fields: [event_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   users        User      @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model ticket_categories {
-  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  event_id        String        @db.Uuid
-  name            String        @db.VarChar(100)
-  description     String?
-  price           Decimal       @db.Decimal(10, 2)
-  total_seats     Int
-  seats_remaining Int
-  sale_starts_at  DateTime?     @db.Timestamptz(6)
-  sale_ends_at    DateTime?     @db.Timestamptz(6)
-  order_items     order_items[]
-  events          events        @relation(fields: [event_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
-  @@index([event_id], map: "idx_ticket_cat_event")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -186,7 +148,7 @@ model User {
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   // relations to models not yet rebuilt (groups 2-4)
-  events                                          events[]
+  createdEvents                                   Event[]
   guest_profiles_guest_profiles_invited_byTousers guest_profiles[] @relation("guest_profiles_invited_byTousers")
   guest_profiles_guest_profiles_user_idTousers    guest_profiles?  @relation("guest_profiles_user_idTousers")
   invitations                                     invitations[]
@@ -198,13 +160,143 @@ model User {
   @@map("users")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model venues {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name           String   @db.VarChar(200)
-  address        String
-  city           String   @db.VarChar(100)
-  country        String   @db.VarChar(100)
-  total_capacity Int
-  events         events[]
+// ─── Catalogue ──────────────────────────────────────────────────────────────
+// Venue layouts are authored as JSON in src/modules/venues/layouts and seeded into
+// venues + seats/venue_zones. Seats and zones carry a categoryKey (e.g. "VIP") and are
+// matched to an event's TicketCategory by (venue, categoryKey) — a venue is reused by
+// many events, each pricing its own categories.
+
+enum VenueType {
+  SEATED
+  STANDING
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  CANCELLED
+}
+
+model Venue {
+  id        String    @id @default(uuid()) @db.Uuid
+  slug      String    @unique @db.VarChar(100)
+  name      String    @db.VarChar(200)
+  type      VenueType
+  address   String
+  city      String    @db.VarChar(100)
+  country   String    @db.VarChar(100)
+  latitude  Decimal   @db.Decimal(9, 6)
+  longitude Decimal   @db.Decimal(9, 6)
+  capacity  Int
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  seats  Seat[]
+  zones  VenueZone[]
+  events Event[]
+
+  @@index([city])
+  @@map("venues")
+}
+
+model Seat {
+  id          String @id @default(uuid()) @db.Uuid
+  venueId     String @map("venue_id") @db.Uuid
+  section     String @db.VarChar(20)
+  row         String @db.VarChar(10)
+  number      Int
+  categoryKey String @map("category_key") @db.VarChar(50)
+
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@unique([venueId, section, row, number])
+  @@index([venueId, categoryKey])
+  @@map("seats")
+}
+
+model VenueZone {
+  id          String @id @default(uuid()) @db.Uuid
+  venueId     String @map("venue_id") @db.Uuid
+  key         String @db.VarChar(50)
+  label       String @db.VarChar(100)
+  categoryKey String @map("category_key") @db.VarChar(50)
+  capacity    Int
+  // rectangle in a 0–100 coordinate space, used to draw the zone (FR-TKT-20)
+  x           Float
+  y           Float
+  width       Float
+  height      Float
+
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@unique([venueId, key])
+  @@map("venue_zones")
+}
+
+model Event {
+  id              String    @id @default(uuid()) @db.Uuid
+  venueId         String    @map("venue_id") @db.Uuid
+  createdById     String    @map("created_by_id") @db.Uuid
+  name            String    @db.VarChar(300)
+  category        String    @db.VarChar(50)
+  performer       String?   @db.VarChar(200)
+  description     String
+  about           String?
+  images          String[]
+  startAt         DateTime  @map("start_at") @db.Timestamptz(6)
+  doorsOpenAt     DateTime  @map("doors_open_at") @db.Timestamptz(6)
+  durationMinutes Int       @map("duration_minutes")
+  // age restrictions, prohibited items, entry conditions, refund policy (FR-EVT-07)
+  policies        Json?
+  // [{ question, answer }] — also feeds the chatbot retrieval layer (FR-EVT-08)
+  faqs            Json?
+  salesOpenAt     DateTime? @map("sales_open_at") @db.Timestamptz(6)
+  salesCloseAt    DateTime? @map("sales_close_at") @db.Timestamptz(6)
+
+  // past events are hidden by date, never deleted (FR-LST-02/03, BR-19)
+  status             EventStatus @default(DRAFT)
+  publishedAt        DateTime?   @map("published_at") @db.Timestamptz(6)
+  cancelledAt        DateTime?   @map("cancelled_at") @db.Timestamptz(6)
+  cancellationReason String?     @map("cancellation_reason")
+
+  isSynthetic Boolean  @default(false) @map("is_synthetic")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  venue            Venue            @relation(fields: [venueId], references: [id])
+  createdBy        User             @relation(fields: [createdById], references: [id])
+  ticketCategories TicketCategory[]
+
+  // relations to models not yet rebuilt (groups 3-4)
+  invitations    invitations[]
+  staff_profiles staff_profiles[]
+
+  @@index([status, startAt])
+  @@index([category])
+  @@index([venueId])
+  @@map("events")
+}
+
+model TicketCategory {
+  id                String  @id @default(uuid()) @db.Uuid
+  eventId           String  @map("event_id") @db.Uuid
+  // matches Seat.categoryKey / VenueZone.categoryKey of the event's venue
+  categoryKey       String  @map("category_key") @db.VarChar(50)
+  name              String  @db.VarChar(100)
+  description       String?
+  // fixed once the event is published (FR-ADM-08, BR-15)
+  price             Decimal @db.Decimal(10, 2)
+  // per category, retained on user refunds (BR-05, FR-MTK-06/07)
+  serviceFeePercent Decimal @map("service_fee_percent") @db.Decimal(5, 2)
+  capacity          Int
+  // live counter shown to buyers (FR-TKT-02/03)
+  remaining         Int
+
+  event Event @relation(fields: [eventId], references: [id])
+
+  // relations to models not yet rebuilt (group 3)
+  order_items order_items[]
+
+  @@unique([eventId, categoryKey])
+  @@map("ticket_categories")
 }
