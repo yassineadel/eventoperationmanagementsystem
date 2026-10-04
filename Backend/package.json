@@ -7,7 +7,8 @@
     "dev": "nodemon src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "layouts:check": "ts-node src/scripts/check-layouts.ts"
+    "layouts:check": "ts-node src/scripts/check-layouts.ts",
+    "seed:venues": "ts-node src/scripts/seed-venues.ts"
   },
   "keywords": [],
   "author": "",
