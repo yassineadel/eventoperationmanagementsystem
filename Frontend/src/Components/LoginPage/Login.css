@@ -1,0 +1,403 @@
+/* =========================================================
+   Login page — scoped tokens
+   Every selector below is nested under a component class so
+   nothing leaks into the rest of the app.
+   ========================================================= */
+
+.MainContainer {
+  --panel-top: #12414d;
+  --panel-bottom: #0a1c2b;
+  --cream: #f2f0ea;
+  --green: #0d8f68;
+  --green-hi: #0fa87a;
+  --ink: #10202c;
+  --muted-dark: #5c6a75;
+  --muted-light: #a9bcc4;
+  --line-light: rgba(255, 255, 255, 0.12);
+
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 100svh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6rem;
+  padding: 2.5rem;
+  font-family: 'Outfit', system-ui, 'Segoe UI', sans-serif;
+}
+
+.MainContainer *,
+.MainContainer *::before,
+.MainContainer *::after {
+  box-sizing: border-box;
+}
+
+/* ---------------- LEFT PANEL ---------------- */
+
+.LeftBox {
+  flex: 0 1 620px;
+  min-height: 660px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 3rem;
+  border-radius: 28px;
+  background: linear-gradient(155deg, var(--panel-top) 0%, var(--panel-bottom) 62%);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+  color: #fff;
+  overflow: hidden;
+}
+
+.Brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.BrandMark {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--green);
+  color: #fff;
+}
+
+.BrandMark svg { width: 19px; height: 19px; }
+
+.BrandName {
+  font-size: 1.4rem;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+
+/* floating proof cards */
+
+.FloatCards {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.9rem;
+  margin: 2.5rem 0;
+}
+
+.FloatCard {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.85rem 1.1rem;
+  border: 1px solid var(--line-light);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(6px);
+}
+
+.FloatCard--one { margin-right: 2.5rem; }
+.FloatCard--two { margin-right: 4.5rem; }
+
+.FloatIcon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.FloatIcon svg { width: 17px; height: 17px; }
+.FloatIcon--gold  { background: #f6dfae; color: #8a6a1f; }
+.FloatIcon--green { background: #b9e6d3; color: #0b6a4d; }
+
+.FloatText { display: flex; flex-direction: column; line-height: 1.25; }
+.FloatText strong { font-size: 0.92rem; font-weight: 600; }
+.FloatText small  { font-size: 0.78rem; color: var(--muted-light); }
+
+/* pitch block */
+
+.PitchTitle {
+  margin: 0 0 1.1rem;
+  max-width: 13ch;
+  font-size: 3.4rem;
+  font-weight: 600;
+  line-height: 1.06;
+  letter-spacing: -1.6px;
+  color: #fff;
+}
+
+.PitchLead {
+  margin: 0 0 2.2rem;
+  max-width: 40ch;
+  font-size: 1rem;
+  line-height: 1.55;
+  color: var(--muted-light);
+}
+
+.Perks {
+  list-style: none;
+  margin: 0 0 2.5rem;
+  padding: 0;
+  display: grid;
+  gap: 1.1rem;
+}
+
+.Perks li {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.PerkIcon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #8fd9bc;
+  flex-shrink: 0;
+}
+
+.PerkIcon svg { width: 15px; height: 15px; }
+
+.Divider {
+  margin: 0 0 1.5rem;
+  border: none;
+  border-top: 1px solid var(--line-light);
+}
+
+.SocialProof {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--muted-light);
+}
+
+.SocialProof strong { color: #fff; font-weight: 600; }
+
+.Avatars { display: flex; flex-shrink: 0; }
+
+.Avatars i {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid var(--panel-bottom);
+  background: linear-gradient(135deg, #2f9f86, #7fd4c0);
+  margin-left: -8px;
+}
+
+.Avatars i:first-child { margin-left: 0; }
+
+/* ---------------- RIGHT PANEL ---------------- */
+
+.AuthBox {
+  flex: 0 1 440px;
+  padding: 2.5rem;
+  border-radius: 24px;
+  background: var(--cream);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.18);
+  color: var(--ink);
+}
+
+.Eyebrow {
+  margin: 0 0 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--green);
+}
+
+.AuthTitle {
+  margin: 0 0 0.4rem;
+  font-size: 1.9rem;
+  font-weight: 600;
+  letter-spacing: -0.6px;
+  color: var(--ink);
+}
+
+.AuthSub {
+  margin: 0 0 1.6rem;
+  font-size: 0.95rem;
+  color: var(--muted-dark);
+}
+
+.GoogleBtn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  padding: 0.85rem;
+  border: 1px solid rgba(0, 0, 0, 0.09);
+  border-radius: 12px;
+  background: #fff;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.15s, transform 0.15s;
+}
+
+.GoogleBtn:hover { background: #fafafa; transform: translateY(-1px); }
+.GoogleIcon { width: 18px; height: 18px; }
+
+.OrDivider {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin: 1.4rem 0;
+  font-size: 0.8rem;
+  color: var(--muted-dark);
+}
+
+.OrDivider::before,
+.OrDivider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.AuthForm { display: grid; gap: 1rem; }
+
+.Field { display: grid; gap: 0.45rem; }
+
+.FieldLabel {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.InputWrap {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0 0.9rem;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  background: #fff;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.InputWrap:focus-within {
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px rgba(13, 143, 104, 0.15);
+}
+
+.InputIcon {
+  width: 17px;
+  height: 17px;
+  color: var(--muted-dark);
+  flex-shrink: 0;
+}
+
+.InputWrap input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.85rem 0;
+  border: none;
+  outline: none;
+  background: none;
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+
+.InputWrap input::placeholder { color: #9aa5ad; }
+
+.EyeBtn {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--muted-dark);
+  cursor: pointer;
+}
+
+.EyeBtn svg { width: 18px; height: 18px; }
+
+.FormRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.88rem;
+}
+
+.Remember {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.Remember input {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--green);
+  cursor: pointer;
+}
+
+.LinkGreen {
+  color: var(--green);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.LinkGreen:hover { text-decoration: underline; }
+
+.SubmitBtn {
+  width: 100%;
+  margin-top: 0.4rem;
+  padding: 0.95rem;
+  border: none;
+  border-radius: 12px;
+  background: var(--green);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(13, 143, 104, 0.3);
+  transition: background 0.15s, transform 0.15s;
+}
+
+.SubmitBtn:hover { background: var(--green-hi); transform: translateY(-1px); }
+.SubmitBtn:active { transform: translateY(0); }
+
+.AuthFooter {
+  margin: 1.4rem 0 0;
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--muted-dark);
+}
+
+/* ---------------- RESPONSIVE ---------------- */
+
+@media (max-width: 1100px) {
+  .MainContainer {
+    flex-direction: column;
+    gap: 2rem;
+    padding: 1.5rem;
+  }
+
+  .LeftBox,
+  .AuthBox { flex: 0 1 auto; width: 100%; max-width: 620px; }
+  .LeftBox { min-height: auto; padding: 2rem; }
+  .PitchTitle { font-size: 2.4rem; }
+  .FloatCards { align-items: stretch; }
+  .FloatCard--one,
+  .FloatCard--two { margin-right: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .MainContainer * { transition: none !important; }
+}
