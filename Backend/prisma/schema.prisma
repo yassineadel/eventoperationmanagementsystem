@@ -7,60 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model guest_profiles {
-  id                                     String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id                                String  @unique @db.Uuid
-  tier                                   String? @default("standard") @db.VarChar(30)
-  invited_by                             String? @db.Uuid
-  notes                                  String?
-  users_guest_profiles_invited_byTousers User?   @relation("guest_profiles_invited_byTousers", fields: [invited_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  users_guest_profiles_user_idTousers    User    @relation("guest_profiles_user_idTousers", fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model invitations {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  event_id   String   @db.Uuid
-  invited_by String   @db.Uuid
-  email      String   @db.VarChar(255)
-  role       String   @default("guest") @db.VarChar(30)
-  token      String   @unique @db.VarChar(512)
-  status     String   @default("pending") @db.VarChar(20)
-  expires_at DateTime @db.Timestamptz(6)
-  events     Event    @relation(fields: [event_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  users      User     @relation(fields: [invited_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model notifications {
-  id       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id  String    @db.Uuid
-  order_id String?   @db.Uuid
-  channel  String    @db.VarChar(20)
-  subject  String?   @db.VarChar(300)
-  status   String    @default("pending") @db.VarChar(20)
-  sent_at  DateTime? @db.Timestamptz(6)
-  orders   Order?    @relation(fields: [order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  users    User      @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
-  @@index([user_id], map: "idx_notifications_user")
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model staff_profiles {
-  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id      String    @unique @db.Uuid
-  event_id     String    @db.Uuid
-  position     String?   @db.VarChar(100)
-  access_level String    @default("scanner") @db.VarChar(30)
-  shift_start  DateTime? @db.Timestamptz(6)
-  shift_end    DateTime? @db.Timestamptz(6)
-  assigned_at  DateTime  @default(now()) @db.Timestamptz(6)
-  events       Event     @relation(fields: [event_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  users        User      @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-}
-
 enum UserRole {
   USER
   ADMIN
@@ -88,22 +34,18 @@ model User {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  // relations to models not yet rebuilt (groups 2-4)
-  createdEvents                                   Event[]
-  guest_profiles_guest_profiles_invited_byTousers guest_profiles[] @relation("guest_profiles_invited_byTousers")
-  guest_profiles_guest_profiles_user_idTousers    guest_profiles?  @relation("guest_profiles_user_idTousers")
-  invitations                                     invitations[]
-  notifications                                   notifications[]
-  orders                                          Order[]
-  purchasedTickets                                Ticket[]         @relation("TicketPurchaser")
-  heldTickets                                     Ticket[]         @relation("TicketHolder")
-  holds                                           Hold[]
-  transfersSent                                   Transfer[]       @relation("TransferFrom")
-  transfersReceived                               Transfer[]       @relation("TransferTo")
-  refundsRequested                                Refund[]         @relation("RefundRequestedBy")
-  refundsReviewed                                 Refund[]         @relation("RefundReviewedBy")
-  refundsPaid                                     Refund[]         @relation("RefundPayee")
-  staff_profiles                                  staff_profiles?
+  createdEvents     Event[]
+  orders            Order[]
+  purchasedTickets  Ticket[]       @relation("TicketPurchaser")
+  heldTickets       Ticket[]       @relation("TicketHolder")
+  holds             Hold[]
+  transfersSent     Transfer[]     @relation("TransferFrom")
+  transfersReceived Transfer[]     @relation("TransferTo")
+  refundsRequested  Refund[]       @relation("RefundRequestedBy")
+  refundsReviewed   Refund[]       @relation("RefundReviewedBy")
+  refundsPaid       Refund[]       @relation("RefundPayee")
+  notifications     Notification[]
+  auditLogs         AuditLog[]
 
   @@map("users")
 }
@@ -220,9 +162,8 @@ model Event {
   tickets          Ticket[]
   holds            Hold[]
 
-  // relations to models not yet rebuilt (groups 3-4)
-  invitations    invitations[]
-  staff_profiles staff_profiles[]
+  staffAssignments StaffEventAssignment[]
+  scanRecords      ScanRecord[]
 
   @@index([status, startAt])
   @@index([category])
@@ -315,12 +256,12 @@ model Order {
   createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  user          User            @relation(fields: [userId], references: [id])
-  event         Event           @relation(fields: [eventId], references: [id])
+  user          User           @relation(fields: [userId], references: [id])
+  event         Event          @relation(fields: [eventId], references: [id])
   items         OrderItem[]
   payment       Payment?
   holds         Hold[]
-  notifications notifications[]
+  notifications Notification[]
 
   @@index([userId])
   @@index([eventId, status])
@@ -392,6 +333,8 @@ model Ticket {
   holder         User           @relation("TicketHolder", fields: [holderId], references: [id])
   transfers      Transfer[]
   refunds        Refund[]
+  scanRecords    ScanRecord[]
+  notifications  Notification[]
 
   // A seat may be sold once per event among live tickets. Prisma cannot express a
   // partial unique index, so it goes in the migration SQL:
@@ -474,4 +417,179 @@ model Refund {
   @@index([status])
   @@index([ticketId])
   @@map("refunds")
+}
+
+// ─── Gate (mobile app) ──────────────────────────────────────────────────────
+// Staff are separate from website users: no self-registration (FR-APP-01).
+
+enum StaffRole {
+  SCANNER
+  APP_ADMIN
+}
+
+enum ScanMethod {
+  QR
+  MANUAL // admitted from the guest list by name (FR-APP-25)
+}
+
+enum ScanResult {
+  ACCEPTED
+  REJECTED
+}
+
+// rejection reasons shown to staff (FR-APP-14)
+enum ScanRejectReason {
+  INVALID
+  ALREADY_USED
+  REFUNDED
+  TRANSFERRED_AWAY
+  WRONG_EVENT
+  EVENT_CANCELLED
+}
+
+model StaffAccount {
+  id           String    @id @default(uuid()) @db.Uuid
+  fullName     String    @map("full_name") @db.VarChar(200)
+  username     String    @unique @db.VarChar(100)
+  passwordHash String    @map("password_hash") @db.VarChar(255)
+  role         StaffRole @default(SCANNER)
+  isBlocked    Boolean   @default(false) @map("is_blocked")
+  blockedAt    DateTime? @map("blocked_at") @db.Timestamptz(6)
+  createdById  String?   @map("created_by_id") @db.Uuid
+  lastLoginAt  DateTime? @map("last_login_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  createdBy          StaffAccount?          @relation("StaffCreatedBy", fields: [createdById], references: [id])
+  createdStaff       StaffAccount[]         @relation("StaffCreatedBy")
+  assignments        StaffEventAssignment[] @relation("AssignmentStaff")
+  assignmentsGranted StaffEventAssignment[] @relation("AssignmentGrantedBy")
+  devicesActivated   Device[]
+  scanRecords        ScanRecord[]
+  auditLogs          AuditLog[]
+
+  @@map("staff_accounts")
+}
+
+// Per-event access, granted and revoked by the app admin (FR-APP-02/04)
+model StaffEventAssignment {
+  id          String    @id @default(uuid()) @db.Uuid
+  staffId     String    @map("staff_id") @db.Uuid
+  eventId     String    @map("event_id") @db.Uuid
+  grantedById String    @map("granted_by_id") @db.Uuid
+  validFrom   DateTime? @map("valid_from") @db.Timestamptz(6)
+  validUntil  DateTime? @map("valid_until") @db.Timestamptz(6)
+  revokedAt   DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  staff     StaffAccount @relation("AssignmentStaff", fields: [staffId], references: [id])
+  event     Event        @relation(fields: [eventId], references: [id])
+  grantedBy StaffAccount @relation("AssignmentGrantedBy", fields: [grantedById], references: [id])
+
+  @@unique([staffId, eventId])
+  @@index([eventId])
+  @@map("staff_event_assignments")
+}
+
+// A device must be activated before it can validate tickets (FR-APP-05/06)
+model Device {
+  id               String    @id @default(uuid()) @db.Uuid
+  deviceIdentifier String    @unique @map("device_identifier") @db.VarChar(255)
+  label            String?   @db.VarChar(100)
+  platform         String?   @db.VarChar(50)
+  isActive         Boolean   @default(false) @map("is_active")
+  activatedAt      DateTime? @map("activated_at") @db.Timestamptz(6)
+  activatedById    String?   @map("activated_by_id") @db.Uuid
+  deactivatedAt    DateTime? @map("deactivated_at") @db.Timestamptz(6)
+  lastSeenAt       DateTime? @map("last_seen_at") @db.Timestamptz(6)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  activatedBy StaffAccount? @relation(fields: [activatedById], references: [id])
+  scanRecords ScanRecord[]
+
+  @@map("devices")
+}
+
+// Every admission attempt, online or offline (FR-APP-15/25/26/27)
+model ScanRecord {
+  id              String            @id @default(uuid()) @db.Uuid
+  // generated on the device, so re-sending an offline batch never duplicates rows
+  clientScanId    String            @unique @map("client_scan_id") @db.VarChar(100)
+  eventId         String            @map("event_id") @db.Uuid
+  // null when the scanned code matches no ticket
+  ticketId        String?           @map("ticket_id") @db.Uuid
+  scannedCode     String?           @map("scanned_code") @db.VarChar(512)
+  staffId         String            @map("staff_id") @db.Uuid
+  deviceId        String            @map("device_id") @db.Uuid
+  method          ScanMethod        @default(QR)
+  result          ScanResult
+  rejectReason    ScanRejectReason? @map("reject_reason")
+  recordedOffline Boolean           @default(false) @map("recorded_offline")
+  // flagged when sync finds the same ticket admitted twice while offline (FR-APP-27)
+  isConflict      Boolean           @default(false) @map("is_conflict")
+  scannedAt       DateTime          @map("scanned_at") @db.Timestamptz(6)
+  syncedAt        DateTime          @default(now()) @map("synced_at") @db.Timestamptz(6)
+
+  event  Event        @relation(fields: [eventId], references: [id])
+  ticket Ticket?      @relation(fields: [ticketId], references: [id])
+  staff  StaffAccount @relation(fields: [staffId], references: [id])
+  device Device       @relation(fields: [deviceId], references: [id])
+
+  @@index([eventId, result])
+  @@index([ticketId])
+  @@map("scan_records")
+}
+
+// ─── Cross-cutting ──────────────────────────────────────────────────────────
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+// Record that an email was queued/sent (NFR-10 retries use attempts/lastError)
+model Notification {
+  id        String             @id @default(uuid()) @db.Uuid
+  userId    String             @map("user_id") @db.Uuid
+  orderId   String?            @map("order_id") @db.Uuid
+  ticketId  String?            @map("ticket_id") @db.Uuid
+  // e.g. VERIFICATION_CODE, ORDER_CONFIRMATION, TICKET_RESEND, TRANSFER_SENT, EVENT_CANCELLED
+  type      String             @db.VarChar(50)
+  channel   String             @default("EMAIL") @db.VarChar(20)
+  subject   String?            @db.VarChar(300)
+  status    NotificationStatus @default(PENDING)
+  attempts  Int                @default(0)
+  lastError String?            @map("last_error")
+  sentAt    DateTime?          @map("sent_at") @db.Timestamptz(6)
+  createdAt DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user   User    @relation(fields: [userId], references: [id])
+  order  Order?  @relation(fields: [orderId], references: [id])
+  ticket Ticket? @relation(fields: [ticketId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@map("notifications")
+}
+
+// Written by the system, never edited or deleted (FR-ADM-04)
+model AuditLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  // exactly one of these is set: a website admin or a mobile app admin
+  actorUserId  String?  @map("actor_user_id") @db.Uuid
+  actorStaffId String?  @map("actor_staff_id") @db.Uuid
+  // e.g. EVENT_CANCELLED, USER_BLOCKED, REFUND_APPROVED, DEVICE_ACTIVATED
+  action       String   @db.VarChar(100)
+  entityType   String   @map("entity_type") @db.VarChar(50)
+  entityId     String   @map("entity_id") @db.Uuid
+  details      Json?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  actorUser  User?         @relation(fields: [actorUserId], references: [id])
+  actorStaff StaffAccount? @relation(fields: [actorStaffId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
 }
