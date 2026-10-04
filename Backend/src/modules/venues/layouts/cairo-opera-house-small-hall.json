@@ -1,0 +1,46 @@
+{
+  "slug": "cairo-opera-house-small-hall",
+  "name": "Cairo Opera House — Small Hall",
+  "type": "SEATED",
+  "address": "Gezira, Zamalek",
+  "city": "Cairo",
+  "country": "Egypt",
+  "latitude": 30.0425,
+  "longitude": 31.2243,
+  "capacity": 240,
+  "stage": { "position": "top" },
+  "categories": [
+    { "key": "VIP", "label": "VIP", "color": "#C9A227" },
+    { "key": "PREMIUM", "label": "Premium", "color": "#2E86AB" },
+    { "key": "STANDARD", "label": "Standard", "color": "#6C757D" }
+  ],
+  "sections": [
+    {
+      "key": "ORC",
+      "label": "Orchestra",
+      "rows": [
+        { "label": "A", "seats": 16, "category": "VIP" },
+        { "label": "B", "seats": 16, "category": "VIP" },
+        { "label": "C", "seats": 16, "category": "VIP" },
+        { "label": "D", "seats": 16, "category": "PREMIUM" },
+        { "label": "E", "seats": 16, "category": "PREMIUM" },
+        { "label": "F", "seats": 16, "category": "PREMIUM" },
+        { "label": "G", "seats": 16, "category": "PREMIUM" },
+        { "label": "H", "seats": 16, "category": "PREMIUM" },
+        { "label": "I", "seats": 16, "category": "PREMIUM" },
+        { "label": "J", "seats": 16, "category": "PREMIUM" }
+      ]
+    },
+    {
+      "key": "BAL",
+      "label": "Balcony",
+      "rows": [
+        { "label": "A", "seats": 16, "category": "STANDARD" },
+        { "label": "B", "seats": 16, "category": "STANDARD" },
+        { "label": "C", "seats": 16, "category": "STANDARD" },
+        { "label": "D", "seats": 16, "category": "STANDARD" },
+        { "label": "E", "seats": 16, "category": "STANDARD" }
+      ]
+    }
+  ]
+}
