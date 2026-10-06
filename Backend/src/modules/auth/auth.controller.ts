@@ -12,8 +12,8 @@ import {
 
 export const register = async (req: Request, res: Response) => {
   try {
-    const { first_name, last_name, email, password, phone } = req.body
-    const result = await registerUser(first_name, last_name, email, password, phone)
+    const { fullName, email, password, phone } = req.body
+    const result = await registerUser(fullName, email, password, phone)
     res.status(201).json(result)
   } catch (error: any) {
     res.status(400).json({ message: error.message })
