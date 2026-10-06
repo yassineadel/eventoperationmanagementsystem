@@ -9,6 +9,7 @@ import authRoutes from './modules/auth/auth.routes'
 import eventRoutes from './modules/events/events.routes'
 import ticketCategoryRoutes from './modules/tickets-categories/ticket-categories.routes'
 import venueRoutes from './modules/venues/venues.routes'
+import inventoryRoutes from './modules/inventory/inventory.routes'
 import './config/google'
 
 const app = express()
@@ -42,6 +43,7 @@ app.use('/api/auth', authRoutes)
 app.use('/api/events', eventRoutes)
 app.use('/api/ticket-categories', ticketCategoryRoutes)
 app.use('/api/venues', venueRoutes)
+app.use('/api/inventory', inventoryRoutes)
 
 // Unknown route
 app.use((req, res) => {

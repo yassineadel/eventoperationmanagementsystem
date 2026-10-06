@@ -137,3 +137,21 @@ export const publishEvent = async (id: string) => {
     data: { status: 'PUBLISHED', publishedAt: new Date() }
   })
 }
+
+/**
+ * For other modules (inventory, ordering): the event if tickets can be bought right now, else an error.
+ * Published, not started, and inside the sales window (FR-EVT-11, FR-ADM-11).
+ */
+export const getEventOnSale = async (id: string) => {
+  const event = await prisma.event.findUnique({
+    where: { id },
+    select: { id: true, venueId: true, status: true, startAt: true, salesOpenAt: true, salesCloseAt: true }
+  })
+  const now = new Date()
+  if (!event || event.status === 'DRAFT') throw new Error('Event not found')
+  if (event.status === 'CANCELLED') throw new Error('This event has been cancelled')
+  if (event.startAt <= now) throw new Error('This event has already started')
+  if (event.salesOpenAt && now < event.salesOpenAt) throw new Error('Ticket sales have not opened yet')
+  if (event.salesCloseAt && now > event.salesCloseAt) throw new Error('Ticket sales have closed')
+  return event
+}

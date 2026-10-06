@@ -183,8 +183,11 @@ model TicketCategory {
   // per category, retained on user refunds (BR-05, FR-MTK-06/07)
   serviceFeePercent Decimal @map("service_fee_percent") @db.Decimal(5, 2)
   capacity          Int
-  // live counter shown to buyers (FR-TKT-02/03)
-  remaining         Int
+  // Live availability (FR-TKT-02/03, BR-10): free = capacity - heldCount - soldCount.
+  // Changed only by conditional UPDATEs in the inventory module; a CHECK constraint in the
+  // migration keeps 0 <= held + sold <= capacity, and both can be recomputed from holds/tickets.
+  heldCount         Int     @default(0) @map("held_count")
+  soldCount         Int     @default(0) @map("sold_count")
 
   event      Event       @relation(fields: [eventId], references: [id])
   orderItems OrderItem[]

@@ -57,8 +57,7 @@ export const createTicketCategory = async (data: {
       description: data.description,
       price: data.price,
       serviceFeePercent: data.serviceFeePercent,
-      capacity: venueCategory.capacity,
-      remaining: venueCategory.capacity
+      capacity: venueCategory.capacity
     }
   })
 }
