@@ -312,7 +312,7 @@ model Ticket {
   ticketCategoryId String       @map("ticket_category_id") @db.Uuid
   seatId           String?      @map("seat_id") @db.Uuid
   attendeeName     String       @map("attendee_name") @db.VarChar(200)
-  // original payer — involuntary refunds go here even after transfer (BR-13)
+  // original payer; kept for the audit trail and manual settlement of transferred tickets
   purchaserId      String       @map("purchaser_id") @db.Uuid
   // current holder; changes on transfer
   holderId         String       @map("holder_id") @db.Uuid
@@ -397,7 +397,8 @@ model Refund {
   status             RefundStatus @default(SUBMITTED)
   // null for involuntary refunds started by the system/admin
   requestedById      String?      @map("requested_by_id") @db.Uuid
-  // who receives the money: always the original purchaser (BR-13)
+  // who receives the money: the current holder at the time of refund (BR-13, Q24 —
+  // decided Oct 2026); for transferred tickets settlement is handled manually
   payeeId            String       @map("payee_id") @db.Uuid
   reason             String?
   amount             Decimal      @db.Decimal(10, 2)
