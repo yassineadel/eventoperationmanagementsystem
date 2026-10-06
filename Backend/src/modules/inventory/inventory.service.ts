@@ -199,3 +199,57 @@ export const getAvailability = async (eventId: string) => {
 
   return result
 }
+
+// ─── Used by ordering and payments ──────────────────────────────────────────
+
+type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
+
+/**
+ * The user's live holds for an event that are not yet part of an order, with what checkout needs
+ */
+export const getCheckoutHolds = async (userId: string, eventId: string) => {
+  return prisma.hold.findMany({
+    where: { userId, eventId, status: 'ACTIVE', orderId: null, expiresAt: { gt: new Date() } },
+    select: {
+      id: true,
+      quantity: true,
+      seatId: true,
+      seat: { select: { section: true, row: true, number: true } },
+      ticketCategory: { select: { id: true, name: true, categoryKey: true, price: true, serviceFeePercent: true } },
+    },
+    orderBy: { createdAt: 'asc' },
+  })
+}
+
+/**
+ * Attaches holds to a new order, stores attendee names, and keeps them held until the payment
+ * deadline. Fails if any hold expired or was used in the meantime.
+ */
+export const attachHoldsToOrder = async (
+  tx: Tx,
+  userId: string,
+  orderId: string,
+  expiresAt: Date,
+  holds: { id: string; attendeeNames: string[] }[],
+) => {
+  for (const h of holds) {
+    const { count } = await tx.hold.updateMany({
+      where: { id: h.id, userId, status: 'ACTIVE', orderId: null, expiresAt: { gt: new Date() } },
+      data: { orderId, attendeeNames: h.attendeeNames, expiresAt },
+    })
+    if (count !== 1) throw new InventoryError('Your hold on some tickets has expired. Please select them again.', 409)
+  }
+}
+
+/**
+ * Payment succeeded: the order's holds become sold (hf_convert_order_holds).
+ * Raises HF_SOLD_OUT if a hold had expired and its places were taken meanwhile.
+ */
+export const convertOrderHolds = (tx: Tx, orderId: string) =>
+  tx.$executeRaw`SELECT hf_convert_order_holds(${orderId}::uuid)`
+
+/**
+ * Payment failed or the order was abandoned: give its places back
+ */
+export const releaseOrderHolds = (tx: Tx, orderId: string) =>
+  tx.$executeRaw`SELECT hf_release_order_holds(${orderId}::uuid)`

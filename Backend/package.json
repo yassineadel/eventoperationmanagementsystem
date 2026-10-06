@@ -30,6 +30,7 @@
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "prisma": "^5.22.0",
+    "stripe": "^23.0.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

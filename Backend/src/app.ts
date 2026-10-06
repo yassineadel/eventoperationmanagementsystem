@@ -10,6 +10,8 @@ import eventRoutes from './modules/events/events.routes'
 import ticketCategoryRoutes from './modules/tickets-categories/ticket-categories.routes'
 import venueRoutes from './modules/venues/venues.routes'
 import inventoryRoutes from './modules/inventory/inventory.routes'
+import orderRoutes from './modules/orders/orders.routes'
+import paymentRoutes from './modules/payments/payments.routes'
 import './config/google'
 
 const app = express()
@@ -28,6 +30,9 @@ app.use(
   })
 )
 
+// Stripe webhooks are verified against the exact bytes sent, so keep that body raw
+app.use('/api/payments/stripe/webhook', express.raw({ type: 'application/json', limit: '1mb' }))
+
 // Parse JSON, with a size cap so nobody can send a 500MB body
 app.use(express.json({ limit: '10kb' }))
 app.use(cookieParser())
@@ -44,6 +49,8 @@ app.use('/api/events', eventRoutes)
 app.use('/api/ticket-categories', ticketCategoryRoutes)
 app.use('/api/venues', venueRoutes)
 app.use('/api/inventory', inventoryRoutes)
+app.use('/api/orders', orderRoutes)
+app.use('/api/payments', paymentRoutes)
 
 // Unknown route
 app.use((req, res) => {
