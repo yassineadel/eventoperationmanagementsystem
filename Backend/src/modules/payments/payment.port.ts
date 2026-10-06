@@ -29,6 +29,9 @@ export interface PaymentProvider {
   getStatus(providerTxId: string): Promise<PaymentOutcome>
   /** Best effort: stop a payment that has not completed */
   cancel(providerTxId: string): Promise<void>
-  /** Give back a payment that succeeded but cannot be honoured */
-  refund(providerTxId: string): Promise<void>
+  /**
+   * Give money back: the whole payment, or `amountMinor` of it (one ticket out of an order).
+   * `idempotencyKey` makes a retried refund never pay out twice.
+   */
+  refund(providerTxId: string, opts: { amountMinor?: number; idempotencyKey: string }): Promise<void>
 }

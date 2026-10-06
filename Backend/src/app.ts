@@ -12,6 +12,7 @@ import venueRoutes from './modules/venues/venues.routes'
 import inventoryRoutes from './modules/inventory/inventory.routes'
 import orderRoutes from './modules/orders/orders.routes'
 import paymentRoutes from './modules/payments/payments.routes'
+import { ticketRoutes, refundRoutes } from './modules/tickets/tickets.routes'
 import './config/google'
 
 const app = express()
@@ -51,6 +52,8 @@ app.use('/api/venues', venueRoutes)
 app.use('/api/inventory', inventoryRoutes)
 app.use('/api/orders', orderRoutes)
 app.use('/api/payments', paymentRoutes)
+app.use('/api/tickets', ticketRoutes)
+app.use('/api/refunds', refundRoutes)
 
 // Unknown route
 app.use((req, res) => {

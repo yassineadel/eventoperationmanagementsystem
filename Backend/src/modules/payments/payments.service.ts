@@ -104,7 +104,7 @@ export const fulfilOrder = async (orderId: string): Promise<'PAID' | 'ALREADY_PA
 const refundOrderPayment = async (orderId: string) => {
   const payment = await prisma.payment.findUniqueOrThrow({ where: { orderId } })
   if (payment.status === 'REFUNDED' || !payment.providerTxId) return
-  await getPaymentProvider().refund(payment.providerTxId)
+  await getPaymentProvider().refund(payment.providerTxId, { idempotencyKey: `order-refund-${orderId}` })
   await prisma.payment.update({ where: { orderId }, data: { status: 'REFUNDED' } })
   console.warn(`Order ${orderId}: payment succeeded after the order closed, refunded automatically`)
 }

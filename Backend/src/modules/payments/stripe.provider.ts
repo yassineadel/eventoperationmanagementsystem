@@ -51,10 +51,10 @@ export class StripeProvider implements PaymentProvider {
     }
   }
 
-  async refund(providerTxId: string) {
+  async refund(providerTxId: string, opts: { amountMinor?: number; idempotencyKey: string }) {
     await this.stripe.refunds.create(
-      { payment_intent: providerTxId },
-      { idempotencyKey: `refund-${providerTxId}` },
+      { payment_intent: providerTxId, ...(opts.amountMinor !== undefined ? { amount: opts.amountMinor } : {}) },
+      { idempotencyKey: opts.idempotencyKey },
     )
   }
 

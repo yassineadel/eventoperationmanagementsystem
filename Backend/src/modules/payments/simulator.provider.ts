@@ -16,6 +16,7 @@ type Notify = (providerTxId: string, outcome: PaymentOutcome) => Promise<void>
 
 interface SimPayment {
   amountMinor: number
+  refundedMinor: number
   status: PaymentOutcome | 'CANCELLED' | 'REFUNDED'
 }
 
@@ -28,7 +29,7 @@ export class SimulatorProvider implements PaymentProvider {
 
   async createPayment(input: CreatePaymentInput): Promise<PaymentSession> {
     const providerTxId = `sim_${crypto.randomUUID()}`
-    this.payments.set(providerTxId, { amountMinor: input.amountMinor, status: 'PENDING' })
+    this.payments.set(providerTxId, { amountMinor: input.amountMinor, refundedMinor: 0, status: 'PENDING' })
     return { providerTxId }
   }
 
@@ -47,9 +48,17 @@ export class SimulatorProvider implements PaymentProvider {
     if (p && p.status === 'PENDING') p.status = 'CANCELLED'
   }
 
-  async refund(providerTxId: string) {
+  private refundKeys = new Set<string>()
+
+  async refund(providerTxId: string, opts: { amountMinor?: number; idempotencyKey: string }) {
     const p = this.payments.get(providerTxId)
-    if (p) p.status = 'REFUNDED'
+    if (!p) throw new Error('Unknown simulated payment')
+    if (this.refundKeys.has(opts.idempotencyKey)) return // same refund retried: pay out once
+    const amount = opts.amountMinor ?? p.amountMinor - p.refundedMinor
+    if (p.refundedMinor + amount > p.amountMinor) throw new Error('Refund exceeds the amount paid')
+    this.refundKeys.add(opts.idempotencyKey)
+    p.refundedMinor += amount
+    if (p.refundedMinor === p.amountMinor) p.status = 'REFUNDED'
   }
 
   /** Plays out what the buyer and the "bank" do. Called from the dev-only simulator endpoint. */
