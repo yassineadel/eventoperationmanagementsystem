@@ -1,9 +1,14 @@
 import { Request, Response } from 'express'
 import { InventoryError, getAvailability, getMyHolds, holdSeats, holdStanding, releaseHold } from './inventory.service'
+import { isBadId } from '../../utils/badId'
 
 const handleError = (res: Response, error: unknown) => {
   if (error instanceof InventoryError) {
     res.status(error.status).json({ message: error.message })
+    return
+  }
+  if (isBadId(error)) {
+    res.status(404).json({ message: 'Not found' })
     return
   }
   console.error(error)

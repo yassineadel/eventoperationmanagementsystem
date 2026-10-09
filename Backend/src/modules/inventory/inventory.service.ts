@@ -140,8 +140,14 @@ export const expireHolds = async () => {
  * on it, because an overdue hold only delays a seat's release, it never oversells.
  */
 export const startHoldExpiryWorker = (intervalMs = 30_000) => {
+  let running = false
   const timer = setInterval(() => {
-    expireHolds().catch((e) => console.error('Hold expiry failed:', e))
+    // a slow run must finish before the next starts, or runs pile up and use every connection
+    if (running) return
+    running = true
+    expireHolds()
+      .catch((e) => console.error('Hold expiry failed:', e))
+      .finally(() => { running = false })
   }, intervalMs)
   timer.unref()
   return timer

@@ -1,6 +1,7 @@
 import prisma from '../../config/db'
 import { getPaymentProvider, toMinorUnits } from '../payments/payments.service'
 import { TicketError } from './tickets.service'
+import { guardTx } from '../../utils/guardTx'
 
 // User-requested refunds (FR-MTK-04 to FR-MTK-09, FR-ADM-16, BR-04 to BR-06, BR-09).
 // The buyer paid the ticket price plus a category-dependent service fee. On a user refund the
@@ -66,6 +67,7 @@ export const getRefundQuote = async (userId: string, ticketId: string) => {
  */
 export const requestRefund = async (userId: string, ticketId: string, reason?: string) => {
   return prisma.$transaction(async (tx) => {
+    await guardTx(tx)
     // Lock the ticket so two parallel requests cannot both pass the "no refund yet" check
     await tx.$executeRaw`SELECT id FROM tickets WHERE id = ${ticketId}::uuid FOR UPDATE`
     const quote = await getRefundQuote(userId, ticketId)
@@ -134,6 +136,7 @@ const audit = (adminId: string, action: string, refundId: string, details?: obje
  */
 export const approveRefund = async (adminId: string, refundId: string) => {
   const refund = await prisma.$transaction(async (tx) => {
+    await guardTx(tx)
     const { count } = await tx.refund.updateMany({
       where: { id: refundId, status: 'SUBMITTED' },
       data: { status: 'APPROVED', reviewedById: adminId, reviewedAt: new Date() },

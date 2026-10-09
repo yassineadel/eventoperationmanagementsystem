@@ -1,6 +1,8 @@
 import crypto from 'crypto'
 import { Prisma } from '@prisma/client'
 import prisma from '../../config/db'
+import { guardTx } from '../../utils/guardTx'
+import { sendTicketEmail } from './ticket-mail'
 
 type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
 
@@ -152,6 +154,12 @@ export const resendTicket = async (userId: string, ticketId: string) => {
   })
   if (recent >= 3) throw new TicketError('This ticket was re-sent recently. Please check your inbox and spam folder.', 429)
 
+  try {
+    await sendTicketEmail(ticketId)
+  } catch (e) {
+    console.error(`Ticket email for ${ticketId} failed:`, e instanceof Error ? e.message : e)
+    throw new TicketError('We could not send the email right now. Please try again in a few minutes.', 502)
+  }
   await prisma.notification.create({
     data: { userId, ticketId, type: 'TICKET_RESEND', subject: `Your ticket for ${ticket.event.name}` },
   })
@@ -164,6 +172,13 @@ export const resendTicket = async (userId: string, ticketId: string) => {
  * The ticket stays the same; only the holder changes, and the old QR code stops working.
  */
 export const transferTicket = async (userId: string, ticketId: string, recipientEmail: string) => {
+  const result = await moveTicket(userId, ticketId, recipientEmail)
+  // the new holder gets the ticket with its new QR; a failed email must not undo the transfer
+  sendTicketEmail(ticketId).catch((e) => console.error(`Ticket email for ${ticketId} failed:`, e.message))
+  return result
+}
+
+const moveTicket = async (userId: string, ticketId: string, recipientEmail: string) => {
   const email = String(recipientEmail ?? '').trim().toLowerCase()
   const ticket = await getMyTicket(userId, ticketId)
   if (ticket.status !== 'VALID') throw new TicketError('Only valid tickets for upcoming events can be transferred')
@@ -182,6 +197,7 @@ export const transferTicket = async (userId: string, ticketId: string, recipient
   if (openRefund) throw new TicketError('This ticket has a refund in progress and cannot be transferred')
 
   return prisma.$transaction(async (tx) => {
+    await guardTx(tx)
     // Conditional: only moves if nothing changed since we looked (no double transfer, cap respected)
     const { count } = await tx.ticket.updateMany({
       where: { id: ticketId, holderId: userId, status: 'VALID', transferCount: { lt: MAX_TRANSFERS } },

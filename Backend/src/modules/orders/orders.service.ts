@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client'
 import prisma from '../../config/db'
 import { InventoryError, attachHoldsToOrder, getCheckoutHolds } from '../inventory/inventory.service'
 import { failOrder, getPaymentProvider, startPayment } from '../payments/payments.service'
+import { guardTx } from '../../utils/guardTx'
 
 export const PAYMENT_WINDOW_MINUTES = 15
 
@@ -121,6 +122,7 @@ export const checkout = async (userId: string, input: CheckoutInput) => {
   for (let attempt = 0; ; attempt++) {
     try {
       order = await prisma.$transaction(async (tx) => {
+        await guardTx(tx)
         const created = await tx.order.create({
           data: {
             reference: newReference(),

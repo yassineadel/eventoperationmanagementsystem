@@ -5,6 +5,8 @@ import { issueTicketsForOrder } from '../tickets/tickets.service'
 import { PaymentOutcome, PaymentProvider } from './payment.port'
 import { SimulatorProvider } from './simulator.provider'
 import { StripeProvider } from './stripe.provider'
+import { guardTx } from '../../utils/guardTx'
+import { sendOrderTicketEmails } from '../tickets/ticket-mail'
 
 // Payment results move an order to its final state. Every transition is a conditional update on
 // the order's status, so a result can arrive twice, late, or in parallel with the cleanup worker
@@ -70,6 +72,7 @@ export const handlePaymentResult = async (providerTxId: string, outcome: Payment
 export const fulfilOrder = async (orderId: string): Promise<'PAID' | 'ALREADY_PAID' | 'REFUNDED'> => {
   try {
     const result = await prisma.$transaction(async (tx) => {
+      await guardTx(tx)
       const { count } = await tx.order.updateMany({
         where: { id: orderId, status: 'PENDING' },
         data: { status: 'PAID', paidAt: new Date() },
@@ -84,6 +87,10 @@ export const fulfilOrder = async (orderId: string): Promise<'PAID' | 'ALREADY_PA
       return 'PAID' as const
     }, { maxWait: 20_000, timeout: 20_000 })
 
+    if (result === 'PAID') {
+      // tickets are issued; email them without making the payment wait for Gmail
+      sendOrderTicketEmails(orderId).catch((e) => console.error(`Ticket emails for order ${orderId} failed:`, e))
+    }
     if (result !== 'LATE') return result
   } catch (e) {
     // The holds expired while paying and the places were sold to someone else (HF_SOLD_OUT), or a
@@ -91,6 +98,7 @@ export const fulfilOrder = async (orderId: string): Promise<'PAID' | 'ALREADY_PA
     const text = e instanceof Error ? e.message : String(e)
     if (!text.includes('HF_SOLD_OUT') && !text.includes('uidx_tickets_event_seat_live') && !text.includes('23505')) throw e
     await prisma.$transaction(async (tx) => {
+      await guardTx(tx)
       await tx.order.updateMany({ where: { id: orderId, status: 'PENDING' }, data: { status: 'FAILED' } })
       await releaseOrderHolds(tx, orderId)
     })
@@ -114,6 +122,7 @@ const refundOrderPayment = async (orderId: string) => {
  */
 export const failOrder = async (orderId: string, status: 'FAILED' | 'CANCELLED' = 'FAILED') => {
   return prisma.$transaction(async (tx) => {
+    await guardTx(tx)
     const { count } = await tx.order.updateMany({ where: { id: orderId, status: 'PENDING' }, data: { status } })
     if (count === 0) return false
     await tx.payment.updateMany({ where: { orderId, status: 'PENDING' }, data: { status: 'FAILED' } })
@@ -159,8 +168,14 @@ export const reconcilePayments = async () => {
 }
 
 export const startPaymentWorker = (intervalMs = 30_000) => {
+  let running = false
   const timer = setInterval(() => {
-    reconcilePayments().catch((e) => console.error('Payment reconciliation failed:', e))
+    // a slow run must finish before the next starts, or runs pile up and use every connection
+    if (running) return
+    running = true
+    reconcilePayments()
+      .catch((e) => console.error('Payment reconciliation failed:', e))
+      .finally(() => { running = false })
   }, intervalMs)
   timer.unref()
   return timer

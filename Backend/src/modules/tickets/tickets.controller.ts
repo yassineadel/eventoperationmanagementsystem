@@ -3,6 +3,7 @@ import { TicketError, getMyTicket, getMyTickets, getTransferChain, resendTicket,
 import {
   approveRefund, getMyRefunds, getRefundQuote, listRefunds, rejectRefund, requestRefund, settleRefund,
 } from './refunds.service'
+import { isBadId } from '../../utils/badId'
 
 const handle = (fn: (req: Request) => Promise<unknown>, okStatus = 200) => async (req: Request, res: Response) => {
   try {
@@ -11,6 +12,10 @@ const handle = (fn: (req: Request) => Promise<unknown>, okStatus = 200) => async
   } catch (error) {
     if (error instanceof TicketError) {
       res.status(error.status).json({ message: error.message })
+      return
+    }
+    if (isBadId(error)) {
+      res.status(404).json({ message: 'Not found' })
       return
     }
     console.error(error)

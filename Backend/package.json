@@ -30,6 +30,7 @@
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "prisma": "^5.22.0",
+    "qrcode": "^1.5.4",
     "stripe": "^23.0.0",
     "zod": "^4.4.3"
   },
@@ -44,6 +45,7 @@
     "@types/nodemailer": "^8.0.0",
     "@types/passport": "^1.0.17",
     "@types/passport-google-oauth20": "^2.0.17",
+    "@types/qrcode": "^1.5.6",
     "nodemon": "^3.1.14",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3"

@@ -1,9 +1,14 @@
 import { Request, Response } from 'express'
 import { OrderError, cancelMyOrder, checkout, getCart, getMyOrder, getMyOrders } from './orders.service'
+import { isBadId } from '../../utils/badId'
 
 const handleError = (res: Response, error: unknown) => {
   if (error instanceof OrderError) {
     res.status(error.status).json({ message: error.message })
+    return
+  }
+  if (isBadId(error)) {
+    res.status(404).json({ message: 'Not found' })
     return
   }
   console.error(error)
