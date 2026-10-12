@@ -14,7 +14,14 @@ const envSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),
   GOOGLE_CALLBACK_URL: z.url(),
-})
+  // Payments (FR-PAY-01): the local simulator unless Stripe keys are configured
+  PAYMENT_PROVIDER: z.enum(['simulator', 'stripe']).default('simulator'),
+  STRIPE_SECRET_KEY: z.string().startsWith('sk_').optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().startsWith('whsec_').optional(),
+}).refine(
+  (e) => e.PAYMENT_PROVIDER !== 'stripe' || (e.STRIPE_SECRET_KEY && e.STRIPE_WEBHOOK_SECRET),
+  { message: 'PAYMENT_PROVIDER=stripe needs STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET', path: ['PAYMENT_PROVIDER'] },
+)
 
 const parsed = envSchema.safeParse(process.env)
 
