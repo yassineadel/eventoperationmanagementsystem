@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import concertPanel from '../../assets/hafletna-concert.webp'
 import { authApi } from '../../lib/authApi'
 import { CODE_LENGTH, passwordChecks } from '../../lib/validation'
 import { usePreferences, useStrings } from './preferences'
@@ -9,17 +10,6 @@ function cx(...names: Array<string | false | null | undefined>) {
 }
 
 /* ---------------------------------------------------------------- icons */
-
-function TicketMark({ size = 34 }: { size?: number }) {
-  return (
-    <svg className="hf-mark" width={size} height={size} viewBox="0 0 34 34" aria-hidden="true">
-      <rect x="2" y="7" width="30" height="20" rx="6" fill="#FF6B5B" />
-      <circle cx="2" cy="17" r="4" className="hf-mark-notch" />
-      <circle cx="32" cy="17" r="4" className="hf-mark-notch" />
-      <path d="M12 11v12" stroke="#172033" strokeWidth="2" strokeDasharray="2 2.5" />
-    </svg>
-  )
-}
 
 function StrokeIcon({ children, size = 20 }: { children: ReactNode; size?: number }) {
   return (
@@ -111,34 +101,6 @@ function PreferenceControls({ variant }: { variant: 'main' | 'panel' }) {
 
 /* ------------------------------------------------------------- layout */
 
-function TicketCollage() {
-  const t = useStrings()
-  return (
-    <div className="hf-collage" aria-hidden="true">
-      <div className="hf-ticket hf-ticket--gold">
-        <span className="hf-ticket-tag">{t.chipTheatre}</span>
-        <span className="hf-ticket-title">{t.admitOne}</span>
-        <span className="hf-ticket-notch hf-ticket-notch--end" />
-      </div>
-      <div className="hf-ticket hf-ticket--coral">
-        <div className="hf-ticket-col">
-          <span className="hf-ticket-tag">{t.chipMusic}</span>
-          <span className="hf-ticket-title">{t.admitOne}</span>
-        </div>
-        <div className="hf-ticket-qr">
-          {[1, 0, 1, 1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0, 1, 1].map((on, i) => (
-            <span key={i} className={on ? 'is-on' : undefined} />
-          ))}
-        </div>
-        <span className="hf-ticket-notch hf-ticket-notch--start" />
-      </div>
-      <div className="hf-ticket hf-ticket--sky">
-        <span className="hf-ticket-tag">{t.chipComedy}</span>
-      </div>
-    </div>
-  )
-}
-
 type AuthLayoutProps = {
   title: string
   lead?: ReactNode
@@ -156,18 +118,10 @@ export function AuthLayout({ title, lead, children }: AuthLayoutProps) {
   return (
     <div className="hf-root" lang={lang} dir={lang === 'ar' ? 'rtl' : 'ltr'} data-theme={theme}>
       <aside className="hf-brand" aria-label={t.brandName}>
+        <img className="hf-brand-photo" src={concertPanel} alt={t.brandPhotoAlt} />
         <div className="hf-brand-top">
-          <div className="hf-wordmark">
-            <TicketMark />
-            <span>{t.brandName}</span>
-          </div>
           <PreferenceControls variant="panel" />
         </div>
-        <div className="hf-brand-copy">
-          <p className="hf-brand-head">{t.brandHeadline}</p>
-          <p className="hf-brand-text">{t.brandText}</p>
-        </div>
-        <TicketCollage />
       </aside>
 
       <main className="hf-main">

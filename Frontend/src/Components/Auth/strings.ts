@@ -2,12 +2,8 @@
 
 const en = {
   brandName: 'Hafletna',
-  brandHeadline: 'Every great night out starts with a ticket.',
-  brandText: 'Concerts, theatre, comedy and more across Egypt. Book in seconds and show your QR code at the gate.',
-  chipMusic: 'Live music',
-  chipTheatre: 'Theatre',
-  chipComedy: 'Stand-up comedy',
-  admitOne: 'Admit one',
+  brandPhotoAlt:
+    'Hafletna. Events bring us together. Unforgettable moments start here. Discover amazing events, book your tickets, and be part of unforgettable experiences with Hafletna.',
   langGroup: 'Language',
   toDark: 'Switch to dark mode',
   toLight: 'Switch to light mode',
@@ -115,12 +111,8 @@ export type Strings = Record<StringKey, string>
 
 const ar: Strings = {
   brandName: 'حفلتنا',
-  brandHeadline: 'كل سهرة رائعة تبدأ بتذكرة.',
-  brandText: 'حفلات موسيقية ومسرح وكوميديا والمزيد في جميع أنحاء مصر. احجز في ثوانٍ واعرض رمز QR عند البوابة.',
-  chipMusic: 'موسيقى حية',
-  chipTheatre: 'مسرح',
-  chipComedy: 'كوميديا',
-  admitOne: 'تذكرة دخول',
+  brandPhotoAlt:
+    'حفلتنا. الفعاليات تجمعنا. لحظات لا تُنسى تبدأ من هنا. اكتشف فعاليات رائعة، واحجز تذاكرك، وكن جزءًا من تجارب لا تُنسى مع حفلتنا.',
   langGroup: 'اللغة',
   toDark: 'التبديل إلى الوضع الداكن',
   toLight: 'التبديل إلى الوضع الفاتح',
