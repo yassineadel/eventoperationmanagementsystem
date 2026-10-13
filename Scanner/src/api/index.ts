@@ -1,6 +1,6 @@
-// The one place that decides which API the app talks to.
-// When the backend gate module is ready, replace mockApi with the real client here.
+import { httpLogin } from './http';
 import { mockApi } from './mock';
 
-export const api = mockApi;
+// Real backend for login; everything else stays fake until it's built
+export const api = { ...mockApi, login: httpLogin };
 export * from './types';
