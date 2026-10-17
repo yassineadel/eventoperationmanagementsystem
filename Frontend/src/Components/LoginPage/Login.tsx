@@ -7,6 +7,8 @@ import { Alert, AuthLayout, Divider, GoogleButton, PasswordField, SubmitButton, 
 import { friendlyError } from '../Auth/authErrors'
 import { useStrings } from '../Auth/preferences'
 import type { StringKey } from '../Auth/strings'
+import { useSession } from '../Auth/sessionContext'
+import { accountReturnPath } from '../../lib/sessionUser'
 
 type IncomingState = { email?: string; notice?: 'passwordSaved' | 'verified' } | null
 type Problem = { key: StringKey } | { text: string }
@@ -16,6 +18,8 @@ function Login() {
   const navigate = useNavigate()
   const location = useLocation()
   const [params] = useSearchParams()
+  const session = useSession()
+  const returnTo = accountReturnPath(params.get('returnTo'))
   const incoming = location.state as IncomingState
 
   const [email, setEmail] = useState(incoming?.email ?? '')
@@ -43,8 +47,9 @@ function Login() {
 
     setBusy(true)
     try {
-      await authApi.login(email.trim(), password)
-      navigate('/', { replace: true })
+      const { user } = await authApi.login(email.trim(), password)
+      session.acceptUser(user)
+      navigate(returnTo, { replace: true })
     } catch (err) {
       // Never say which of the two was wrong
       if (err instanceof ApiError && err.status === 401 && err.message === 'Invalid credentials') {
@@ -59,7 +64,7 @@ function Login() {
   return (
     <AuthLayout title={t.loginTitle} lead={t.loginLead}>
       {notice && !problem && <Alert tone="success">{notice}</Alert>}
-      <GoogleButton />
+      <GoogleButton returnTo={returnTo} />
       <Divider>{t.loginDivider}</Divider>
 
       <div aria-live="polite">{problem && <Alert tone="error">{'key' in problem ? t[problem.key] : problem.text}</Alert>}</div>
