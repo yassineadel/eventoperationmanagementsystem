@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { authApi } from '../../lib/authApi'
 import { Alert, AuthLayout } from '../Auth/AuthParts'
 import { useStrings } from '../Auth/preferences'
+import { useSession } from '../Auth/sessionContext'
+import { takeAccountReturn } from '../../lib/sessionUser'
 
 // Google sign-in returns here after the backend has set the session cookie.
 // We confirm the session with /me, then continue into the site.
@@ -10,13 +12,14 @@ function AuthCallback() {
   const t = useStrings()
   const navigate = useNavigate()
   const [failed, setFailed] = useState(false)
+  const { acceptUser } = useSession()
 
   useEffect(() => {
     let cancelled = false
     authApi
       .me()
-      .then(() => {
-        if (!cancelled) navigate('/', { replace: true })
+      .then(({ user }) => {
+        if (!cancelled) { acceptUser(user); navigate(takeAccountReturn(), { replace: true }) }
       })
       .catch(() => {
         if (!cancelled) setFailed(true)
@@ -24,7 +27,7 @@ function AuthCallback() {
     return () => {
       cancelled = true
     }
-  }, [navigate])
+  }, [navigate, acceptUser])
 
   return (
     <AuthLayout title={failed ? t.loginTitle : t.callbackWorking}>

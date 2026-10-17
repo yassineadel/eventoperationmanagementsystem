@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import concertPanel from '../../assets/hafletna-concert.webp'
 import { authApi } from '../../lib/authApi'
 import { CODE_LENGTH, passwordChecks } from '../../lib/validation'
+import { rememberAccountReturn } from '../../lib/sessionUser'
 import { usePreferences, useStrings } from './preferences'
 import './Auth.css'
 
@@ -63,7 +64,7 @@ export const BackArrow = () => (
 
 /* ------------------------------------------------- language and theme */
 
-function PreferenceControls({ variant }: { variant: 'main' | 'panel' }) {
+export function PreferenceControls({ variant }: { variant: 'main' | 'panel' }) {
   const t = useStrings()
   const { lang, theme, setLang, setTheme } = usePreferences()
   const dark = theme === 'dark'
@@ -245,7 +246,7 @@ type PasswordFieldProps = {
   value: string
   onChange: (value: string) => void
   onBlur?: () => void
-  autoComplete: 'current-password' | 'new-password'
+  autoComplete: 'current-password' | 'new-password' | 'off'
   error?: string | null
   disabled?: boolean
   describedBy?: string
@@ -418,10 +419,10 @@ export function SubmitButton({ busy, children, busyLabel }: { busy: boolean; chi
   )
 }
 
-export function GoogleButton() {
+export function GoogleButton({ returnTo = '/' }: { returnTo?: string }) {
   const t = useStrings()
   return (
-    <a className="hf-google" href={authApi.googleUrl}>
+    <a className="hf-google" href={authApi.googleUrl} onClick={() => rememberAccountReturn(returnTo)}>
       <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
         <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.8 1.1 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" />
         <path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3 0 5.8 1.1 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />

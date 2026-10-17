@@ -47,6 +47,6 @@ export function postJson<T>(path: string, body: unknown) {
   })
 }
 
-export function getJson<T>(path: string) {
-  return request<T>(path, { method: 'GET' })
+export function getJson<T>(path: string, init: Pick<RequestInit, 'signal'> = {}) {
+  return request<T>(path, { method: 'GET', ...init })
 }

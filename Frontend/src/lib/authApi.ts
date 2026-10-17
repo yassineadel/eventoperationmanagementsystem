@@ -26,7 +26,8 @@ export const authApi = {
   forgotPassword: (email: string) => postJson<MessageResponse>('/api/auth/forgot-password', { email }),
   resetPassword: (email: string, code: string, newPassword: string) =>
     postJson<MessageResponse>('/api/auth/reset-password', { email, code, newPassword }),
-  me: () => getJson<{ user: AuthUser }>('/api/auth/me'),
+  me: (signal?: AbortSignal) => getJson<{ user: AuthUser }>('/api/auth/me', { signal }),
+  logout: () => postJson<MessageResponse>('/api/auth/logout', {}),
   googleUrl: `${API_URL}/api/auth/google`,
 }
 
