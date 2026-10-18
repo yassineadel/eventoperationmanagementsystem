@@ -8,6 +8,11 @@ import { generalLimiter } from './middleware/rateLimit.middleware'
 import authRoutes from './modules/auth/auth.routes'
 import eventRoutes from './modules/events/events.routes'
 import ticketCategoryRoutes from './modules/tickets-categories/ticket-categories.routes'
+import venueRoutes from './modules/venues/venues.routes'
+import inventoryRoutes from './modules/inventory/inventory.routes'
+import orderRoutes from './modules/orders/orders.routes'
+import paymentRoutes from './modules/payments/payments.routes'
+import { ticketRoutes, refundRoutes } from './modules/tickets/tickets.routes'
 import './config/google'
 
 const app = express()
@@ -26,6 +31,9 @@ app.use(
   })
 )
 
+// Stripe webhooks are verified against the exact bytes sent, so keep that body raw
+app.use('/api/payments/stripe/webhook', express.raw({ type: 'application/json', limit: '1mb' }))
+
 // Parse JSON, with a size cap so nobody can send a 500MB body
 app.use(express.json({ limit: '10kb' }))
 app.use(cookieParser())
@@ -40,6 +48,12 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes)
 app.use('/api/events', eventRoutes)
 app.use('/api/ticket-categories', ticketCategoryRoutes)
+app.use('/api/venues', venueRoutes)
+app.use('/api/inventory', inventoryRoutes)
+app.use('/api/orders', orderRoutes)
+app.use('/api/payments', paymentRoutes)
+app.use('/api/tickets', ticketRoutes)
+app.use('/api/refunds', refundRoutes)
 
 // Unknown route
 app.use((req, res) => {

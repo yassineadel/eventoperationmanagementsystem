@@ -7,186 +7,600 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model events {
-  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organizer_id      String              @db.Uuid
-  venue_id          String              @db.Uuid
-  title             String              @db.VarChar(300)
+enum UserRole {
+  USER
+  ADMIN
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  fullName     String   @map("full_name") @db.VarChar(200)
+  email        String   @unique @db.VarChar(255)
+  passwordHash String?  @map("password_hash") @db.VarChar(255)
+  googleId     String?  @unique @map("google_id") @db.VarChar(255)
+  phone        String?  @db.VarChar(30)
+  role         UserRole @default(USER)
+
+  isBlocked     Boolean   @default(false) @map("is_blocked")
+  blockedReason String?   @map("blocked_reason")
+  blockedAt     DateTime? @map("blocked_at") @db.Timestamptz(6)
+  blockedById   String?   @map("blocked_by_id") @db.Uuid
+  blockedBy     User?     @relation("UserBlocks", fields: [blockedById], references: [id])
+  blockedUsers  User[]    @relation("UserBlocks")
+
+  marketingOptIn Boolean @default(false) @map("marketing_opt_in")
+  isSynthetic    Boolean @default(false) @map("is_synthetic")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  createdEvents     Event[]
+  orders            Order[]
+  purchasedTickets  Ticket[]       @relation("TicketPurchaser")
+  heldTickets       Ticket[]       @relation("TicketHolder")
+  holds             Hold[]
+  transfersSent     Transfer[]     @relation("TransferFrom")
+  transfersReceived Transfer[]     @relation("TransferTo")
+  refundsRequested  Refund[]       @relation("RefundRequestedBy")
+  refundsReviewed   Refund[]       @relation("RefundReviewedBy")
+  refundsPaid       Refund[]       @relation("RefundPayee")
+  notifications     Notification[]
+  auditLogs         AuditLog[]
+
+  @@map("users")
+}
+
+// ─── Catalogue ──────────────────────────────────────────────────────────────
+// Venue layouts are authored as JSON in src/modules/venues/layouts and seeded into
+// venues + seats/venue_zones. Seats and zones carry a categoryKey (e.g. "VIP") and are
+// matched to an event's TicketCategory by (venue, categoryKey) — a venue is reused by
+// many events, each pricing its own categories.
+
+enum VenueType {
+  SEATED
+  STANDING
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  CANCELLED
+}
+
+model Venue {
+  id        String    @id @default(uuid()) @db.Uuid
+  slug      String    @unique @db.VarChar(100)
+  name      String    @db.VarChar(200)
+  type      VenueType
+  address   String
+  city      String    @db.VarChar(100)
+  country   String    @db.VarChar(100)
+  latitude  Decimal   @db.Decimal(9, 6)
+  longitude Decimal   @db.Decimal(9, 6)
+  capacity  Int
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  seats  Seat[]
+  zones  VenueZone[]
+  events Event[]
+
+  @@index([city])
+  @@map("venues")
+}
+
+model Seat {
+  id          String @id @default(uuid()) @db.Uuid
+  venueId     String @map("venue_id") @db.Uuid
+  section     String @db.VarChar(20)
+  row         String @db.VarChar(10)
+  number      Int
+  categoryKey String @map("category_key") @db.VarChar(50)
+
+  venue   Venue    @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  tickets Ticket[]
+  holds   Hold[]
+
+  @@unique([venueId, section, row, number])
+  @@index([venueId, categoryKey])
+  @@map("seats")
+}
+
+model VenueZone {
+  id          String @id @default(uuid()) @db.Uuid
+  venueId     String @map("venue_id") @db.Uuid
+  key         String @db.VarChar(50)
+  label       String @db.VarChar(100)
+  categoryKey String @map("category_key") @db.VarChar(50)
+  capacity    Int
+  // rectangle in a 0–100 coordinate space, used to draw the zone (FR-TKT-20)
+  x           Float
+  y           Float
+  width       Float
+  height      Float
+
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@unique([venueId, key])
+  @@map("venue_zones")
+}
+
+model Event {
+  id              String    @id @default(uuid()) @db.Uuid
+  venueId         String    @map("venue_id") @db.Uuid
+  createdById     String    @map("created_by_id") @db.Uuid
+  name            String    @db.VarChar(300)
+  category        String    @db.VarChar(50)
+  performer       String?   @db.VarChar(200)
+  description     String
+  about           String?
+  images          String[]
+  startAt         DateTime  @map("start_at") @db.Timestamptz(6)
+  doorsOpenAt     DateTime  @map("doors_open_at") @db.Timestamptz(6)
+  durationMinutes Int       @map("duration_minutes")
+  // age restrictions, prohibited items, entry conditions, refund policy (FR-EVT-07)
+  policies        Json?
+  // [{ question, answer }] — also feeds the chatbot retrieval layer (FR-EVT-08)
+  faqs            Json?
+  salesOpenAt     DateTime? @map("sales_open_at") @db.Timestamptz(6)
+  salesCloseAt    DateTime? @map("sales_close_at") @db.Timestamptz(6)
+
+  // past events are hidden by date, never deleted (FR-LST-02/03, BR-19)
+  status             EventStatus @default(DRAFT)
+  publishedAt        DateTime?   @map("published_at") @db.Timestamptz(6)
+  cancelledAt        DateTime?   @map("cancelled_at") @db.Timestamptz(6)
+  cancellationReason String?     @map("cancellation_reason")
+
+  isSynthetic Boolean  @default(false) @map("is_synthetic")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  venue            Venue            @relation(fields: [venueId], references: [id])
+  createdBy        User             @relation(fields: [createdById], references: [id])
+  ticketCategories TicketCategory[]
+  orders           Order[]
+  tickets          Ticket[]
+  holds            Hold[]
+
+  staffAssignments StaffEventAssignment[]
+  scanRecords      ScanRecord[]
+
+  @@index([status, startAt])
+  @@index([category])
+  @@index([venueId])
+  @@map("events")
+}
+
+model TicketCategory {
+  id                String  @id @default(uuid()) @db.Uuid
+  eventId           String  @map("event_id") @db.Uuid
+  // matches Seat.categoryKey / VenueZone.categoryKey of the event's venue
+  categoryKey       String  @map("category_key") @db.VarChar(50)
+  name              String  @db.VarChar(100)
   description       String?
-  start_at          DateTime            @db.Timestamptz(6)
-  end_at            DateTime            @db.Timestamptz(6)
-  status            String              @default("draft") @db.VarChar(20)
-  created_at        DateTime            @default(now()) @db.Timestamptz(6)
-  users             users               @relation(fields: [organizer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  venues            venues              @relation(fields: [venue_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  invitations       invitations[]
-  staff_profiles    staff_profiles[]
-  ticket_categories ticket_categories[]
+  // fixed once the event is published (FR-ADM-08, BR-15)
+  price             Decimal @db.Decimal(10, 2)
+  // per category, retained on user refunds (BR-05, FR-MTK-06/07)
+  serviceFeePercent Decimal @map("service_fee_percent") @db.Decimal(5, 2)
+  capacity          Int
+  // Live availability (FR-TKT-02/03, BR-10): free = capacity - heldCount - soldCount.
+  // Changed only by conditional UPDATEs in the inventory module; a CHECK constraint in the
+  // migration keeps 0 <= held + sold <= capacity, and both can be recomputed from holds/tickets.
+  heldCount         Int     @default(0) @map("held_count")
+  soldCount         Int     @default(0) @map("sold_count")
 
-  @@index([organizer_id], map: "idx_events_organizer")
-  @@index([start_at], map: "idx_events_start")
+  event      Event       @relation(fields: [eventId], references: [id])
+  orderItems OrderItem[]
+  tickets    Ticket[]
+  holds      Hold[]
+
+  @@unique([eventId, categoryKey])
+  @@map("ticket_categories")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model guest_profiles {
-  id                                     String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id                                String  @unique @db.Uuid
-  tier                                   String? @default("standard") @db.VarChar(30)
-  invited_by                             String? @db.Uuid
-  notes                                  String?
-  users_guest_profiles_invited_byTousers users?  @relation("guest_profiles_invited_byTousers", fields: [invited_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  users_guest_profiles_user_idTousers    users   @relation("guest_profiles_user_idTousers", fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+// ─── Ordering & ticketing ───────────────────────────────────────────────────
+
+enum OrderStatus {
+  PENDING // awaiting payment
+  PAID
+  FAILED
+  CANCELLED // abandoned or expired before payment
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model invitations {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  event_id   String   @db.Uuid
-  invited_by String   @db.Uuid
-  email      String   @db.VarChar(255)
-  role       String   @default("guest") @db.VarChar(30)
-  token      String   @unique @db.VarChar(512)
-  status     String   @default("pending") @db.VarChar(20)
-  expires_at DateTime @db.Timestamptz(6)
-  events     events   @relation(fields: [event_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  users      users    @relation(fields: [invited_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED // succeeded too late (order already cancelled) and was given back automatically
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model notifications {
-  id       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id  String    @db.Uuid
-  order_id String?   @db.Uuid
-  channel  String    @db.VarChar(20)
-  subject  String?   @db.VarChar(300)
-  status   String    @default("pending") @db.VarChar(20)
-  sent_at  DateTime? @db.Timestamptz(6)
-  orders   orders?   @relation(fields: [order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  users    users     @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
-  @@index([user_id], map: "idx_notifications_user")
+// "transferred away" and "expired" in FR-MTK-17 are derived per viewer / by date
+enum TicketStatus {
+  VALID
+  USED
+  REFUNDED
+  VOID // event cancelled or holder blocked (FR-ADM-13, FR-ADM-21)
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model order_items {
-  id                 String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  order_id           String            @db.Uuid
-  ticket_category_id String            @db.Uuid
-  quantity           Int
-  unit_price         Decimal           @db.Decimal(10, 2)
-  orders             orders            @relation(fields: [order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  ticket_categories  ticket_categories @relation(fields: [ticket_category_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  tickets            tickets[]
+enum HoldStatus {
+  ACTIVE
+  CONVERTED // became an order
+  RELEASED // user removed it
+  EXPIRED
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model orders {
-  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id       String          @db.Uuid
-  status        String          @default("pending") @db.VarChar(20)
-  total_amount  Decimal         @db.Decimal(10, 2)
-  expires_at    DateTime?       @db.Timestamptz(6)
-  created_at    DateTime        @default(now()) @db.Timestamptz(6)
-  notifications notifications[]
-  order_items   order_items[]
-  users         users           @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  payments      payments?
-
-  @@index([status], map: "idx_orders_status")
-  @@index([user_id], map: "idx_orders_user")
+enum RefundType {
+  USER_REQUESTED // price minus service fee (BR-04)
+  EVENT_CANCELLED // full refund (BR-12)
+  USER_BLOCKED // involuntary (BR-14)
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model payments {
-  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  order_id String @unique(map: "uidx_payments_order_success") @db.Uuid
-  provider       String    @db.VarChar(50)
-  provider_tx_id String    @unique @db.VarChar(255)
-  amount         Decimal   @db.Decimal(10, 2)
-  currency       String    @default("USD") @db.Char(3)
-  status         String    @db.VarChar(20)
-  paid_at        DateTime? @db.Timestamptz(6)
-  orders         orders    @relation(fields: [order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+enum RefundStatus {
+  SUBMITTED
+  APPROVED
+  REJECTED
+  SETTLED
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model staff_profiles {
-  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id      String    @unique @db.Uuid
-  event_id     String    @db.Uuid
-  position     String?   @db.VarChar(100)
-  access_level String    @default("scanner") @db.VarChar(30)
-  shift_start  DateTime? @db.Timestamptz(6)
-  shift_end    DateTime? @db.Timestamptz(6)
-  assigned_at  DateTime  @default(now()) @db.Timestamptz(6)
-  events       events    @relation(fields: [event_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  users        users     @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+model Order {
+  id               String      @id @default(uuid()) @db.Uuid
+  // human-readable, quoted to support (FR-CHK-12), e.g. HF-7K2Q9M
+  reference        String      @unique @db.VarChar(20)
+  userId           String      @map("user_id") @db.Uuid
+  eventId          String      @map("event_id") @db.Uuid
+  status           OrderStatus @default(PENDING)
+  subtotal         Decimal     @db.Decimal(10, 2)
+  serviceFeeTotal  Decimal     @map("service_fee_total") @db.Decimal(10, 2)
+  total            Decimal     @db.Decimal(10, 2)
+  currency         String      @default("EGP") @db.Char(3)
+  // guards against double charging on duplicate submission (FR-CHK-10)
+  idempotencyKey   String      @unique @map("idempotency_key") @db.VarChar(100)
+  // when the buyer ticked the policy box at checkout (FR-CHK-04)
+  policyAcceptedAt DateTime?   @map("policy_accepted_at") @db.Timestamptz(6)
+  // pay before this or the order is cancelled and its holds released (FR-CHK-09)
+  expiresAt        DateTime?   @map("expires_at") @db.Timestamptz(6)
+  paidAt           DateTime?   @map("paid_at") @db.Timestamptz(6)
+  isSynthetic      Boolean     @default(false) @map("is_synthetic")
+  createdAt        DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user          User           @relation(fields: [userId], references: [id])
+  event         Event          @relation(fields: [eventId], references: [id])
+  items         OrderItem[]
+  payment       Payment?
+  holds         Hold[]
+  notifications Notification[]
+
+  @@index([userId])
+  @@index([eventId, status])
+  @@map("orders")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model ticket_categories {
-  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  event_id        String        @db.Uuid
-  name            String        @db.VarChar(100)
-  description     String?
-  price           Decimal       @db.Decimal(10, 2)
-  total_seats     Int
-  seats_remaining Int
-  sale_starts_at  DateTime?     @db.Timestamptz(6)
-  sale_ends_at    DateTime?     @db.Timestamptz(6)
-  order_items     order_items[]
-  events          events        @relation(fields: [event_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+model OrderItem {
+  id                String  @id @default(uuid()) @db.Uuid
+  orderId           String  @map("order_id") @db.Uuid
+  ticketCategoryId  String  @map("ticket_category_id") @db.Uuid
+  quantity          Int
+  unitPrice         Decimal @map("unit_price") @db.Decimal(10, 2)
+  // snapshot at purchase so refunds use the fee the buyer agreed to
+  serviceFeePercent Decimal @map("service_fee_percent") @db.Decimal(5, 2)
+  serviceFeeAmount  Decimal @map("service_fee_amount") @db.Decimal(10, 2)
 
-  @@index([event_id], map: "idx_ticket_cat_event")
+  order          Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  ticketCategory TicketCategory @relation(fields: [ticketCategoryId], references: [id])
+  tickets        Ticket[]
+
+  @@index([orderId])
+  @@map("order_items")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model tickets {
-  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  order_item_id String      @db.Uuid
-  user_id       String      @db.Uuid
-  ticket_code   String      @unique @db.VarChar(50)
-  qr_hash       String      @unique @db.VarChar(512)
-  status        String      @default("issued") @db.VarChar(20)
-  issued_at     DateTime    @default(now()) @db.Timestamptz(6)
-  scanned_at    DateTime?   @db.Timestamptz(6)
-  order_items   order_items @relation(fields: [order_item_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  users         users       @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+model Payment {
+  id           String        @id @default(uuid()) @db.Uuid
+  orderId      String        @unique @map("order_id") @db.Uuid
+  provider     String        @db.VarChar(50)
+  providerTxId String?       @unique @map("provider_tx_id") @db.VarChar(255)
+  amount       Decimal       @db.Decimal(10, 2)
+  currency     String        @default("EGP") @db.Char(3)
+  status       PaymentStatus @default(PENDING)
+  // gateway callback payload, kept for disputes
+  rawResponse  Json?         @map("raw_response")
+  paidAt       DateTime?     @map("paid_at") @db.Timestamptz(6)
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  @@index([status], map: "idx_tickets_status")
-  @@index([user_id], map: "idx_tickets_user")
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@map("payments")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model users {
-  id                                              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  first_name                                      String           @db.VarChar(100)
-  last_name                                       String           @db.VarChar(100)
-  email                                           String           @unique @db.VarChar(255)
-  password_hash                                   String           @db.VarChar(255)
-  phone                                           String?          @db.VarChar(30)
-  role                                            String           @default("customer") @db.VarChar(20)
-  is_verified                                     Boolean          @default(false)
-  created_at                                      DateTime         @default(now()) @db.Timestamptz(6)
-  updated_at                                      DateTime         @default(now()) @db.Timestamptz(6)
-  events                                          events[]
-  guest_profiles_guest_profiles_invited_byTousers guest_profiles[] @relation("guest_profiles_invited_byTousers")
-  guest_profiles_guest_profiles_user_idTousers    guest_profiles?  @relation("guest_profiles_user_idTousers")
-  invitations                                     invitations[]
-  notifications                                   notifications[]
-  orders                                          orders[]
-  staff_profiles                                  staff_profiles?
-  tickets                                         tickets[]
+model Ticket {
+  id               String       @id @default(uuid()) @db.Uuid
+  orderItemId      String       @map("order_item_id") @db.Uuid
+  eventId          String       @map("event_id") @db.Uuid
+  ticketCategoryId String       @map("ticket_category_id") @db.Uuid
+  seatId           String?      @map("seat_id") @db.Uuid
+  attendeeName     String       @map("attendee_name") @db.VarChar(200)
+  // original payer; kept for the audit trail and manual settlement of transferred tickets
+  purchaserId      String       @map("purchaser_id") @db.Uuid
+  // current holder; changes on transfer
+  holderId         String       @map("holder_id") @db.Uuid
+  // random, unguessable; replaced on transfer so only one valid code exists (FR-MTK-13, NFR-13)
+  qrToken          String       @unique @map("qr_token") @db.VarChar(128)
+  transferCount    Int          @default(0) @map("transfer_count")
+  status           TicketStatus @default(VALID)
+  usedAt           DateTime?    @map("used_at") @db.Timestamptz(6)
+  isSynthetic      Boolean      @default(false) @map("is_synthetic")
+  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  orderItem      OrderItem      @relation(fields: [orderItemId], references: [id])
+  event          Event          @relation(fields: [eventId], references: [id])
+  ticketCategory TicketCategory @relation(fields: [ticketCategoryId], references: [id])
+  seat           Seat?          @relation(fields: [seatId], references: [id])
+  purchaser      User           @relation("TicketPurchaser", fields: [purchaserId], references: [id])
+  holder         User           @relation("TicketHolder", fields: [holderId], references: [id])
+  transfers      Transfer[]
+  refunds        Refund[]
+  scanRecords    ScanRecord[]
+  notifications  Notification[]
+
+  // A seat may be sold once per event among live tickets. Prisma cannot express a
+  // partial unique index, so it goes in the migration SQL:
+  //   CREATE UNIQUE INDEX uidx_tickets_event_seat_live ON tickets (event_id, seat_id)
+  //   WHERE seat_id IS NOT NULL AND status IN ('VALID', 'USED');
+  @@index([eventId, holderId])
+  @@index([holderId])
+  @@map("tickets")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model venues {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name           String   @db.VarChar(200)
-  address        String
-  city           String   @db.VarChar(100)
-  country        String   @db.VarChar(100)
-  total_capacity Int
-  events         events[]
+// Inventory is held at selection, not at payment (BRD §4.5 decision, FR-TKT-10/11)
+model Hold {
+  id               String     @id @default(uuid()) @db.Uuid
+  userId           String     @map("user_id") @db.Uuid
+  eventId          String     @map("event_id") @db.Uuid
+  ticketCategoryId String     @map("ticket_category_id") @db.Uuid
+  // seated: one hold per seat; standing: seatId null and quantity may be > 1
+  seatId           String?    @map("seat_id") @db.Uuid
+  quantity         Int        @default(1)
+  // one name per place, collected at checkout and copied onto the tickets (FR-TKT-06)
+  attendeeNames    String[]   @default([]) @map("attendee_names")
+  status           HoldStatus @default(ACTIVE)
+  expiresAt        DateTime   @map("expires_at") @db.Timestamptz(6)
+  orderId          String?    @map("order_id") @db.Uuid
+  createdAt        DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user           User           @relation(fields: [userId], references: [id])
+  event          Event          @relation(fields: [eventId], references: [id])
+  ticketCategory TicketCategory @relation(fields: [ticketCategoryId], references: [id])
+  seat           Seat?          @relation(fields: [seatId], references: [id])
+  order          Order?         @relation(fields: [orderId], references: [id])
+
+  // Partial unique index for the migration SQL (one active hold per seat per event):
+  //   CREATE UNIQUE INDEX uidx_holds_seat_active ON holds (event_id, seat_id)
+  //   WHERE seat_id IS NOT NULL AND status = 'ACTIVE';
+  @@index([status, expiresAt])
+  @@index([userId, eventId])
+  @@map("holds")
+}
+
+// Transfer chain per ticket (FR-MTK-15); sequence 1..3 enforces the cap (BR-07)
+model Transfer {
+  id         String   @id @default(uuid()) @db.Uuid
+  ticketId   String   @map("ticket_id") @db.Uuid
+  fromUserId String   @map("from_user_id") @db.Uuid
+  toUserId   String   @map("to_user_id") @db.Uuid
+  sequence   Int
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  ticket   Ticket @relation(fields: [ticketId], references: [id])
+  fromUser User   @relation("TransferFrom", fields: [fromUserId], references: [id])
+  toUser   User   @relation("TransferTo", fields: [toUserId], references: [id])
+
+  @@unique([ticketId, sequence])
+  @@map("transfers")
+}
+
+model Refund {
+  id                 String       @id @default(uuid()) @db.Uuid
+  ticketId           String       @map("ticket_id") @db.Uuid
+  type               RefundType
+  status             RefundStatus @default(SUBMITTED)
+  // null for involuntary refunds started by the system/admin
+  requestedById      String?      @map("requested_by_id") @db.Uuid
+  // who receives the money: the current holder at the time of refund (BR-13, Q24 —
+  // decided Oct 2026); for transferred tickets settlement is handled manually
+  payeeId            String       @map("payee_id") @db.Uuid
+  reason             String?
+  amount             Decimal      @db.Decimal(10, 2)
+  serviceFeeRetained Decimal      @default(0) @map("service_fee_retained") @db.Decimal(10, 2)
+  reviewedById       String?      @map("reviewed_by_id") @db.Uuid
+  reviewedAt         DateTime?    @map("reviewed_at") @db.Timestamptz(6)
+  rejectionReason    String?      @map("rejection_reason")
+  settledAt          DateTime?    @map("settled_at") @db.Timestamptz(6)
+  createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  ticket      Ticket @relation(fields: [ticketId], references: [id])
+  requestedBy User?  @relation("RefundRequestedBy", fields: [requestedById], references: [id])
+  payee       User   @relation("RefundPayee", fields: [payeeId], references: [id])
+  reviewedBy  User?  @relation("RefundReviewedBy", fields: [reviewedById], references: [id])
+
+  @@index([status])
+  @@index([ticketId])
+  @@map("refunds")
+}
+
+// ─── Gate (mobile app) ──────────────────────────────────────────────────────
+// Staff are separate from website users: no self-registration (FR-APP-01).
+
+enum StaffRole {
+  SCANNER
+  APP_ADMIN
+}
+
+enum ScanMethod {
+  QR
+  MANUAL // admitted from the guest list by name (FR-APP-25)
+}
+
+enum ScanResult {
+  ACCEPTED
+  REJECTED
+}
+
+// rejection reasons shown to staff (FR-APP-14)
+enum ScanRejectReason {
+  INVALID
+  ALREADY_USED
+  REFUNDED
+  TRANSFERRED_AWAY
+  WRONG_EVENT
+  EVENT_CANCELLED
+}
+
+model StaffAccount {
+  id           String    @id @default(uuid()) @db.Uuid
+  fullName     String    @map("full_name") @db.VarChar(200)
+  username     String    @unique @db.VarChar(100)
+  passwordHash String    @map("password_hash") @db.VarChar(255)
+  role         StaffRole @default(SCANNER)
+  isBlocked    Boolean   @default(false) @map("is_blocked")
+  blockedAt    DateTime? @map("blocked_at") @db.Timestamptz(6)
+  createdById  String?   @map("created_by_id") @db.Uuid
+  lastLoginAt  DateTime? @map("last_login_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  createdBy          StaffAccount?          @relation("StaffCreatedBy", fields: [createdById], references: [id])
+  createdStaff       StaffAccount[]         @relation("StaffCreatedBy")
+  assignments        StaffEventAssignment[] @relation("AssignmentStaff")
+  assignmentsGranted StaffEventAssignment[] @relation("AssignmentGrantedBy")
+  devicesActivated   Device[]
+  scanRecords        ScanRecord[]
+  auditLogs          AuditLog[]
+
+  @@map("staff_accounts")
+}
+
+// Per-event access, granted and revoked by the app admin (FR-APP-02/04)
+model StaffEventAssignment {
+  id          String    @id @default(uuid()) @db.Uuid
+  staffId     String    @map("staff_id") @db.Uuid
+  eventId     String    @map("event_id") @db.Uuid
+  grantedById String    @map("granted_by_id") @db.Uuid
+  validFrom   DateTime? @map("valid_from") @db.Timestamptz(6)
+  validUntil  DateTime? @map("valid_until") @db.Timestamptz(6)
+  revokedAt   DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  staff     StaffAccount @relation("AssignmentStaff", fields: [staffId], references: [id])
+  event     Event        @relation(fields: [eventId], references: [id])
+  grantedBy StaffAccount @relation("AssignmentGrantedBy", fields: [grantedById], references: [id])
+
+  @@unique([staffId, eventId])
+  @@index([eventId])
+  @@map("staff_event_assignments")
+}
+
+// A device must be activated before it can validate tickets (FR-APP-05/06)
+model Device {
+  id               String    @id @default(uuid()) @db.Uuid
+  deviceIdentifier String    @unique @map("device_identifier") @db.VarChar(255)
+  label            String?   @db.VarChar(100)
+  platform         String?   @db.VarChar(50)
+  isActive         Boolean   @default(false) @map("is_active")
+  activatedAt      DateTime? @map("activated_at") @db.Timestamptz(6)
+  activatedById    String?   @map("activated_by_id") @db.Uuid
+  deactivatedAt    DateTime? @map("deactivated_at") @db.Timestamptz(6)
+  lastSeenAt       DateTime? @map("last_seen_at") @db.Timestamptz(6)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  activatedBy StaffAccount? @relation(fields: [activatedById], references: [id])
+  scanRecords ScanRecord[]
+
+  @@map("devices")
+}
+
+// Every admission attempt, online or offline (FR-APP-15/25/26/27)
+model ScanRecord {
+  id              String            @id @default(uuid()) @db.Uuid
+  // generated on the device, so re-sending an offline batch never duplicates rows
+  clientScanId    String            @unique @map("client_scan_id") @db.VarChar(100)
+  eventId         String            @map("event_id") @db.Uuid
+  // null when the scanned code matches no ticket
+  ticketId        String?           @map("ticket_id") @db.Uuid
+  scannedCode     String?           @map("scanned_code") @db.VarChar(512)
+  staffId         String            @map("staff_id") @db.Uuid
+  deviceId        String            @map("device_id") @db.Uuid
+  method          ScanMethod        @default(QR)
+  result          ScanResult
+  rejectReason    ScanRejectReason? @map("reject_reason")
+  recordedOffline Boolean           @default(false) @map("recorded_offline")
+  // flagged when sync finds the same ticket admitted twice while offline (FR-APP-27)
+  isConflict      Boolean           @default(false) @map("is_conflict")
+  scannedAt       DateTime          @map("scanned_at") @db.Timestamptz(6)
+  syncedAt        DateTime          @default(now()) @map("synced_at") @db.Timestamptz(6)
+
+  event  Event        @relation(fields: [eventId], references: [id])
+  ticket Ticket?      @relation(fields: [ticketId], references: [id])
+  staff  StaffAccount @relation(fields: [staffId], references: [id])
+  device Device       @relation(fields: [deviceId], references: [id])
+
+  @@index([eventId, result])
+  @@index([ticketId])
+  @@map("scan_records")
+}
+
+// ─── Cross-cutting ──────────────────────────────────────────────────────────
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+// Record that an email was queued/sent (NFR-10 retries use attempts/lastError)
+model Notification {
+  id        String             @id @default(uuid()) @db.Uuid
+  userId    String             @map("user_id") @db.Uuid
+  orderId   String?            @map("order_id") @db.Uuid
+  ticketId  String?            @map("ticket_id") @db.Uuid
+  // e.g. VERIFICATION_CODE, ORDER_CONFIRMATION, TICKET_RESEND, TRANSFER_SENT, EVENT_CANCELLED
+  type      String             @db.VarChar(50)
+  channel   String             @default("EMAIL") @db.VarChar(20)
+  subject   String?            @db.VarChar(300)
+  status    NotificationStatus @default(PENDING)
+  attempts  Int                @default(0)
+  lastError String?            @map("last_error")
+  sentAt    DateTime?          @map("sent_at") @db.Timestamptz(6)
+  createdAt DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user   User    @relation(fields: [userId], references: [id])
+  order  Order?  @relation(fields: [orderId], references: [id])
+  ticket Ticket? @relation(fields: [ticketId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@map("notifications")
+}
+
+// Written by the system, never edited or deleted (FR-ADM-04)
+model AuditLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  // exactly one of these is set: a website admin or a mobile app admin
+  actorUserId  String?  @map("actor_user_id") @db.Uuid
+  actorStaffId String?  @map("actor_staff_id") @db.Uuid
+  // e.g. EVENT_CANCELLED, USER_BLOCKED, REFUND_APPROVED, DEVICE_ACTIVATED
+  action       String   @db.VarChar(100)
+  entityType   String   @map("entity_type") @db.VarChar(50)
+  entityId     String   @map("entity_id") @db.Uuid
+  details      Json?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  actorUser  User?         @relation(fields: [actorUserId], references: [id])
+  actorStaff StaffAccount? @relation(fields: [actorStaffId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
 }

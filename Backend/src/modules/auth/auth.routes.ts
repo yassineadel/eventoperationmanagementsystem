@@ -36,21 +36,10 @@ router.get('/google', passport.authenticate('google', { scope: ['profile', 'emai
 router.get('/me', protect, me)
 router.get(
   '/google/callback',
-  passport.authenticate('google', { session: false }),
-  (req, res) => {
-    const user = req.user as any
-
-    const token = jwt.sign({ id: user.id, role: user.role }, env.JWT_SECRET, {
-      expiresIn: '7d',
-    })
-
-    res.redirect(`${env.FRONTEND_URL}/auth/callback?token=${token}`)
-  }
-)
-
-router.get(
-  '/google/callback',
-  passport.authenticate('google', { session: false }),
+  passport.authenticate('google', {
+    session: false,
+    failureRedirect: `${env.FRONTEND_URL}/login?error=blocked`,
+  }),
   (req, res) => {
     const user = req.user as any
 

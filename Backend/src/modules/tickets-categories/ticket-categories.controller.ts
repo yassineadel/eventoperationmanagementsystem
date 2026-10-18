@@ -13,8 +13,8 @@ import {
  */
 export const getCategories = async (req: Request, res: Response) => {
   try {
-    const event_id = req.params['event_id'] as string
-    const categories = await getTicketCategories(event_id)
+    const eventId = req.params['event_id'] as string
+    const categories = await getTicketCategories(eventId)
     res.status(200).json(categories)
   } catch (error: any) {
     res.status(500).json({ message: error.message })
@@ -41,34 +41,18 @@ export const getCategory = async (req: Request, res: Response) => {
  */
 export const create = async (req: Request, res: Response) => {
   try {
-    const {
-      event_id,
-      name,
-      description,
-      price,
-      total_seats,
-      sale_starts_at,
-      sale_ends_at
-    } = req.body
+    const { eventId, categoryKey, name, description, price, serviceFeePercent } = req.body
 
-    if (!event_id || !name || !price || !total_seats) {
+    if (!eventId || !categoryKey || !name || price === undefined || serviceFeePercent === undefined) {
       res.status(400).json({ message: 'Please fill all required fields' })
       return
     }
 
-    const category = await createTicketCategory(
-      event_id,
-      name,
-      description,
-      price,
-      total_seats,
-      sale_starts_at,
-      sale_ends_at
-    )
+    const category = await createTicketCategory({ eventId, categoryKey, name, description, price, serviceFeePercent })
 
     res.status(201).json({ message: 'Ticket category created successfully', category })
   } catch (error: any) {
-    res.status(500).json({ message: error.message })
+    res.status(400).json({ message: error.message })
   }
 }
 
@@ -82,7 +66,7 @@ export const update = async (req: Request, res: Response) => {
     const category = await updateTicketCategory(id, req.body)
     res.status(200).json({ message: 'Ticket category updated successfully', category })
   } catch (error: any) {
-    res.status(500).json({ message: error.message })
+    res.status(400).json({ message: error.message })
   }
 }
 
@@ -96,6 +80,6 @@ export const remove = async (req: Request, res: Response) => {
     const result = await deleteTicketCategory(id)
     res.status(200).json(result)
   } catch (error: any) {
-    res.status(500).json({ message: error.message })
+    res.status(400).json({ message: error.message })
   }
 }

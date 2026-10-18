@@ -1,0 +1,22 @@
+{
+  "slug": "al-manara-arena",
+  "name": "Al Manara International Conference Center — Arena",
+  "type": "STANDING",
+  "address": "Fifth Settlement, New Cairo",
+  "city": "Cairo",
+  "country": "Egypt",
+  "latitude": 30.0049,
+  "longitude": 31.493,
+  "capacity": 2000,
+  "stage": { "position": "top" },
+  "categories": [
+    { "key": "FRONT_STAGE", "label": "Front Stage", "color": "#C9A227" },
+    { "key": "GENERAL", "label": "General Admission", "color": "#2E86AB" },
+    { "key": "BACK", "label": "Back Area", "color": "#6C757D" }
+  ],
+  "zones": [
+    { "key": "FRONT", "label": "Front Stage", "category": "FRONT_STAGE", "capacity": 300, "x": 20, "y": 10, "width": 60, "height": 20 },
+    { "key": "GA", "label": "General Admission", "category": "GENERAL", "capacity": 1200, "x": 5, "y": 32, "width": 90, "height": 38 },
+    { "key": "BACK", "label": "Back Area", "category": "BACK", "capacity": 500, "x": 5, "y": 72, "width": 90, "height": 23 }
+  ]
+}
