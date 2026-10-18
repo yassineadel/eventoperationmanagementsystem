@@ -1,0 +1,86 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Cairo:wght@400;600;700;800&display=swap');
+
+/* ------------------------------------------------------------ tokens */
+
+:is(.hf-root, .home-root) {
+  --hf-font: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --hf-ground: #fbf8f3;
+  --hf-surface: #ffffff;
+  --hf-ink: #172033;
+  --hf-muted: #5a6275;
+  --hf-line: #e4ded3;
+  --hf-card-line: #ece6dc;
+  --hf-input-line: #8c877e;
+  --hf-input-bg: #ffffff;
+  --hf-accent: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+  --hf-accent-ink: #ffffff;
+  --hf-accent-shadow: rgba(109, 40, 217, 0.3);
+  --hf-focus: #7c3aed;
+  --hf-focus-glow: rgba(124, 58, 237, 0.18);
+  --hf-link: #6d28d9;
+  --hf-link-hover: #5b21b6;
+  --hf-panel: #0b1033;
+  --hf-hover: #f4f1ea;
+  --hf-google-bg: #ffffff;
+  --hf-google-line: #d9d3c8;
+  --hf-seg-bg: #ffffff;
+  --hf-seg-active: #172033;
+  --hf-seg-active-ink: #ffffff;
+  --hf-card-shadow: 0 24px 60px rgba(23, 32, 51, 0.08);
+  --hf-error: #b42318;
+  --hf-error-text: #912018;
+  --hf-error-bg: #fef3f2;
+  --hf-error-line: #fda29b;
+  --hf-success: #067647;
+  --hf-success-text: #054f31;
+  --hf-success-bg: #ecfdf3;
+  --hf-success-line: #75e0a7;
+  --hf-info: #175cd3;
+  --hf-info-text: #194185;
+  --hf-info-bg: #eff8ff;
+  --hf-info-line: #84caff;
+  --hf-bar-1: #7c3aed;
+  --hf-bar-2: #a78bfa;
+  --hf-bar-3: #c4b5fd;
+}
+
+:is(.hf-root, .home-root)[data-theme='dark'] {
+  --hf-ground: #0b0d24;
+  --hf-surface: #141735;
+  --hf-ink: #f2f3ff;
+  --hf-muted: #a7abcc;
+  --hf-line: #262a52;
+  --hf-card-line: #262a52;
+  --hf-input-line: #4a4f7a;
+  --hf-input-bg: #0b0d24;
+  --hf-accent-shadow: rgba(124, 58, 237, 0.35);
+  --hf-focus: #a78bfa;
+  --hf-focus-glow: rgba(167, 139, 250, 0.28);
+  --hf-link: #c4b5fd;
+  --hf-link-hover: #ddd6fe;
+  --hf-hover: #1c2048;
+  --hf-google-bg: #141735;
+  --hf-google-line: #3a3f6e;
+  --hf-seg-bg: #141735;
+  --hf-seg-active: #f2f3ff;
+  --hf-seg-active-ink: #0b0d24;
+  --hf-card-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+  --hf-error: #f97066;
+  --hf-error-text: #fda29b;
+  --hf-error-bg: #2a1414;
+  --hf-error-line: #7a2a25;
+  --hf-success: #47cd89;
+  --hf-success-text: #a6f4c5;
+  --hf-success-bg: #0b2a1d;
+  --hf-success-line: #1e6b47;
+  --hf-info: #53b1fd;
+  --hf-info-text: #b2ddff;
+  --hf-info-bg: #0b2238;
+  --hf-info-line: #1d4e89;
+  color-scheme: dark;
+}
+
+:is(.hf-root, .home-root)[lang='ar'] {
+  --hf-font: 'Cairo', system-ui, sans-serif;
+}
+

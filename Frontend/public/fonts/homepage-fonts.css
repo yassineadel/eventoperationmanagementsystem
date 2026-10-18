@@ -1,0 +1,42 @@
+@font-face {
+  font-family: 'Hafletna Condensed';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/homepage-0.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Hafletna Arabic';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/homepage-1.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Hafletna Arabic';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/homepage-2.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Hafletna Arabic';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(/fonts/homepage-3.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Hafletna Arabic';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url(/fonts/homepage-4.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Hafletna Editorial';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/homepage-5.ttf) format('truetype');
+}
