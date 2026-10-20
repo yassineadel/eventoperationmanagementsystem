@@ -22,6 +22,13 @@ import BookingProvider from './Components/Booking/BookingProvider';
 import TicketSelection from './Components/Booking/TicketSelection';
 import Cart from './Components/Booking/Cart';
 import Checkout from './Components/Booking/Checkout';
+import VenueListPage from './Components/Admin/VenueListPage';
+import VenueDetailPage from './Components/Admin/VenueDetailPage';
+import { VenueAddPage, VenueEditPage } from './Components/Admin/VenueFormPage';
+import OrderListPage from './Components/Admin/OrderListPage';
+import OrderDetailPage from './Components/Admin/OrderDetailPage';
+import TicketListPage from './Components/Admin/TicketListPage';
+import TicketDetailPage from './Components/Admin/TicketDetailPage';
 
 function App() {
   return(
@@ -52,6 +59,16 @@ function App() {
           <Route path="/reset-password" element={<ResetPassword />} />
           {/* The backend redirects here after Google sign-in */}
           <Route path="/auth/callback" element={<AuthCallback />} />
+          {/* Admin console: venues (add, edit, delete) */}
+          <Route path="/admin/venues" element={<VenueListPage />} />
+          <Route path="/admin/venues/new" element={<VenueAddPage />} />
+          <Route path="/admin/venues/:venueId" element={<VenueDetailPage />} />
+          <Route path="/admin/venues/:venueId/edit" element={<VenueEditPage />} />
+          {/* Admin console: orders & tickets */}
+          <Route path="/admin/orders" element={<OrderListPage />} />
+          <Route path="/admin/orders/:orderId" element={<OrderDetailPage />} />
+          <Route path="/admin/tickets" element={<TicketListPage />} />
+          <Route path="/admin/tickets/:code" element={<TicketDetailPage />} />
         </Routes>
       </BrowserRouter>
       </BookingProvider>
