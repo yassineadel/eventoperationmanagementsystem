@@ -36,6 +36,7 @@ export default function AccountMenu({ onNavigate }: { onNavigate: () => void }) 
       <p><strong>{user.fullName}</strong><bdi dir="ltr">{user.email}</bdi></p>
       <Link to="/profile" onClick={close}><Icon name="user" size={17} />{t.profile}</Link>
       <Link to="/profile/settings" onClick={close}><Icon name="settings" size={17} />{t.settings}</Link>
+      <Link to="/my-tickets" onClick={close}><Icon name="ticket" size={17} />{lang === 'ar' ? 'تذاكري' : 'My Tickets'}</Link>
       <Link to="/events?saved=1" onClick={close}><Icon name="bookmark" size={17} />{t.savedEvents}</Link>
       <button type="button" disabled={busy} onClick={() => void logout()}><Icon name="logout" size={17} />{busy ? t.signingOut : t.signOut}</button>
       {failed && <p className="home-account-error" role="alert">{t.signOutError}</p>}
