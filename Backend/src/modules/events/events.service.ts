@@ -38,18 +38,76 @@ const toData = (data: EventInput) => ({
   salesCloseAt: toDate(data.salesCloseAt),
 })
 
+// ─── Public listing (FR-LST-01, FR-LST-12) ──────────────────────────────────
+
+export const PAGE_SIZE = 6 // matches the website's listing page
+
+export interface ListingQuery {
+  q?: string
+  page?: number
+}
+
 /**
- * Get all published, future events (FR-LST-01, FR-LST-02)
+ * Published, future events for the public listing, searchable and paginated.
+ * Returns a small summary per event, not every column.
  */
-export const getAllEvents = async () => {
-  return await prisma.event.findMany({
-    where: { status: 'PUBLISHED', startAt: { gte: new Date() } },
-    include: {
-      venue: true,
-      ticketCategories: true
+export const listEvents = async ({ q, page = 1 }: ListingQuery) => {
+  const search = q?.trim()
+
+  const where: Prisma.EventWhereInput = {
+    status: 'PUBLISHED',
+    startAt: { gte: new Date() },
+    // Free-text search across name, performer, category and venue (FR-LST-12)
+    ...(search && {
+      OR: [
+        { name: { contains: search, mode: 'insensitive' } },
+        { performer: { contains: search, mode: 'insensitive' } },
+        { category: { contains: search, mode: 'insensitive' } },
+        { venue: { name: { contains: search, mode: 'insensitive' } } },
+      ],
+    }),
+  }
+
+  const total = await prisma.event.count({ where })
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const current = Math.min(Math.max(1, page), pageCount)
+
+  const events = await prisma.event.findMany({
+    where,
+    orderBy: { startAt: 'asc' },
+    skip: (current - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
+    select: {
+      id: true,
+      name: true,
+      category: true,
+      performer: true,
+      images: true,
+      startAt: true,
+      venue: { select: { name: true, city: true } },
+      ticketCategories: { select: { price: true, capacity: true, heldCount: true, soldCount: true } },
     },
-    orderBy: { startAt: 'asc' }
   })
+
+  return {
+    events: events.map((e) => ({
+      id: e.id,
+      name: e.name,
+      category: e.category,
+      performer: e.performer,
+      image: e.images[0] ?? null,
+      startAt: e.startAt,
+      venue: e.venue,
+      // the cheapest ticket, shown as "from 300 EGP"
+      priceFrom: e.ticketCategories.length ? Math.min(...e.ticketCategories.map((c) => Number(c.price))) : null,
+      // sold out when no category has a free place left (FR-LST-15)
+      soldOut: e.ticketCategories.every((c) => c.capacity - c.heldCount - c.soldCount <= 0),
+    })),
+    total,
+    page: current,
+    pageCount,
+    pageSize: PAGE_SIZE,
+  }
 }
 
 /**
