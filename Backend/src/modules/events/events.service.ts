@@ -264,3 +264,65 @@ export const getEventOnSale = async (id: string) => {
   if (event.salesCloseAt && now > event.salesCloseAt) throw new Error('Ticket sales have closed')
   return event
 }
+
+// ─── Admin list (FR-ADM-10) ─────────────────────────────────────────────────
+
+export const EVENT_STATUSES = ['DRAFT', 'PUBLISHED', 'CANCELLED'] as const
+export type EventStatusFilter = (typeof EVENT_STATUSES)[number]
+
+/**
+ * Every event for the admin console: drafts, published, cancelled and past ones.
+ * Newest first, with how many tickets are sold, so the list shows progress at a glance.
+ */
+export const listEventsForAdmin = async ({ status, q, page = 1 }: { status?: EventStatusFilter; q?: string; page?: number }) => {
+  const ADMIN_PAGE_SIZE = 20
+  const search = q?.trim()
+
+  const where: Prisma.EventWhereInput = {
+    ...(status && { status }),
+    ...(search && { name: { contains: search, mode: 'insensitive' } }),
+  }
+
+  const total = await prisma.event.count({ where })
+  const pageCount = Math.max(1, Math.ceil(total / ADMIN_PAGE_SIZE))
+  const current = Math.min(Math.max(1, page), pageCount)
+
+  const rows = await prisma.event.findMany({
+    where,
+    orderBy: { createdAt: 'desc' },
+    skip: (current - 1) * ADMIN_PAGE_SIZE,
+    take: ADMIN_PAGE_SIZE,
+    select: {
+      id: true,
+      name: true,
+      category: true,
+      status: true,
+      startAt: true,
+      publishedAt: true,
+      createdAt: true,
+      venue: { select: { name: true } },
+      ticketCategories: { select: { capacity: true, soldCount: true } },
+    },
+  })
+
+  const now = Date.now()
+  return {
+    events: rows.map((e) => ({
+      id: e.id,
+      name: e.name,
+      category: e.category,
+      status: e.status,
+      isPast: e.startAt.getTime() < now,
+      startAt: e.startAt,
+      publishedAt: e.publishedAt,
+      createdAt: e.createdAt,
+      venue: e.venue.name,
+      sold: e.ticketCategories.reduce((n, c) => n + c.soldCount, 0),
+      capacity: e.ticketCategories.reduce((n, c) => n + c.capacity, 0),
+    })),
+    total,
+    page: current,
+    pageCount,
+    pageSize: ADMIN_PAGE_SIZE,
+  }
+}

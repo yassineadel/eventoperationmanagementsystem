@@ -1,8 +1,12 @@
 import { Router } from 'express'
-import { getEvents, getEvent, create, update, remove, publish } from './events.controller'
+import { getEvents, getEvent, getAdminEvents, create, update, remove, publish } from './events.controller'
 import { protect, restrictTo } from '../../middleware/auth.middleware'
 
 const router = Router()
+
+// GET /api/events/admin - admin only, every status. Must stay ABOVE /:id,
+// otherwise Express would treat the word "admin" as an event id.
+router.get('/admin', protect, restrictTo('ADMIN'), getAdminEvents)
 
 // GET /api/events - public: visitors browse without an account (BRD §3.3, FR-LST-01)
 router.get('/', getEvents)
