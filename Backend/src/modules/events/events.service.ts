@@ -38,34 +38,58 @@ const toData = (data: EventInput) => ({
   salesCloseAt: toDate(data.salesCloseAt),
 })
 
-// ─── Public listing (FR-LST-01, FR-LST-12) ──────────────────────────────────
+// ─── Public listing (FR-LST-01 to FR-LST-12) ────────────────────────────────
 
 export const PAGE_SIZE = 6 // matches the website's listing page
 
 export interface ListingQuery {
   q?: string
+  categories?: string[]
+  city?: string
+  from?: string // YYYY-MM-DD
+  to?: string // YYYY-MM-DD, inclusive
+  price?: 'free' | 'paid'
   page?: number
 }
 
-/**
- * Published, future events for the public listing, searchable and paginated.
- * Returns a small summary per event, not every column.
- */
-export const listEvents = async ({ q, page = 1 }: ListingQuery) => {
+const DAY_MS = 24 * 60 * 60 * 1000
+const isDay = (v?: string) => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v))
+
+export const listEvents = async ({ q, categories, city, from, to, price, page = 1 }: ListingQuery) => {
   const search = q?.trim()
 
-  const where: Prisma.EventWhereInput = {
-    status: 'PUBLISHED',
-    startAt: { gte: new Date() },
-    // Free-text search across name, performer, category and venue (FR-LST-12)
-    ...(search && {
+  // Each filter is added only when it was sent; together they combine with AND (FR-LST-08)
+  const and: Prisma.EventWhereInput[] = []
+
+  if (search) {
+    and.push({
       OR: [
         { name: { contains: search, mode: 'insensitive' } },
         { performer: { contains: search, mode: 'insensitive' } },
         { category: { contains: search, mode: 'insensitive' } },
         { venue: { name: { contains: search, mode: 'insensitive' } } },
       ],
-    }),
+    })
+  }
+
+  // Category: one or several, e.g. ?category=concerts&category=arts (FR-LST-04)
+  if (categories?.length) and.push({ category: { in: categories } })
+
+  // City: "cairo" matches "Cairo" (FR-LST-05)
+  if (city) and.push({ venue: { city: { equals: city, mode: 'insensitive' } } })
+
+  // Date range, whole days: from 00:00 of `from` until the end of `to` (FR-LST-06)
+  if (isDay(from)) and.push({ startAt: { gte: new Date(from!) } })
+  if (isDay(to)) and.push({ startAt: { lt: new Date(Date.parse(to!) + DAY_MS) } })
+
+  // Free = every ticket category costs 0; paid = at least one costs more (FR-LST-07)
+  if (price === 'free') and.push({ ticketCategories: { some: {}, every: { price: 0 } } })
+  if (price === 'paid') and.push({ ticketCategories: { some: { price: { gt: 0 } } } })
+
+  const where: Prisma.EventWhereInput = {
+    status: 'PUBLISHED',
+    startAt: { gte: new Date() }, // past events never listed (FR-LST-02)
+    AND: and,
   }
 
   const total = await prisma.event.count({ where })

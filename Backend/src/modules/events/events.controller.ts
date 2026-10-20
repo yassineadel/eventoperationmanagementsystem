@@ -9,14 +9,26 @@ import {
 } from './events.service'
 
 /**
- * Public events listing: search and pages
- * GET /api/events?q=jazz&page=2
+ * Public events listing: search, filters and pages
+ * GET /api/events?q=jazz&category=concerts&city=cairo&from=2026-11-01&to=2026-11-30&price=paid&page=2
  */
 export const getEvents = async (req: Request, res: Response) => {
   try {
-    const q = typeof req.query.q === 'string' ? req.query.q : undefined
-    const page = Number(req.query.page) || 1
-    const result = await listEvents({ q, page })
+    // A query value can arrive as one string or, if repeated, a list: normalise both
+    const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined)
+    const list = (v: unknown) => (Array.isArray(v) ? v : [v]).map(str).filter((x): x is string => !!x)
+
+    const price = req.query.price === 'free' || req.query.price === 'paid' ? req.query.price : undefined
+
+    const result = await listEvents({
+      q: str(req.query.q),
+      categories: list(req.query.category),
+      city: str(req.query.city),
+      from: str(req.query.from),
+      to: str(req.query.to),
+      price,
+      page: Number(req.query.page) || 1,
+    })
     res.status(200).json(result)
   } catch (error: any) {
     res.status(500).json({ message: error.message })
