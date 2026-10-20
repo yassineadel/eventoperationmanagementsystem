@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { getBookingCatalogue } from '../src/Components/Booking/catalogue.ts'
 import { events } from '../src/Components/Homepage/data/events.ts'
 import { HOLD_MS, MAX_TICKETS, bookingStorageKey, categoryRemaining, emptyBooking, readBooking, selectionTotals, transitionBooking, validAttendee, writeBooking } from '../src/Components/Booking/bookingModel.ts'
+import { resolveAttendeeNames } from '../src/Components/Booking/attendees.ts'
 
 const now = Date.parse('2026-10-17T12:00:00Z')
 const standingId = 'cairo-after-dark'
@@ -184,4 +185,34 @@ test('sample receipts and accumulated limits survive reload; attendee names acce
   assert.equal(validAttendee('Youssef Hassan'), true)
   assert.equal(validAttendee('يوسف حسن'), true)
   for (const name of ['', ' ', 'A', 'x'.repeat(101)]) assert.equal(validAttendee(name), false)
+})
+
+test('signed-in names default only the first ticket without changing entered or stored data', () => {
+  const state = select(emptyBooking(), [standingItem(), standingItem(2)])
+  const entered = {}
+  const account = { fullName: '  Youssef Hassan  ', email: 'youssef@example.com' }
+  assert.deepEqual(resolveAttendeeNames(state.items, entered, account), { 'middle-1': 'Youssef Hassan', 'middle-2': '' })
+  assert.deepEqual(entered, {})
+  const storage = memory()
+  writeBooking(state, storage)
+  assert.doesNotMatch(storage.getItem(bookingStorageKey), /Youssef|youssef@example.com/)
+  assert.deepEqual(resolveAttendeeNames(readBooking(storage, now + 1000).items, {}, account), { 'middle-1': 'Youssef Hassan', 'middle-2': '' })
+})
+
+test('manual edits, including an intentionally cleared first name, override the account default', () => {
+  const items = [standingItem(), standingItem(2)]
+  const account = { fullName: 'Youssef Hassan', email: 'youssef@example.com' }
+  assert.deepEqual(resolveAttendeeNames(items, { 'middle-1': 'Another Attendee', 'middle-2': 'A Guest' }, account), { 'middle-1': 'Another Attendee', 'middle-2': 'A Guest' })
+  assert.equal(resolveAttendeeNames(items, { 'middle-1': '' }, account)['middle-1'], '')
+  assert.equal(validAttendee(resolveAttendeeNames(items, { 'middle-1': '' }, account)['middle-1']), false)
+  assert.deepEqual(resolveAttendeeNames([items[1]], { 'middle-2': 'A Guest' }, account), { 'middle-2': 'A Guest' })
+})
+
+test('account defaults follow the current session and leave guest or unusable account names blank', () => {
+  const items = [standingItem()]
+  assert.deepEqual(resolveAttendeeNames(items, {}, null), { 'middle-1': '' })
+  assert.equal(resolveAttendeeNames(items, {}, { fullName: 'يوسف حسن', email: 'y@example.com' })['middle-1'], 'يوسف حسن')
+  assert.equal(resolveAttendeeNames(items, {}, { fullName: 'Different Member', email: 'other@example.com' })['middle-1'], 'Different Member')
+  for (const fullName of ['', ' ', 'A', 'x'.repeat(101), 'youssef@example.com']) assert.equal(resolveAttendeeNames(items, {}, { fullName, email: 'youssef@example.com' })['middle-1'], '')
+  assert.deepEqual(resolveAttendeeNames([], {}, null), {})
 })

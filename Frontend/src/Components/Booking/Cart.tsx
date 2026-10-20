@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { usePreferences } from '../Auth/preferences'
+import { useSession } from '../Auth/sessionContext'
 import { events } from '../Homepage/data/events'
 import Icon from '../Homepage/components/Icon'
 import { useBooking } from './bookingContext'
@@ -8,11 +9,14 @@ import { selectionTotals, validAttendee } from './bookingModel'
 import { getBookingCatalogue, selectionPath } from './catalogue'
 import { bookingMoney, bookingNumber, bookingStrings } from './strings'
 import { BookingEmpty, BookingShell, OrderSummary, TicketDescription } from './BookingParts'
+import { resolveAttendeeNames } from './attendees'
 
 export default function Cart() {
   const { lang } = usePreferences()
   const t = bookingStrings[lang]
-  const { state, names, setAttendee, act, now } = useBooking()
+  const { state, names: enteredNames, setAttendee, act, now } = useBooking()
+  const session = useSession()
+  const names = resolveAttendeeNames(state.items, enteredNames, session.status === 'authenticated' ? session.user : null)
   const navigate = useNavigate()
   const [submitted, setSubmitted] = useState(false)
   const event = events.find((event) => event.id === state.eventId)

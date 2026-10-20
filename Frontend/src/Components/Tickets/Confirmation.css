@@ -1,0 +1,153 @@
+.tickets-confirmation-page { padding-block: 14px 30px; }
+.oc-heading { display: flex; align-items: center; gap: 18px; padding-block: 21px; }
+.oc-heading > div { min-width: 0; }
+.oc-check { display: grid; place-items: center; width: 52px; height: 52px; flex-shrink: 0; border: 1px solid color-mix(in srgb,var(--tickets-mint) 35%,var(--home-line)); border-radius: 50%; background: var(--tickets-mint-bg); color: var(--tickets-mint); box-shadow: 0 0 0 7px color-mix(in srgb,var(--tickets-mint-bg) 45%,transparent); }
+.tickets-confirmation-page .oc-eyebrow { color: var(--home-purple); font-size: 9px; font-weight: 800; letter-spacing: .12em; line-height: 1.7; text-transform: uppercase; }
+.oc-heading h1 { font: clamp(35px,4.2vw,53px)/1.1 var(--home-display); letter-spacing: -.04em; margin-block: 8px 9px; }
+.oc-heading .oc-lead { color: var(--home-muted); font-size: 12px; line-height: 1.8; }
+.tickets-confirmation-page .tickets-sample-notice { padding: 10px 15px; margin-bottom: 21px; }
+.tickets-confirmation-page .tickets-sample-notice strong { font-size: 11px; }
+.tickets-confirmation-page .tickets-sample-notice p { font-size: 10px; }
+.oc-layout { display: grid; grid-template-columns: minmax(0,1fr) 350px; gap: 24px; }
+.oc-story { display: flex; flex-direction: column; min-width: 0; gap: 20px; }
+.tickets-confirmation-page .oc-event { position: relative; isolation: isolate; display: flex; flex-direction: column; justify-content: space-between; align-items: stretch; flex: 1; gap: 35px; min-height: 285px; margin: 0; padding: 24px; border-radius: 18px; overflow: hidden; color: white; background: #131125; }
+.oc-event > img { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; }
+.oc-event::before { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg,#080b2040,transparent 20%,#080b2099 60%,#080b20f5); }
+.oc-event-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.oc-event-top > span:first-child { font-size: 9px; font-weight: 700; letter-spacing: .1em; line-height: 1.8; }
+.oc-photo-date { display: grid; place-items: center; flex-shrink: 0; min-width: 59px; gap: 4px; padding: 11px 9px; border: 1px solid #ffffff65; border-radius: 10px; background: #0b102547; backdrop-filter: blur(10px); }
+.oc-photo-date strong { font: 35px/1 var(--home-display); }
+.oc-photo-date > span { font-size: 9px; font-weight: 700; text-transform: uppercase; }
+.tickets-confirmation-page .oc-event-copy > p { color: #dfc6ff; font-size: 9px; font-weight: 700; letter-spacing: .1em; }
+.tickets-confirmation-page .oc-event h2 { font: clamp(32px,3.7vw,49px)/1.05 var(--home-display); letter-spacing: -.04em; margin-block: 10px 18px; max-width: 620px; }
+.oc-event-meta { display: flex; flex-wrap: wrap; gap: 12px 22px; padding-top: 15px; border-top: 1px solid #ffffff40; color: #f1ecfa; }
+.oc-event-meta > span { display: inline-flex; align-items: center; gap: 8px; min-width: 0; font-size: 11px; line-height: 1.8; }
+.oc-event-meta svg { flex-shrink: 0; color: #d5b2ff; }
+.oc-tickets { min-width: 0; padding: 21px; border: 1px solid var(--home-line); border-radius: 17px; background: linear-gradient(120deg,var(--home-surface),var(--home-tint)); }
+.oc-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.oc-section-heading > div { min-width: 0; }
+.oc-section-heading h2 { font: 29px/1.15 var(--home-display); letter-spacing: -.025em; margin-top: 7px; }
+.oc-ticket-count { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; padding: 9px 12px; border: 1px solid var(--home-line); border-radius: 10px; color: var(--home-purple); background: var(--home-paper); font-size: 13px; font-weight: 700; }
+.oc-ticket-list { display: grid; gap: 12px; list-style: none; padding: 0; margin: 18px 0 0; }
+.oc-ticket-list > li { position: relative; display: grid; grid-template-columns: 33px minmax(0,1fr) auto; align-items: center; gap: 14px; padding-top: 16px; border-top: 1px dashed var(--home-line); }
+.oc-ticket-number { display: grid; place-items: center; width: 33px; height: 43px; border: 1px solid var(--home-line); border-radius: 7px; color: var(--home-purple); background: var(--home-paper); font: 25px/1 var(--home-display); }
+.oc-ticket-info { display: grid; justify-items: start; gap: 7px; min-width: 0; }
+.oc-ticket-info > strong { font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
+.oc-ticket-info > p { font-size: 11px; line-height: 1.8; color: var(--home-muted); overflow-wrap: anywhere; }
+.oc-ticket-info .tickets-status { width: fit-content; max-width: 100%; }
+.oc-ticket-list .oc-open-ticket { display: inline-flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; min-height: 44px; color: var(--home-purple); font-size: 11px; font-weight: 700; line-height: 1.7; }
+.oc-receipt { position: relative; min-width: 0; align-self: start; border: 1px solid var(--home-line); border-radius: 18px; background: var(--home-surface); box-shadow: 0 14px 45px -35px #42157699; }
+.oc-receipt-head { padding: 20px 23px; border-radius: 17px 17px 0 0; background: radial-gradient(ellipse at 100% 0,#a267ea88,transparent 70%),linear-gradient(135deg,#281342,#571b90); color: white; }
+.oc-brand { display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-bottom: 20px; }
+.oc-brand > span:first-child { display: inline-flex; align-items: center; gap: 8px; font: 700 24px/1 var(--home-display); letter-spacing: -.04em; }
+.oc-brand > span:first-child svg { color: #d5b4ff; }
+.oc-receipt-seal { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid #ffffff50; border-radius: 50%; color: #c9ffea; background: #ffffff0d; }
+.oc-receipt-head .oc-eyebrow { color: #dfccf8; font-size: 8px; }
+.oc-receipt-head h2 { font: 31px/1.1 var(--home-display); letter-spacing: -.03em; margin-block: 8px 14px; }
+.oc-complete { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 6px 9px; border: 1px solid #b9f4d950; border-radius: 100px; background: #123b32; color: #b4f8dc; font-size: 9px; line-height: 1.6; }
+.oc-complete > span { width: 5px; height: 5px; flex-shrink: 0; border-radius: 50%; background: currentColor; }
+.oc-receipt-body { padding: 19px 23px 15px; }
+.oc-reference { padding-bottom: 16px; border-bottom: 1px dashed var(--home-line); }
+.oc-reference > span { color: var(--home-muted); font-size: 9px; }
+.oc-reference > strong { display: block; margin-top: 7px; font-size: 16px; letter-spacing: .045em; line-height: 1.6; overflow-wrap: anywhere; }
+.oc-receipt-facts { display: grid; gap: 12px; margin: 17px 0 0; }
+.oc-receipt-facts > div { display: flex; justify-content: space-between; align-items: start; gap: 17px; min-width: 0; font-size: 10px; line-height: 1.9; }
+.oc-receipt-facts dt { color: var(--home-muted); }
+.oc-receipt-facts dd { max-width: 60%; margin: 0; font-weight: 600; text-align: end; overflow-wrap: anywhere; }
+.oc-receipt-total { position: relative; padding: 17px 23px 14px; border-block: 1px dashed var(--home-line); background: var(--home-paper); }
+.oc-receipt-total::before, .oc-receipt-total::after { content: ''; position: absolute; top: -8px; width: 14px; height: 14px; border: 1px solid var(--home-line); border-radius: 50%; background: var(--home-paper); }
+.oc-receipt-total::before { inset-inline-start: -8px; }
+.oc-receipt-total::after { inset-inline-end: -8px; }
+.oc-receipt-total dl { margin: 0; display: grid; gap: 10px; }
+.oc-receipt-total dl > div { display: flex; justify-content: space-between; align-items: baseline; gap: 15px; font-size: 11px; line-height: 1.8; }
+.oc-receipt-total dt { min-width: 0; color: var(--home-muted); }
+.oc-receipt-total dd { min-width: 0; margin: 0; text-align: end; font-weight: 700; overflow-wrap: anywhere; }
+.oc-receipt-total dl > .oc-grand-total { padding-top: 12px; margin-top: 3px; border-top: 1px solid var(--home-line); }
+.oc-grand-total dt { font-size: 11px; color: var(--home-ink); }
+.oc-grand-total dd { font-size: 24px; line-height: 1.4; letter-spacing: -.03em; }
+.oc-receipt-total > p { display: flex; align-items: start; gap: 7px; margin-top: 13px; color: var(--home-muted); font-size: 9px; line-height: 1.8; }
+.oc-receipt-total > p > svg { color: var(--home-purple); flex-shrink: 0; margin-top: 2px; }
+.oc-receipt-footer { padding: 15px 23px; }
+.oc-receipt-footer .home-button { width: 100%; justify-content: space-between; min-height: 45px; }
+.oc-next { padding-top: 23px; margin-top: 25px; border-top: 1px solid var(--home-line); }
+.oc-next .oc-section-heading h2 { font-size: 26px; }
+.oc-next .home-text-link { color: var(--home-purple); font-size: 11px; flex-shrink: 0; }
+.oc-next-list { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 25px; list-style: none; padding: 0; margin: 20px 0 0; }
+.oc-next-list > li { display: flex; align-items: start; gap: 11px; min-width: 0; }
+.oc-next-list > li > span { display: grid; place-items: center; flex-shrink: 0; width: 27px; height: 27px; border: 1px solid var(--home-line); border-radius: 50%; background: var(--home-tint); color: var(--home-purple); font-size: 9px; }
+.oc-next-list h3 { font-family: var(--home-body); font-size: 12px; font-weight: 700; letter-spacing: 0; line-height: 1.8; }
+.oc-next-list p { margin-top: 5px; color: var(--home-muted); font-size: 10px; line-height: 1.9; }
+.tickets-confirmation-page > .tickets-session-note { margin-top: 22px !important; }
+.home-root[lang='ar'] .oc-eyebrow, .home-root[lang='ar'] .oc-event-top > span:first-child, .home-root[lang='ar'] .oc-event-copy > p { letter-spacing: 0; }
+.home-root[lang='ar'] .oc-heading h1 { font-family: var(--home-body); font-size: clamp(30px,3.5vw,44px); line-height: 1.5; }
+.home-root[lang='ar'] .oc-event h2, .home-root[lang='ar'] .oc-receipt-head h2, .home-root[lang='ar'] .oc-section-heading h2 { line-height: 1.5; }
+.home-root[lang='ar'] .oc-receipt-head h2 { font-size: 27px; }
+@media (max-width: 1100px) {
+  .oc-layout { grid-template-columns: minmax(0,1fr) 320px; gap: 19px; }
+  .tickets-confirmation-page .oc-event { padding: 21px; }
+  .oc-event-meta { flex-direction: column; gap: 9px; }
+  .oc-tickets { padding: 19px; }
+  .oc-ticket-list > li { grid-template-columns: 30px minmax(0,1fr); gap: 12px; }
+  .oc-open-ticket { grid-column: 2; justify-self: start; }
+  .oc-receipt-head, .oc-receipt-body, .oc-receipt-total, .oc-receipt-footer { padding-inline: 20px; }
+}
+@media (max-width: 800px) {
+  .oc-layout { grid-template-columns: minmax(0,1fr); gap: 20px; }
+  .tickets-confirmation-page .oc-event { flex: none; min-height: 290px; }
+  .oc-event-meta { flex-direction: row; gap: 10px 20px; }
+  .oc-ticket-list > li { grid-template-columns: 33px minmax(0,1fr) auto; }
+  .oc-open-ticket { grid-column: auto; }
+  .oc-receipt-head h2 { max-width: 100%; }
+  .oc-receipt-facts { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 15px 25px; }
+  .oc-receipt-facts > div { display: grid; gap: 4px; }
+  .oc-receipt-facts dd { max-width: 100%; text-align: start; }
+  .oc-receipt-footer .home-button { width: auto; min-width: 230px; }
+  .oc-next-list { gap: 18px; }
+}
+@media (max-width: 540px) {
+  .tickets-confirmation-page { padding-block: 12px 25px; }
+  .oc-heading { align-items: flex-start; gap: 13px; padding-block: 18px; }
+  .oc-check { width: 35px; height: 35px; margin-top: 4px; box-shadow: 0 0 0 4px color-mix(in srgb,var(--tickets-mint-bg) 45%,transparent); }
+  .oc-heading h1 { font-size: 34px; margin-block: 6px; }
+  .oc-heading .oc-eyebrow { font-size: 8px; }
+  .oc-heading .oc-lead { font-size: 11px; }
+  .tickets-confirmation-page .tickets-sample-notice { padding: 11px; margin-bottom: 18px; }
+  .oc-story { gap: 16px; }
+  .tickets-confirmation-page .oc-event { min-height: 245px; padding: 18px; gap: 29px; }
+  .oc-event-top > span:first-child { font-size: 8px; }
+  .oc-photo-date { min-width: 48px; padding: 9px 7px; }
+  .oc-photo-date strong { font-size: 29px; }
+  .oc-photo-date > span { font-size: 8px; }
+  .tickets-confirmation-page .oc-event h2 { font-size: 34px; margin-block: 8px 14px; }
+  .oc-event-meta { gap: 8px; flex-direction: column; padding-top: 12px; }
+  .oc-event-meta > span { font-size: 10px; }
+  .oc-tickets { padding: 17px; }
+  .tickets-confirmation-page .oc-eyebrow { font-size: 8px; }
+  .oc-section-heading { gap: 12px; }
+  .oc-section-heading h2 { font-size: 25px; }
+  .oc-ticket-count { padding: 8px; font-size: 11px; }
+  .oc-ticket-list > li { grid-template-columns: 27px minmax(0,1fr); gap: 9px 11px; }
+  .oc-ticket-number { width: 27px; font-size: 22px; }
+  .oc-ticket-info > strong { font-size: 12px; }
+  .oc-ticket-info > p { font-size: 10px; }
+  .oc-open-ticket { grid-column: 2; padding: 0; }
+  .oc-receipt-head { padding-block: 18px; }
+  .oc-brand { margin-bottom: 15px; }
+  .oc-receipt-head h2 { font-size: 29px; }
+  .oc-receipt-body { padding-block: 17px; }
+  .oc-reference > strong { font-size: 14px; }
+  .oc-receipt-facts { gap: 14px 17px; }
+  .oc-receipt-facts > div { font-size: 10px; }
+  .oc-receipt-total { padding-block: 16px; }
+  .oc-receipt-total dl > div { font-size: 10px; }
+  .oc-grand-total dd { font-size: 23px; }
+  .oc-receipt-footer .home-button { width: 100%; min-width: 0; }
+  .oc-next { padding-top: 20px; margin-top: 22px; }
+  .oc-next .oc-section-heading { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .oc-next .oc-section-heading h2 { font-size: 25px; }
+  .oc-next-list { grid-template-columns: minmax(0,1fr); gap: 17px; margin-top: 14px; }
+  .oc-next-list p { margin-top: 3px; }
+  .home-root[lang='ar'] .oc-heading h1 { font-size: 28px; }
+  .home-root[lang='ar'] .oc-event h2 { font-size: 29px; }
+  .home-root[lang='ar'] .oc-section-heading h2, .home-root[lang='ar'] .oc-receipt-head h2 { font-size: 24px; }
+}
