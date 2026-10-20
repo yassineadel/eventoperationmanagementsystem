@@ -1,0 +1,18 @@
+.home-root .event-save-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex-shrink: 0; width: 44px; min-height: 44px; padding: 0; border: 1px solid var(--home-line); border-radius: 999px; background: var(--home-surface); color: var(--home-purple); font-size: 12px; cursor: pointer; }
+.event-save-button:hover { background: var(--home-tint); border-color: var(--home-purple); }
+.event-save-button[aria-pressed='true'] { background: var(--home-tint); border-color: var(--home-purple); }
+.event-save-button[aria-pressed='true'] svg { fill: currentColor; }
+.home-root .event-save-button--labelled { width: auto; padding: 9px 16px; font-weight: 700; white-space: nowrap; }
+.home-event-card > .event-save-button { position: absolute; top: 10px; inset-inline-end: 12px; z-index: 3; box-shadow: 0 2px 10px #0002; }
+.home-root .event-status { display: inline-flex; align-items: center; width: fit-content; gap: 5px; min-height: 26px; padding: 4px 10px; border: 1px solid; border-radius: 999px; font: 700 11px/1.5 var(--home-body); white-space: nowrap; }
+.home-event-image > .event-status { position: absolute; bottom: 12px; inset-inline-start: 12px; }
+.home-hero-ticket > .event-status { position: absolute; bottom: 24px; inset-inline-start: 28px; }
+.home-root .event-status--available { background: #e5f6ed; border-color: #b8dcc7; color: #175a36; }
+.home-root .event-status--sold-out { background: #fff1d6; border-color: #e3c787; color: #73500d; }
+.home-root .event-status--cancelled { background: #fde8ec; border-color: #e6b3be; color: #94243c; }
+.home-root[data-theme='dark'] .event-status--available { background: #17382a; border-color: #367653; color: #b0edc8; }
+.home-root[data-theme='dark'] .event-status--sold-out { background: #3b2e15; border-color: #80662e; color: #f8d78c; }
+.home-root[data-theme='dark'] .event-status--cancelled { background: #421e2b; border-color: #824252; color: #ffb8c8; }
+@media (max-width: 760px) {
+  .home-hero-ticket > .event-status { bottom: 15px; inset-inline-start: 20px; }
+}

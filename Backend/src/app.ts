@@ -14,6 +14,7 @@ import orderRoutes from './modules/orders/orders.routes'
 import paymentRoutes from './modules/payments/payments.routes'
 import { ticketRoutes, refundRoutes } from './modules/tickets/tickets.routes'
 import './config/google'
+import gateRoutes from './modules/gate/gate.routes'
 
 const app = express()
 
@@ -54,6 +55,7 @@ app.use('/api/orders', orderRoutes)
 app.use('/api/payments', paymentRoutes)
 app.use('/api/tickets', ticketRoutes)
 app.use('/api/refunds', refundRoutes)
+app.use('/api/gate', gateRoutes)
 
 // Unknown route
 app.use((req, res) => {

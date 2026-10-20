@@ -1,0 +1,20 @@
+.home-account-entry, .home-account-trigger { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 4px; color: var(--home-ink); background: none; border: 0; font: 700 12px var(--home-body); white-space: nowrap; }
+.home-account-entry:hover { color: var(--home-purple); }
+.home-account-controls { position: relative; }
+.home-account-trigger > span:not(.home-account-avatar) { max-width: 95px; overflow: hidden; text-overflow: ellipsis; }
+.home-account-avatar { width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid var(--home-line); border-radius: 50%; background: var(--home-tint); color: var(--home-purple); }
+.home-account-dropdown { position: absolute; top: calc(100% + 14px); inset-inline-end: 0; z-index: 20; width: 270px; padding: 10px; border: 1px solid var(--home-line); border-radius: 12px; background: var(--home-surface); box-shadow: 0 15px 40px #0002; }
+.home-account-dropdown > p:first-child { display: flex; flex-direction: column; gap: 5px; padding: 10px 10px 15px; border-bottom: 1px solid var(--home-line); font-size: 13px; overflow-wrap: anywhere; }
+.home-account-dropdown bdi { color: var(--home-muted); font-size: 11px; }
+.home-account-dropdown > a, .home-account-dropdown > button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 10px; border: 0; border-radius: 6px; background: none; color: var(--home-ink); font-size: 12px; text-align: start; }
+.home-account-dropdown > a:hover, .home-account-dropdown > button:hover { background: var(--home-tint); color: var(--home-purple); }
+.home-account-dropdown > button:disabled { opacity: .6; cursor: wait; }
+.home-account-error { color: var(--hf-error-text) !important; font-size: 11px; padding: 10px; }
+.home-mobile-account { display: none; }
+@media (min-width: 1001px) and (max-width: 1250px) { .home-account-entry > span { display: none; } }
+@media (max-width: 1000px) {
+  .home-mobile-account { display: grid; place-items: center; width: 38px; height: 38px; border: 1px solid var(--home-line); border-radius: 50%; color: var(--home-purple); background: var(--home-tint); }
+  .home-account-controls { width: 100%; }
+  .home-account-trigger { width: 100%; justify-content: flex-start; }
+  .home-account-dropdown { position: static; width: 100%; margin-top: 10px; box-shadow: none; }
+}
