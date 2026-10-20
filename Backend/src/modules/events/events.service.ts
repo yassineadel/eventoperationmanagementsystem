@@ -42,6 +42,10 @@ const toData = (data: EventInput) => ({
 
 export const PAGE_SIZE = 6 // matches the website's listing page
 
+// Same values the website's sort menu uses (FR-LST-09 to FR-LST-11)
+export const SORTS = ['soonest', 'popular', 'price-low', 'price-high', 'name'] as const
+export type SortOrder = (typeof SORTS)[number]
+
 export interface ListingQuery {
   q?: string
   categories?: string[]
@@ -49,13 +53,43 @@ export interface ListingQuery {
   from?: string // YYYY-MM-DD
   to?: string // YYYY-MM-DD, inclusive
   price?: 'free' | 'paid'
+  sort?: SortOrder
   page?: number
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const isDay = (v?: string) => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v))
 
-export const listEvents = async ({ q, categories, city, from, to, price, page = 1 }: ListingQuery) => {
+const listingSelect = {
+  id: true,
+  name: true,
+  category: true,
+  performer: true,
+  images: true,
+  startAt: true,
+  venue: { select: { name: true, city: true } },
+  ticketCategories: { select: { price: true, capacity: true, heldCount: true, soldCount: true } },
+} satisfies Prisma.EventSelect
+
+type ListingRow = Prisma.EventGetPayload<{ select: typeof listingSelect }>
+
+const toSummary = (e: ListingRow) => ({
+  id: e.id,
+  name: e.name,
+  category: e.category,
+  performer: e.performer,
+  image: e.images[0] ?? null,
+  startAt: e.startAt,
+  venue: e.venue,
+  // the cheapest ticket, shown as "from 300 EGP"
+  priceFrom: e.ticketCategories.length ? Math.min(...e.ticketCategories.map((c) => Number(c.price))) : null,
+  // sold out when no category has a free place left (FR-LST-15)
+  soldOut: e.ticketCategories.every((c) => c.capacity - c.heldCount - c.soldCount <= 0),
+  // tickets sold or currently held; used for "popular"
+  popularity: e.ticketCategories.reduce((n, c) => n + c.soldCount + c.heldCount, 0),
+})
+
+export const listEvents = async ({ q, categories, city, from, to, price, sort = 'soonest', page = 1 }: ListingQuery) => {
   const search = q?.trim()
 
   // Each filter is added only when it was sent; together they combine with AND (FR-LST-08)
@@ -95,43 +129,36 @@ export const listEvents = async ({ q, categories, city, from, to, price, page = 
   const total = await prisma.event.count({ where })
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const current = Math.min(Math.max(1, page), pageCount)
+  const skip = (current - 1) * PAGE_SIZE
 
-  const events = await prisma.event.findMany({
-    where,
-    orderBy: { startAt: 'asc' },
-    skip: (current - 1) * PAGE_SIZE,
-    take: PAGE_SIZE,
-    select: {
-      id: true,
-      name: true,
-      category: true,
-      performer: true,
-      images: true,
-      startAt: true,
-      venue: { select: { name: true, city: true } },
-      ticketCategories: { select: { price: true, capacity: true, heldCount: true, soldCount: true } },
-    },
-  })
+  let events: ReturnType<typeof toSummary>[]
 
-  return {
-    events: events.map((e) => ({
-      id: e.id,
-      name: e.name,
-      category: e.category,
-      performer: e.performer,
-      image: e.images[0] ?? null,
-      startAt: e.startAt,
-      venue: e.venue,
-      // the cheapest ticket, shown as "from 300 EGP"
-      priceFrom: e.ticketCategories.length ? Math.min(...e.ticketCategories.map((c) => Number(c.price))) : null,
-      // sold out when no category has a free place left (FR-LST-15)
-      soldOut: e.ticketCategories.every((c) => c.capacity - c.heldCount - c.soldCount <= 0),
-    })),
-    total,
-    page: current,
-    pageCount,
-    pageSize: PAGE_SIZE,
+  if (sort === 'soonest' || sort === 'name') {
+    // The database can sort by its own columns, so it only returns the one page we need
+    const rows = await prisma.event.findMany({
+      where,
+      orderBy: sort === 'name' ? [{ name: 'asc' }, { startAt: 'asc' }] : [{ startAt: 'asc' }, { id: 'asc' }],
+      skip,
+      take: PAGE_SIZE,
+      select: listingSelect,
+    })
+    events = rows.map(toSummary)
+  } else {
+    // Price and popularity are calculated from ticket categories, so sort them here.
+    // Fine at our size (tens of events); move into SQL if listings ever reach thousands.
+    const rows = await prisma.event.findMany({ where, select: listingSelect })
+    const byDate = (a: ReturnType<typeof toSummary>, b: ReturnType<typeof toSummary>) =>
+      a.startAt.getTime() - b.startAt.getTime()
+    const all = rows.map(toSummary).sort((a, b) => {
+      if (sort === 'popular') return b.popularity - a.popularity || byDate(a, b)
+      const pa = a.priceFrom ?? 0
+      const pb = b.priceFrom ?? 0
+      return (sort === 'price-low' ? pa - pb : pb - pa) || byDate(a, b)
+    })
+    events = all.slice(skip, skip + PAGE_SIZE)
   }
+
+  return { events, total, page: current, pageCount, pageSize: PAGE_SIZE, sort }
 }
 
 /**
