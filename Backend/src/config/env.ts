@@ -11,6 +11,11 @@ const envSchema = z.object({
   JWT_EXPIRES_IN: z.string().default('15m'),
   MAIL_USER: z.email(),
   MAIL_PASS: z.string().min(1),
+  // Optional SMTP relay, including a local development inbox. Gmail remains the default.
+  MAIL_HOST: z.string().min(1).optional(),
+  MAIL_PORT: z.coerce.number().int().min(1).max(65535).default(587),
+  MAIL_SECURE: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
+  MAIL_AUTH: z.enum(['true', 'false']).default('true').transform((value) => value === 'true'),
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),
   GOOGLE_CALLBACK_URL: z.url(),

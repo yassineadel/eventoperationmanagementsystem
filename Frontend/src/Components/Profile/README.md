@@ -13,14 +13,12 @@ SessionProvider checks the existing cookie-backed `GET /api/auth/me` endpoint wi
 
 Session responses support both `fullName` and the repository's older `first_name`/`last_name` fields. Missing verification information is shown as unknown, rather than assumed verified.
 
-## Explicit sample mode
+## Real account access
 
-Add `?preview=1` to either route, or select **Try sample profile**, to exercise the frontend without a backend account. This always selects a fictional profile, even when a real session exists. Sample profile details, email, optional preferences, and deletion-request state use a separate local-storage key, `hafletna.profile-preview`. Blocked/full storage falls back to the current visit with a visible message.
-
-The sample current password is `HafletnaDemo1`. Password change validates the current value, password rules, and confirmation, then clears all password fields; it does not create credentials or store a password/hash. Sample email codes are displayed on screen, expire after five minutes, lock after five incorrect attempts, and have a 30-second resend delay. Codes are held only in memory; the current email changes only after verification. Cancel/reload discards an unverified change. Deletion requires matching the current email and an explicit acknowledgement. It records a cancellable sample request and does not remove an account. Pending sample deletion pauses other sample edits.
+Both profile routes require a signed-in account and display its current session details. The sample-profile option has been removed. Legacy `?preview=1` URLs follow the same session checks and cannot open a fictional profile. The pages do not read or write saved sample-profile data.
 
 ## Backend work still required
 
-This checkout has no endpoints for updating personal details, changing an authenticated password, requesting/verifying an email change, reading/updating communication preferences, or requesting/cancelling account deletion. These operations remain disabled for real accounts. No endpoints were invented and no backend files were changed. Agree those API contracts with the backend owner, then replace the sample handlers and load real communication/deletion state. Do not present frontend sample verification or deletion as server-enforced account security.
+This checkout has no endpoints for updating personal details, changing an authenticated password, requesting/verifying an email change, reading/updating communication preferences, or requesting/cancelling account deletion. These operations remain disabled for real accounts. The existing dialogs and validation helpers remain available for future integration, but no sample mutation flow is accessible through the profile pages. Agree those API contracts with the backend owner, then connect the forms and load real communication/deletion state.
 
 All UI copy is available in English and Arabic, with RTL, light/dark themes, keyboard focus, form validation, and responsive layouts.

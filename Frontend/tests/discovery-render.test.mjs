@@ -7,6 +7,8 @@ import { createServer } from 'vite'
 import { events as sampleEvents } from '../src/Components/Homepage/data/events.ts'
 import { emptyBooking, transitionBooking } from '../src/Components/Booking/bookingModel.ts'
 import { createSampleWallet, requestSampleRefund, transferSampleTicket } from '../src/Components/Tickets/ticketsModel.ts'
+import { mapEventDetail } from '../src/lib/eventsModel.ts'
+import { detail as apiDetail, eventId as apiEventId } from './fixtures/events-api.mjs'
 
 let server
 let Layout
@@ -35,12 +37,15 @@ let TicketDetail
 let TransferTicket
 let RefundRequest
 let PaymentMethods
+let EventsClientContext
+let DetailContent
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true, hmr: false, watch: null }, appType: 'custom' })
   Layout = (await server.ssrLoadModule('/src/Components/Discovery/DiscoveryLayout.tsx')).default
   Listing = (await server.ssrLoadModule('/src/Components/Discovery/EventsListing.tsx')).default
   Detail = (await server.ssrLoadModule('/src/Components/Discovery/EventDetail.tsx')).default
+  DetailContent = (await server.ssrLoadModule('/src/Components/Discovery/EventDetail.tsx')).EventDetailContent
   Homepage = (await server.ssrLoadModule('/src/Components/Homepage/Homepage.tsx')).default
   NotFound = (await server.ssrLoadModule('/src/Components/Discovery/NotFound.tsx')).default
   PreferencesContext = (await server.ssrLoadModule('/src/Components/Auth/preferences.ts')).PreferencesContext
@@ -63,6 +68,7 @@ before(async () => {
   TransferTicket = (await server.ssrLoadModule('/src/Components/Tickets/TransferTicket.tsx')).default
   RefundRequest = (await server.ssrLoadModule('/src/Components/Tickets/RefundRequest.tsx')).default
   PaymentMethods = (await server.ssrLoadModule('/src/Components/Booking/PaymentMethods.tsx')).default
+  EventsClientContext = (await server.ssrLoadModule('/src/lib/useEventsApi.ts')).EventsClientContext
   authPages = await Promise.all(['LoginPage/Login', 'RegisterPage/Register', 'VerifyEmailPage/VerifyEmail', 'ForgotPasswordPage/ForgotPassword', 'ResetPasswordPage/ResetPassword', 'AuthCallbackPage/AuthCallback'].map(async (path) => (await server.ssrLoadModule(`/src/Components/${path}.tsx`)).default))
 })
 after(async () => { await server?.close() })
@@ -74,7 +80,7 @@ function render(path, lang = 'en', theme = 'light', savedIds = [], sessionState 
   const session = { ...sessionState, acceptUser() {}, async refresh() {}, async signOut() {} }
   const bookingValue = { state: booking.state ?? emptyBooking(), now: booking.now ?? Date.now(), names: booking.names ?? {}, storageAvailable: true, act() {}, setAttendee() {} }
   const ticketsValue = { state: wallet.state ?? createSampleWallet(), now: wallet.now ?? Date.parse('2026-10-20T12:00:00Z'), storageAvailable: wallet.storageAvailable ?? true, completeOrder() {}, transferTicket() {}, requestRefund() {}, resendTicket() {}, resetSamples() {} }
-  return renderToStaticMarkup(h(PreferencesContext.Provider, { value },
+  return renderToStaticMarkup(h(EventsClientContext.Provider, { value: null }, h(PreferencesContext.Provider, { value },
     h(SessionContext.Provider, { value: session }, h(SavedEventsProvider, { storage }, h(BookingContext.Provider, { value: bookingValue }, h(TicketsContext.Provider, { value: ticketsValue }, h(MemoryRouter, { initialEntries: [path] }, h(Routes, null,
       h(Route, { path: '/', element: h(Homepage) }),
       h(Route, { element: h(Layout) },
@@ -99,8 +105,35 @@ function render(path, lang = 'en', theme = 'light', savedIds = [], sessionState 
       ),
       ...['/login', '/register', '/verify-email', '/forgot-password', '/reset-password', '/auth/callback'].map((path, index) => h(Route, { key: path, path, element: h(authPages[index]) })),
     )))))),
-  ))
+  )))
 }
+
+test('API catalogue pages initially load without flashing sample events in both languages and themes', () => {
+  for (const lang of ['en', 'ar']) for (const theme of ['light', 'dark']) {
+    for (const [path, Component] of [['/events', Listing], [`/events/${apiEventId}`, Detail]]) {
+      const html = renderToStaticMarkup(h(PreferencesContext.Provider, { value: { lang, theme, setLang() {}, setTheme() {} } },
+        h(SavedEventsProvider, { storage: { getItem() { return null }, setItem() {} } }, h('div', { className: 'home-root', 'data-theme': theme, lang, dir: lang === 'ar' ? 'rtl' : 'ltr' }, h(MemoryRouter, { initialEntries: [path] }, h(Routes, null, h(Route, { path: path === '/events' ? '/events' : '/events/:eventId', element: h(Component) })))))))
+      assert.match(html, /catalog-(loading|detail-loading)/)
+      assert.doesNotMatch(html, /Cairo After Dark|The Coastal Weekender/)
+      assert.ok(html.includes(`data-theme="${theme}"`))
+    }
+  }
+})
+
+test('API details render actual inventory, unknown prices, and missing information without invented policies', () => {
+  for (const lang of ['en', 'ar']) for (const theme of ['light', 'dark']) {
+    const mapped = mapEventDetail(apiDetail({ ticketCategories: [] }))
+    const html = renderToStaticMarkup(h(PreferencesContext.Provider, { value: { lang, theme, setLang() {}, setTheme() {} } },
+      h(SavedEventsProvider, { storage: { getItem() { return null }, setItem() {} } }, h(MemoryRouter, null, h(DetailContent, mapped)))))
+    assert.ok(html.includes(lang === 'en' ? 'Price unavailable' : 'السعر غير متاح'))
+    assert.ok(html.includes(lang === 'en' ? 'has not published event policies' : 'لم ينشر المنظّم سياسات'))
+    assert.ok(html.includes(lang === 'en' ? 'Ticket selection for catalogue events is not connected yet' : 'اختيار تذاكر فعاليات الدليل غير متصل بعد'))
+    assert.doesNotMatch(html, /Hafletna Experiences|seven days|30 minutes|sample organiser/)
+    assert.doesNotMatch(html, /href="\/events\/[^"]+\/tickets"/)
+    assert.match(html, /google.com\/maps\?q=30.0424%2C31.2244/)
+    assert.match(html, /16:00|١٦:٠٠|18:00|١٨:٠٠|19:00|١٩:٠٠/)
+  }
+})
 
 test('all five after-buying routes render English and Arabic in both themes', () => {
   const routes = [
@@ -190,12 +223,11 @@ test('listing routes render bounded pages and URL-selected filters in both langu
   }
 })
 
-test('account routes gate real profile access and offer an explicit sample preview', () => {
-  for (const path of ['/profile', '/profile/settings']) {
-    const html = render(path)
+test('account routes require sign-in without offering a sample profile', () => {
+  for (const path of ['/profile', '/profile/settings']) for (const query of ['', '?preview=1']) {
+    const html = render(`${path}${query}`)
     assert.match(html, /Your space at Hafletna/)
-    assert.match(html, /Try sample profile/)
-    assert.ok(html.includes(`href="${path}?preview=1"`))
+    assert.doesNotMatch(html, /Try sample profile|preview=1|Youssef Hassan/)
     assert.doesNotMatch(html, /id="profile-name"|id="account-new-password"/)
     assert.ok(html.includes(`/login?returnTo=${encodeURIComponent(path)}`))
   }
@@ -203,32 +235,32 @@ test('account routes gate real profile access and offer an explicit sample previ
   assert.match(render('/profile', 'en', 'light', [], { status: 'loading', user: null }), /Checking your session/)
 })
 
-test('sample profile screens render both languages and themes without requiring a real account', () => {
+test('signed-in profile screens render both languages and themes without sample access', () => {
+  const session = { status: 'authenticated', user: { id: 'real-user', fullName: 'Real Member', email: 'real@example.com', role: 'customer', phone: '', emailVerified: null } }
   for (const lang of ['en', 'ar']) for (const theme of ['light', 'dark']) {
-    const html = render('/profile?preview=1', lang, theme)
+    const html = render('/profile?preview=1', lang, theme, [], session)
     assert.match(html, new RegExp(`dir="${lang === 'ar' ? 'rtl' : 'ltr'}"`))
     assert.match(html, new RegExp(`data-theme="${theme}"`))
     assert.match(html, /id="profile-name"/)
-    assert.match(html, /value="Youssef Hassan"/)
+    assert.match(html, /value="Real Member"/)
     assert.match(html, /id="profile-phone"/)
-    assert.match(html, /href="\/profile\/settings\?preview=1"/)
-    assert.doesNotMatch(html, /class="account-fields" disabled/)
-    assert.ok(html.includes(lang === 'ar' ? 'ملف شخصي تجريبي' : 'Sample profile'))
-    const settings = render('/profile/settings?preview=1', lang, theme)
+    assert.match(html, /href="\/profile\/settings"/)
+    assert.match(html, /class="account-fields" disabled/)
+    assert.doesNotMatch(html, /[Ss]ample profile|ملف شخصي تجريبي|تجربة الملف الشخصي|preview=1|Youssef Hassan/)
+    const settings = render('/profile/settings?preview=1', lang, theme, [], session)
     for (const section of ['account-security', 'account-password', 'account-email', 'account-communications', 'account-deletion']) assert.ok(settings.includes(`id="${section}"`))
     assert.equal((settings.match(/class="account-card account-settings-card/g) ?? []).length, 3)
     assert.match(settings, /id="account-change-password"[^>]*aria-haspopup="dialog"/)
     assert.match(settings, /id="account-change-email"[^>]*aria-haspopup="dialog"/)
     assert.doesNotMatch(settings, /<dialog|id="account-confirm-password"|id="account-new-email"/)
-    assert.equal((settings.match(/role="switch"/g) ?? []).length, 2)
-    assert.doesNotMatch(settings, /HafletnaDemo1/)
-    assert.ok(settings.includes(lang === 'ar' ? 'حفظ التفضيلات' : 'Save preferences'))
+    assert.equal((settings.match(/role="switch"/g) ?? []).length, 0)
+    assert.doesNotMatch(settings, /HafletnaDemo1|[Ss]ample profile|الملف التجريبي|preview=1/)
     assert.ok(settings.includes(lang === 'ar' ? 'الدخول والأمان' : 'Sign-in &amp; security'))
     assert.ok(settings.includes(lang === 'ar' ? 'طلب حذف الحساب' : 'Request account deletion'))
   }
 })
 
-test('real account details are read-only until profile endpoints exist, and sample mode stays separate', () => {
+test('real account details stay read-only and legacy preview URLs cannot replace the account', () => {
   const session = { status: 'authenticated', user: { id: 'real-user', fullName: 'Real Member', email: 'real@example.com', role: 'customer', phone: '', emailVerified: null } }
   const html = render('/profile', 'en', 'light', [], session)
   assert.match(html, /value="Real Member"/)
@@ -241,28 +273,29 @@ test('real account details are read-only until profile endpoints exist, and samp
   assert.doesNotMatch(settings, /HafletnaDemo1/)
   assert.match(settings, /Your saved communication preferences are not available yet/)
   assert.doesNotMatch(settings, /role="switch"/)
-  const sample = render('/profile?preview=1', 'en', 'light', [], session)
-  assert.match(sample, /value="Youssef Hassan"/)
-  assert.doesNotMatch(sample, /value="Real Member"/)
+  const legacy = render('/profile?preview=1', 'en', 'light', [], session)
+  assert.match(legacy, /value="Real Member"/)
+  assert.doesNotMatch(legacy, /value="Youssef Hassan"|Try sample profile|preview=1/)
 })
 
 test('password and email dialogs render accessible, localised forms in both themes', () => {
+  const session = { status: 'authenticated', user: { id: 'real-user', fullName: 'Real Member', email: 'real@example.com', role: 'customer', phone: '', emailVerified: null } }
   for (const lang of ['en', 'ar']) for (const theme of ['light', 'dark']) {
     for (const kind of ['password', 'email']) {
-      const html = render(`/profile/${kind}-dialog?preview=1`, lang, theme)
+      const html = render(`/profile/${kind}-dialog`, lang, theme, [], session)
       assert.match(html, new RegExp(`data-theme="${theme}"`))
       assert.match(html, new RegExp(`dir="${lang === 'ar' ? 'rtl' : 'ltr'}"`))
       assert.match(html, new RegExp(`<dialog[^>]*id="account-${kind}-dialog"[^>]*aria-modal="true"[^>]*aria-labelledby="account-${kind}-dialog-title"[^>]*aria-describedby="account-${kind}-dialog-lead"`))
       assert.ok(html.includes(lang === 'ar' ? 'إغلاق النافذة' : 'Close dialog'))
       assert.ok(html.includes(lang === 'ar' ? 'إلغاء' : 'Cancel'))
-      assert.match(html, /HafletnaDemo1/)
-      assert.doesNotMatch(html, /class="account-fields" disabled=""/)
+      assert.doesNotMatch(html, /HafletnaDemo1/)
+      assert.match(html, /class="account-fields" disabled=""/)
       if (kind === 'password') {
         for (const id of ['account-current-password', 'account-new-password', 'account-confirm-password', 'account-password-rules']) assert.ok(html.includes(`id="${id}"`))
         assert.match(html, /aria-describedby="account-password-rules"/)
       } else {
         for (const id of ['account-new-email', 'account-email-password']) assert.ok(html.includes(`id="${id}"`))
-        assert.match(html, /youssef@example.com/)
+        assert.match(html, /real@example.com/)
         assert.doesNotMatch(html, /id="account-email-code"/)
         assert.ok(html.includes(lang === 'ar' ? 'يبقى بريدك الحالي كما هو حتى التحقق من العنوان الجديد.' : 'Your current email stays unchanged until the new address is verified.'))
       }

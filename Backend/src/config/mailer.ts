@@ -1,13 +1,15 @@
 import nodemailer from 'nodemailer'
 import { env } from './env'
 
-// Create a transporter using Gmail
-const transporter = nodemailer.createTransport({
+// An explicit SMTP host supports local mail testing; existing Gmail setups still work.
+export const transporter = nodemailer.createTransport(env.MAIL_HOST ? {
+  host: env.MAIL_HOST,
+  port: env.MAIL_PORT,
+  secure: env.MAIL_SECURE,
+  ...(env.MAIL_AUTH ? { auth: { user: env.MAIL_USER, pass: env.MAIL_PASS } } : {}),
+} : {
   service: 'gmail',
-  auth: {
-    user: env.MAIL_USER,
-    pass: env.MAIL_PASS
-  }
+  auth: { user: env.MAIL_USER, pass: env.MAIL_PASS },
 })
 
 /**

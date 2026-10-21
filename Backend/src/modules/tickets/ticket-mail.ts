@@ -1,12 +1,7 @@
-import nodemailer from 'nodemailer'
 import QRCode from 'qrcode'
 import prisma from '../../config/db'
 import { env } from '../../config/env'
-
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: { user: env.MAIL_USER, pass: env.MAIL_PASS },
-})
+import { transporter } from '../../config/mailer'
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!)
 const when = (d: Date) =>

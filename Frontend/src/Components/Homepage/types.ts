@@ -12,7 +12,9 @@ export type Event = {
   category: Category
   city: City
   date: string
-  price: number
+  price: number | null
+  source?: 'api'
+  performer?: LocalizedText
   status: EventStatus
   image: string
   featured?: boolean
