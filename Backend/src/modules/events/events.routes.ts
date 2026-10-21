@@ -1,25 +1,29 @@
 import { Router } from 'express'
-import { getEvents, getEvent, create, update, remove, publish } from './events.controller'
+import { getEvents, getEvent, getAdminEvents, create, update, remove, publish } from './events.controller'
 import { protect, restrictTo } from '../../middleware/auth.middleware'
 
 const router = Router()
 
-// GET /api/events - anyone logged in can see events
-router.get('/', protect, getEvents)
+// GET /api/events/admin - admin only, every status. Must stay ABOVE /:id,
+// otherwise Express would treat the word "admin" as an event id.
+router.get('/admin', protect, restrictTo('ADMIN'), getAdminEvents)
 
-// GET /api/events/:id - anyone logged in can see a single event
-router.get('/:id', protect, getEvent)
+// GET /api/events - public: visitors browse without an account (BRD §3.3, FR-LST-01)
+router.get('/', getEvents)
+
+// GET /api/events/:id - public
+router.get('/:id', getEvent)
 
 // POST /api/events - admin only can create events
-router.post('/', protect, restrictTo('admin'), create)
+router.post('/', protect, restrictTo('ADMIN'), create)
 
 // PUT /api/events/:id - admin only can update events
-router.put('/:id', protect, restrictTo('admin'), update)
+router.put('/:id', protect, restrictTo('ADMIN'), update)
 
 // DELETE /api/events/:id - admin only can delete events
-router.delete('/:id', protect, restrictTo('admin'), remove)
+router.delete('/:id', protect, restrictTo('ADMIN'), remove)
 
 // PATCH /api/events/:id/publish - admin only can publish events
-router.patch('/:id/publish', protect, restrictTo('admin'), publish)
+router.patch('/:id/publish', protect, restrictTo('ADMIN'), publish)
 
 export default router

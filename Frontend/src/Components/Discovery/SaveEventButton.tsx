@@ -13,7 +13,7 @@ export default function SaveEventButton({ event, lang, labelled = false }: { eve
   const action = `${saved ? t.removeSaved : t.saveEvent}: ${event.title[lang]}`
   function toggle() {
     const result = toggleSaved(event.id)
-    setAnnouncement(result.saved ? result.persisted ? t.savedMessage : t.savedForVisit : result.persisted ? t.removedMessage : t.removedForVisit)
+    setAnnouncement('full' in result ? t.savedLimit : result.saved ? result.persisted ? t.savedMessage : t.savedForVisit : result.persisted ? t.removedMessage : t.removedForVisit)
   }
   return <>
     <button type="button" className={`event-save-button${labelled ? ' event-save-button--labelled' : ''}`} onClick={toggle} aria-pressed={saved} aria-label={action} title={action}>

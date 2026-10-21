@@ -3,7 +3,7 @@ import type { Language } from '../Homepage/types'
 const en = {
   listingTitle: 'Find your next great story.', listingLead: 'Live music, fresh ideas, and memorable places. Make a plan that feels like you.',
   listingPageTitle: 'Explore events | Hafletna', allEvents: 'All events', filters: 'Filters', showFilters: 'Show filters', hideFilters: 'Hide filters',
-  search: 'Search events', searchPlaceholder: 'Search events, venues, or cities', category: 'Category', city: 'City', dateRange: 'Date range',
+  search: 'Search events', searchPlaceholder: 'Search events, performers, categories, or venues', category: 'Category', city: 'City', dateRange: 'Date range',
   fromDate: 'From date', toDate: 'To date', price: 'Price', allPrices: 'Any price', freeOnly: 'Free entry', paidOnly: 'Paid events',
   sortBy: 'Sort by', soonest: 'Date: soonest first', popular: 'Most popular', priceLow: 'Price: low to high', priceHigh: 'Price: high to low', name: 'Event name',
   clearAll: 'Clear all filters', activeFilters: 'Active filters', removeFilter: 'Remove filter', from: 'From', until: 'Until',
@@ -17,7 +17,7 @@ const en = {
   locationNote: 'The map shows an approximate city location for this fictional sample venue.', openMap: 'Open in Google Maps',
   tickets: 'Tickets', generalAdmission: 'General admission', bookingPreview: 'Booking unavailable in preview',
   bookingNote: 'Try sample ticket selection, cart, and checkout. No real reservation, payment, or ticket is created.', localTime: 'All times are local to Egypt.',
-  eventNotFound: 'This event could not be found.', notFoundLead: 'The link may be incorrect. Browse the sample events to find another experience.',
+  eventNotFound: 'This event could not be found.', notFoundLead: 'The event may no longer be public, or the link may be incorrect. Browse events to find another experience.',
   pageNotFound: 'This page could not be found.', pageNotFoundLead: 'Use the navigation to return home or browse events.',
   home: 'Home', eventsLabel: 'Events', sample: 'Sample event',
 }
@@ -25,7 +25,7 @@ const en = {
 const ar: Record<keyof typeof en, string> = {
   listingTitle: 'اكتشف قصتك القادمة.', listingLead: 'موسيقى حية وأفكار جديدة وأماكن لا تُنسى. اختر تجربة تشبهك.',
   listingPageTitle: 'استكشف الفعاليات | حفلتنا', allEvents: 'كل الفعاليات', filters: 'الفلاتر', showFilters: 'إظهار الفلاتر', hideFilters: 'إخفاء الفلاتر',
-  search: 'ابحث عن فعاليات', searchPlaceholder: 'ابحث عن فعالية أو مكان أو مدينة', category: 'الفئة', city: 'المدينة', dateRange: 'الفترة الزمنية',
+  search: 'ابحث عن فعاليات', searchPlaceholder: 'ابحث عن فعالية أو فنان أو فئة أو مكان', category: 'الفئة', city: 'المدينة', dateRange: 'الفترة الزمنية',
   fromDate: 'من تاريخ', toDate: 'إلى تاريخ', price: 'السعر', allPrices: 'كل الأسعار', freeOnly: 'دخول مجاني', paidOnly: 'فعاليات مدفوعة',
   sortBy: 'ترتيب حسب', soonest: 'التاريخ: الأقرب أولًا', popular: 'الأكثر رواجًا', priceLow: 'السعر: من الأقل إلى الأعلى', priceHigh: 'السعر: من الأعلى إلى الأقل', name: 'اسم الفعالية',
   clearAll: 'مسح كل الفلاتر', activeFilters: 'الفلاتر المفعّلة', removeFilter: 'إزالة الفلتر', from: 'من', until: 'حتى',
@@ -39,7 +39,7 @@ const ar: Record<keyof typeof en, string> = {
   locationNote: 'تعرض الخريطة موقعًا تقريبيًا داخل المدينة لهذا المكان التجريبي غير الحقيقي.', openMap: 'فتح في خرائط Google',
   tickets: 'التذاكر', generalAdmission: 'دخول عام', bookingPreview: 'الحجز غير متاح في العرض التجريبي',
   bookingNote: 'جرّب اختيار التذاكر والسلة وإتمام الحجز. لا حجز فعلي ولا دفع ولا إصدار تذاكر حقيقية.', localTime: 'جميع المواعيد بتوقيت مصر المحلي.',
-  eventNotFound: 'لم نعثر على هذه الفعالية.', notFoundLead: 'قد يكون الرابط غير صحيح. تصفح الفعاليات التجريبية لاكتشاف تجربة أخرى.',
+  eventNotFound: 'لم نعثر على هذه الفعالية.', notFoundLead: 'قد تكون الفعالية غير متاحة للعامة أو الرابط غير صحيح. تصفح الفعاليات لاكتشاف تجربة أخرى.',
   pageNotFound: 'لم نعثر على هذه الصفحة.', pageNotFoundLead: 'استخدم القائمة للعودة إلى الرئيسية أو استكشاف الفعاليات.',
   home: 'الرئيسية', eventsLabel: 'الفعاليات', sample: 'فعالية تجريبية',
 }

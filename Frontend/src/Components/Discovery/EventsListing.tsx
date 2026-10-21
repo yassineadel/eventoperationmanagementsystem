@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useContext, useEffect, useState, type FormEvent } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { usePreferences } from '../Auth/preferences'
 import { events } from '../Homepage/data/events'
@@ -11,6 +11,9 @@ import { discoveryStrings } from './strings'
 import { eventUiStrings } from './eventUiStrings'
 import { useSavedEvents } from './savedEventsContext'
 import { getListingResults, listingSearchParams, parseListingFilters, type ListingFilters, type SortOrder } from './listing'
+import { EventsClientContext, useApiCounts, useApiListing, useApiSavedEvents } from '../../lib/useEventsApi'
+import { eventIdPattern } from '../../lib/eventsModel'
+import { apiStrings } from './apiStrings'
 
 function ListingSearch({ query, placeholder, label, onSearch }: { query: string; placeholder: string; label: string; onSearch: (query: string) => void }) {
   const [draft, setDraft] = useState(query)
@@ -26,7 +29,7 @@ export default function EventsListing() {
   const { lang } = usePreferences()
   const t = discoveryStrings[lang]
   const savedText = eventUiStrings[lang]
-  const { savedIds, isPersistent } = useSavedEvents()
+  const { savedIds, isPersistent, toggleSaved } = useSavedEvents()
   const home = homeStrings[lang]
   const [params, setParams] = useSearchParams()
   const { hash } = useLocation()
@@ -34,7 +37,22 @@ export default function EventsListing() {
   const [filtersOpen, setFiltersOpen] = useState(false)
   const sidebarOpen = filtersOpen || hash === '#categories'
   const filters = parseListingFilters(params)
-  const results = getListingResults(events, filters, lang, savedIds)
+  const apiText = apiStrings[lang]
+  const client = useContext(EventsClientContext)
+  const invalidDates = Boolean(filters.from && filters.to && filters.from > filters.to)
+  const api = useApiListing(filters, !filters.savedOnly && !invalidDates)
+  const savedApi = useApiSavedEvents(savedIds, filters.savedOnly && !invalidDates)
+  const countsApi = useApiCounts(filters, !filters.savedOnly && !invalidDates && api.status !== 'error' && api.status !== 'not-found' && !api.data?.categoryCounts)
+  const samplePreview = !client || api.status === 'error' || api.status === 'not-found'
+  const savedHasApiIds = savedIds.some((id) => eventIdPattern.test(id))
+  const loading = !invalidDates && (filters.savedOnly ? savedHasApiIds && savedApi.status === 'loading' : api.status === 'loading')
+  const savedCatalogue = [...events, ...(savedApi.data?.events ?? [])]
+  const catalogue = filters.savedOnly ? savedCatalogue : samplePreview ? events : []
+  const results = !filters.savedOnly && !invalidDates && api.data ? api.data : getListingResults(catalogue, filters, lang, savedIds)
+  const sampleCounts = Object.fromEntries(Object.keys(categoryNames).map((category) => [category, getListingResults(catalogue, { ...filters, categories: [category as Category], page: 1 }, lang, savedIds).total]))
+  const categoryCounts = filters.savedOnly || samplePreview || invalidDates ? sampleCounts : api.data?.categoryCounts ?? countsApi.data
+  const apiFailed = api.status === 'error' || api.status === 'not-found'
+  const savedFailed = savedApi.status === 'error' || savedApi.status === 'not-found'
   const noSavedEvents = filters.savedOnly && savedIds.length === 0
   const number = (value: number) => new Intl.NumberFormat(lang === 'ar' ? 'ar-EG' : 'en').format(value)
   useEffect(() => { document.title = t.listingPageTitle }, [t.listingPageTitle])
@@ -78,7 +96,8 @@ export default function EventsListing() {
       <aside id="listing-filters" className={`listing-sidebar${sidebarOpen ? ' is-open' : ''}`} aria-label={t.filters}>
         <div className="listing-sidebar-title"><h2>{t.filters}</h2>{chips.length > 0 && <button className="home-text-link" onClick={clear}>{t.clearAll}</button>}</div>
         <fieldset id="categories" className="listing-filter-group"><legend>{t.category}</legend>
-          {(Object.keys(categoryNames) as Category[]).map((category) => <label className="listing-checkbox" key={category}><input type="checkbox" checked={filters.categories.includes(category)} onChange={() => toggleCategory(category)} /><span>{categoryNames[category][lang]}</span><span className="listing-category-count">{number(events.filter((event) => event.category === category).length)}</span></label>)}
+          {(Object.keys(categoryNames) as Category[]).map((category) => <label className="listing-checkbox" key={category}><input type="checkbox" checked={filters.categories.includes(category)} onChange={() => toggleCategory(category)} /><span>{categoryNames[category][lang]}</span><span className="listing-category-count">{categoryCounts ? number(categoryCounts[category]) : '—'}</span></label>)}
+          {!samplePreview && !filters.savedOnly && countsApi.status === 'error' && !api.data?.categoryCounts && <p className="catalog-count-note">{apiText.countsError} <button type="button" className="home-text-link" onClick={countsApi.retry}>{apiText.retry}</button></p>}
         </fieldset>
         <div className="listing-filter-group"><label htmlFor="listing-city">{t.city}</label><select id="listing-city" value={filters.city} onChange={(event) => update({ city: event.target.value as ListingFilters['city'] })}><option value="">{home.anyCity}</option>{Object.entries(cityNames).map(([id, name]) => <option key={id} value={id}>{name[lang]}</option>)}</select></div>
         <fieldset className="listing-filter-group" aria-describedby={results.invalidDates ? 'listing-date-error' : undefined}><legend>{t.dateRange}</legend>
@@ -88,7 +107,7 @@ export default function EventsListing() {
         </fieldset>
         <div className="listing-filter-group"><label htmlFor="listing-price">{t.price}</label><select id="listing-price" value={filters.price} onChange={(event) => update({ price: event.target.value as ListingFilters['price'] })}><option value="all">{t.allPrices}</option><option value="free">{t.freeOnly}</option><option value="paid">{t.paidOnly}</option></select></div>
       </aside>
-      <section className="listing-results" aria-labelledby="listing-results-title">
+      <section className="listing-results" aria-labelledby="listing-results-title" aria-busy={loading}>
         <div className="listing-toolbar">
           <h2 id="listing-results-title" tabIndex={-1}>{filters.savedOnly ? savedText.savedEvents : t.allEvents}</h2>
           <div className="listing-controls">
@@ -97,16 +116,19 @@ export default function EventsListing() {
           </div>
         </div>
         {chips.length > 0 && <div className="listing-active-filters" role="group" aria-label={t.activeFilters}>{chips.map((chip) => <button key={chip.id} onClick={chip.remove} aria-label={`${t.removeFilter}: ${chip.label}`}><span>{chip.label}</span><Icon name="close" size={14} /></button>)}<button className="listing-clear-chip" onClick={clear}>{t.clearAll}</button></div>}
-        <p className="listing-count" role="status" aria-live="polite">{t.showing} <b>{number(results.start)}–{number(results.end)}</b> {t.of} <b>{number(results.total)}</b> {t.events}</p>
+        {apiFailed && !filters.savedOnly && <div className="catalog-notice" role="status"><p>{apiText.apiError}</p><button type="button" className="home-outline-button" onClick={api.retry}>{apiText.retry}</button></div>}
+        {savedFailed && filters.savedOnly && <div className="catalog-notice" role="status"><p>{apiText.savedError}</p><button type="button" className="home-outline-button" onClick={savedApi.retry}>{apiText.retry}</button></div>}
+        {!!savedApi.data?.missing.length && filters.savedOnly && <div className="catalog-notice" role="status"><p>{apiText.savedMissing}</p><button type="button" className="home-outline-button" onClick={() => savedApi.data?.missing.forEach((id) => toggleSaved(id))}>{apiText.removeMissing}</button></div>}
+        {!loading && <p className="listing-count" role="status" aria-live="polite">{t.showing} <b>{number(results.start)}–{number(results.end)}</b> {t.of} <b>{number(results.total)}</b> {t.events}</p>}
         {filters.savedOnly && <p className="listing-saved-note">{isPersistent ? savedText.savedInBrowser : savedText.savedSession}</p>}
-        {results.total ? <div className="listing-grid">{results.events.map((event) => <EventCard key={event.id} event={event} lang={lang} t={home} />)}</div>
-          : <div className="home-empty listing-empty"><Icon name={noSavedEvents ? 'bookmark' : 'search'} size={38} /><h3>{noSavedEvents ? savedText.savedEmptyTitle : filters.savedOnly ? savedText.savedFilteredTitle : t.emptyTitle}</h3><p>{results.invalidDates ? t.invalidDates : noSavedEvents ? savedText.savedEmptyLead : t.emptyLead}</p><button className="home-button" onClick={clear}>{noSavedEvents ? t.exploreEvents : t.clearAll}</button></div>}
-        {results.pageCount > 1 && <nav className="listing-pagination" aria-label={t.pagination}>
+        {loading ? <div className="catalog-loading" role="status"><p>{apiText.loading}</p><div className="listing-grid" aria-hidden="true">{Array.from({ length: 6 }, (_, index) => <div className="catalog-skeleton" key={index} />)}</div></div> : results.total ? <div className="listing-grid">{results.events.map((event) => <EventCard key={event.id} event={event} lang={lang} t={home} />)}</div>
+          : <div className="home-empty listing-empty"><Icon name={noSavedEvents ? 'bookmark' : 'search'} size={38} /><h3>{noSavedEvents ? savedText.savedEmptyTitle : filters.savedOnly ? savedText.savedFilteredTitle : t.emptyTitle}</h3><p>{results.invalidDates ? t.invalidDates : noSavedEvents ? savedText.savedEmptyLead : filters.savedOnly && savedFailed ? apiText.savedError : samplePreview ? t.emptyLead : apiText.emptyLead}</p><button className="home-button" onClick={clear}>{noSavedEvents ? t.exploreEvents : t.clearAll}</button></div>}
+        {!loading && results.pageCount > 1 && <nav className="listing-pagination" aria-label={t.pagination}>
           <button className="listing-page-step" disabled={results.page === 1} onClick={() => changePage(results.page - 1)}><span className="discovery-back-arrow"><Icon name="arrow" size={17} /></span>{t.previous}</button>
-          {Array.from({ length: results.pageCount }, (_, index) => index + 1).map((page) => <button key={page} aria-label={`${t.page} ${number(page)}`} aria-current={results.page === page ? 'page' : undefined} onClick={() => changePage(page)}>{number(page)}</button>)}
+          {[...new Set([1, results.page - 1, results.page, results.page + 1, results.pageCount])].filter((page) => page > 0 && page <= results.pageCount).sort((a, b) => a - b).map((page, index, pages) => <span className="catalog-page-number" key={page}>{index > 0 && page - pages[index - 1] > 1 && <span aria-hidden="true">…</span>}<button aria-label={`${t.page} ${number(page)}`} aria-current={results.page === page ? 'page' : undefined} onClick={() => changePage(page)}>{number(page)}</button></span>)}
           <button className="listing-page-step" disabled={results.page === results.pageCount} onClick={() => changePage(results.page + 1)}>{t.next}<Icon name="arrow" size={17} /></button>
         </nav>}
-        <p className="discovery-sample-note">{t.demo}</p>
+        {!loading && <p className="discovery-sample-note">{filters.savedOnly ? results.events.some((event) => event.source !== 'api') ? apiText.savedMixed : apiText.apiNote : samplePreview ? t.demo : apiText.apiNote}</p>}
       </section>
     </div>
   </div>

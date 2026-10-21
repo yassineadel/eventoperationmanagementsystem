@@ -1,4 +1,5 @@
 import { Outlet } from 'react-router-dom'
+import { Suspense } from 'react'
 import { usePreferences } from '../Auth/preferences'
 import { homeStrings } from '../Homepage/strings'
 import Navbar from '../Homepage/components/Navbar'
@@ -12,7 +13,7 @@ export default function DiscoveryLayout() {
   return <div className="home-root discovery-root" lang={lang} dir={lang === 'ar' ? 'rtl' : 'ltr'} data-theme={theme}>
     <a className="home-skip-link" href="#discovery-main">{t.skip}</a>
     <Navbar t={t} />
-    <main id="discovery-main" tabIndex={-1}><Outlet /></main>
+    <main id="discovery-main" tabIndex={-1}><Suspense fallback={<div className="home-container" role="status" style={{ paddingBlock: 80 }}>{lang === 'ar' ? 'جارٍ تحميل الصفحة...' : 'Loading page...'}</div>}><Outlet /></Suspense></main>
     <Footer t={t} />
   </div>
 }

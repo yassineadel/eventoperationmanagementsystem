@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { lazy } from 'react';
 import './App.css'
 import Homepage from './Components/Homepage/Homepage';
 import PreferencesProvider from './Components/Auth/PreferencesProvider';
@@ -9,8 +10,6 @@ import ForgotPassword from './Components/ForgotPasswordPage/ForgotPassword';
 import ResetPassword from './Components/ResetPasswordPage/ResetPassword';
 import AuthCallback from './Components/AuthCallbackPage/AuthCallback';
 import DiscoveryLayout from './Components/Discovery/DiscoveryLayout';
-import EventsListing from './Components/Discovery/EventsListing';
-import EventDetail from './Components/Discovery/EventDetail';
 import NotFound from './Components/Discovery/NotFound';
 import ScrollToRoute from './Components/Discovery/ScrollToRoute';
 import SavedEventsProvider from './Components/Discovery/SavedEventsProvider';
@@ -29,6 +28,15 @@ import OrderListPage from './Components/Admin/OrderListPage';
 import OrderDetailPage from './Components/Admin/OrderDetailPage';
 import TicketListPage from './Components/Admin/TicketListPage';
 import TicketDetailPage from './Components/Admin/TicketDetailPage';
+import TicketsProvider from './Components/Tickets/TicketsProvider';
+import Chatbot from './Components/Chatbot/Chatbot';
+const EventsListing = lazy(() => import('./Components/Discovery/EventsListing'));
+const EventDetail = lazy(() => import('./Components/Discovery/EventDetail'));
+const Confirmation = lazy(() => import('./Components/Tickets/Confirmation'));
+const MyTickets = lazy(() => import('./Components/Tickets/MyTickets'));
+const TicketDetail = lazy(() => import('./Components/Tickets/TicketDetail'));
+const TransferTicket = lazy(() => import('./Components/Tickets/TransferTicket'));
+const RefundRequest = lazy(() => import('./Components/Tickets/RefundRequest'));
 
 function App() {
   return(
@@ -36,6 +44,7 @@ function App() {
       <SessionProvider>
       <SavedEventsProvider>
       <BookingProvider>
+      <TicketsProvider>
       <BrowserRouter>
         <ScrollToRoute />
         <Routes>
@@ -46,6 +55,11 @@ function App() {
             <Route path="/events/:eventId/tickets" element={<TicketSelection />} />
             <Route path="/cart" element={<Cart />} />
             <Route path="/checkout" element={<Checkout />} />
+            <Route path="/orders/:orderRef/confirmation" element={<Confirmation />} />
+            <Route path="/my-tickets" element={<MyTickets />} />
+            <Route path="/my-tickets/:ticketId" element={<TicketDetail />} />
+            <Route path="/my-tickets/:ticketId/transfer" element={<TransferTicket />} />
+            <Route path="/my-tickets/:ticketId/refund" element={<RefundRequest />} />
             <Route path="/profile" element={<ProfileLayout />}>
               <Route index element={<ProfileDetails />} />
               <Route path="settings" element={<AccountSettings />} />
@@ -70,7 +84,9 @@ function App() {
           <Route path="/admin/tickets" element={<TicketListPage />} />
           <Route path="/admin/tickets/:code" element={<TicketDetailPage />} />
         </Routes>
+        <Chatbot />
       </BrowserRouter>
+      </TicketsProvider>
       </BookingProvider>
       </SavedEventsProvider>
       </SessionProvider>

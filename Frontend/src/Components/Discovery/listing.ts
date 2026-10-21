@@ -55,7 +55,7 @@ export function getListingResults(events: Event[], filters: ListingFilters, lang
     const day = event.date.slice(0, 10)
     return (!filters.categories.length || filters.categories.includes(event.category))
       && (!filters.from || day >= filters.from) && (!filters.to || day <= filters.to)
-      && (filters.price === 'all' || (filters.price === 'free' ? event.price === 0 : event.price > 0))
+      && (filters.price === 'all' || (filters.price === 'free' ? event.price === 0 : event.price !== null && event.price > 0))
       && (!filters.savedOnly || saved.has(event.id))
   })
   const popularity = (event: Event) => event.activity.views + event.activity.registrations * 10
@@ -63,8 +63,8 @@ export function getListingResults(events: Event[], filters: ListingFilters, lang
     const fallback = a.date.localeCompare(b.date) || a.id.localeCompare(b.id)
     switch (filters.sort) {
       case 'popular': return popularity(b) - popularity(a) || fallback
-      case 'price-low': return a.price - b.price || fallback
-      case 'price-high': return b.price - a.price || fallback
+      case 'price-low': return (a.price === null ? Infinity : a.price) - (b.price === null ? Infinity : b.price) || fallback
+      case 'price-high': return (b.price === null ? -Infinity : b.price) - (a.price === null ? -Infinity : a.price) || fallback
       case 'name': return a.title[lang].localeCompare(b.title[lang], lang) || fallback
       default: return fallback
     }
