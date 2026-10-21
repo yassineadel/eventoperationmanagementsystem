@@ -4,7 +4,7 @@ import { cityNames, categoryNames } from './strings.ts'
 export function filterEvents(events: Event[], filters: Filters): Event[] {
   const query = filters.query.trim().toLocaleLowerCase()
   return events.filter((event) => {
-    const searchable = [...Object.values(event.title), ...Object.values(event.venue), ...Object.values(cityNames[event.city]), ...Object.values(categoryNames[event.category])].join(' ').toLocaleLowerCase()
+    const searchable = [...Object.values(event.title), ...Object.values(event.venue), ...Object.values(event.performer ?? {}), ...Object.values(cityNames[event.city]), ...Object.values(categoryNames[event.category])].join(' ').toLocaleLowerCase()
     return (!query || searchable.includes(query)) && (!filters.city || event.city === filters.city)
       && (!filters.category || event.category === filters.category) && (!filters.date || event.date.slice(0, 10) === filters.date)
   }).sort((a, b) => a.date.localeCompare(b.date))

@@ -7,7 +7,7 @@ export const eventStatusLabels: Record<EventStatus, LocalizedText> = {
 }
 
 const en = {
-  sampleStatus: 'Sample status', saveEvent: 'Save event', saved: 'Saved', removeSaved: 'Remove saved event',
+  sampleStatus: 'Sample status', status: 'Event status', savedLimit: 'You can save up to 200 events. Remove one before saving another.', saveEvent: 'Save event', saved: 'Saved', removeSaved: 'Remove saved event',
   savedMessage: 'Event saved in this browser.', removedMessage: 'Event removed from saved events.',
   savedForVisit: 'Event saved for this visit. Browser storage is unavailable.', removedForVisit: 'Event removed for this visit. Browser storage is unavailable.',
   savedEvents: 'Saved events', savedOnly: 'Show saved events only', savedInBrowser: 'Your saved events are kept in this browser.',
@@ -19,7 +19,7 @@ const en = {
   cancelledBooking: 'Event cancelled',
 }
 const ar: Record<keyof typeof en, string> = {
-  sampleStatus: 'حالة تجريبية', saveEvent: 'حفظ الفعالية', saved: 'محفوظة', removeSaved: 'إزالة الفعالية من المحفوظات',
+  sampleStatus: 'حالة تجريبية', status: 'حالة الفعالية', savedLimit: 'يمكنك حفظ ٢٠٠ فعالية كحد أقصى. أزل فعالية قبل حفظ أخرى.', saveEvent: 'حفظ الفعالية', saved: 'محفوظة', removeSaved: 'إزالة الفعالية من المحفوظات',
   savedMessage: 'تم حفظ الفعالية في هذا المتصفح.', removedMessage: 'تمت إزالة الفعالية من المحفوظات.',
   savedForVisit: 'تم حفظ الفعالية لهذه الزيارة. تخزين المتصفح غير متاح.', removedForVisit: 'تمت إزالة الفعالية لهذه الزيارة. تخزين المتصفح غير متاح.',
   savedEvents: 'الفعاليات المحفوظة', savedOnly: 'عرض الفعاليات المحفوظة فقط', savedInBrowser: 'تُحفظ فعالياتك في هذا المتصفح.',

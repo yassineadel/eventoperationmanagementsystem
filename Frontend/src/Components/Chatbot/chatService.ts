@@ -16,7 +16,7 @@ const categories: { id: Category; words: RegExp; label: string }[] = [
 const cities: City[] = ['cairo', 'alexandria', 'giza']
 const eventPath = (event: Event) => `/events/${encodeURIComponent(event.id)}`
 const eventLink = (event: Event): ChatLink => ({ label: event.title.en, to: eventPath(event) })
-const money = (price: number) => price === 0 ? 'Free admission' : `From EGP ${price.toFixed(2)} before category service fees`
+const money = (price: number | null) => price === null ? 'Price unavailable' : price === 0 ? 'Free admission' : `From EGP ${price.toFixed(2)} before category service fees`
 const dayTime = (date: string) => new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Cairo' }).format(new Date(date))
 const statusLabels = { available: 'Available in the sample catalogue', 'sold-out': 'Sold out in the sample catalogue', cancelled: 'Cancelled in the sample catalogue' }
 const refundHelp = 'Sample voluntary-refund policy: request at least seven days before the event starts. The refundable amount is the original charged total minus the category service fee; that fee is not refundable. Free tickets and tickets with transfer history are not eligible. Requests require administrator approval. The preview records a request only: no money is returned. Open My Tickets, choose a ticket, then Request refund to see its eligibility and exact sample quote.'
@@ -87,7 +87,7 @@ export function getDemoReply(message: string, now = Date.now()): ChatReply {
     if (city) params.set('city', city)
     if (free || paid) params.set('price', free ? 'free' : 'paid')
     if (dateOnly) params.set('date', dateOnly)
-    const matches = events.filter((event) => event.status === 'available' && Date.parse(event.date) > now && (!category || event.category === category.id) && (!city || event.city === city) && (!free || event.price === 0) && (!paid || event.price > 0) && (!dateOnly || event.date.slice(0, 10) === dateOnly)).sort((a, b) => a.date.localeCompare(b.date))
+    const matches = events.filter((event) => event.status === 'available' && Date.parse(event.date) > now && (!category || event.category === category.id) && (!city || event.city === city) && (!free || event.price === 0) && (!paid || event.price !== null && event.price > 0) && (!dateOnly || event.date.slice(0, 10) === dateOnly)).sort((a, b) => a.date.localeCompare(b.date))
     const criteria = [free ? 'free' : paid ? 'paid' : '', category?.label.toLowerCase() ?? '', city ? `in ${city[0].toUpperCase()}${city.slice(1)}` : '', dateOnly ? `on ${dateOnly}` : ''].filter(Boolean).join(' ')
     return publicSuggestions(matches, criteria ? `Here are upcoming ${criteria} sample events.` : 'Here are upcoming sample events and their venues.', `/events${params.size ? `?${params}` : ''}`)
   }

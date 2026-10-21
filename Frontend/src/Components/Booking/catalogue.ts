@@ -11,7 +11,8 @@ export function getBookingCatalogue(eventId: string): BookingCatalogue | null {
   const cached = catalogues.get(eventId)
   if (cached) return cached
   const event = events.find((item) => item.id === eventId)
-  if (!event) return null
+  if (!event || event.price === null) return null
+  const basePrice = event.price
   const seated = ['next-perspectives', 'design-together', 'creative-canvas'].includes(eventId)
   const definitions = seated ? [
     { id: 'front', name: { en: 'Front circle', ar: 'المقاعد الأمامية' }, description: { en: 'Close to the stage. At the heart of it all.', ar: 'بالقرب من المسرح، في قلب التجربة.' }, multiplier: 1.6, color: 'violet', remaining: 64 },
@@ -24,7 +25,7 @@ export function getBookingCatalogue(eventId: string): BookingCatalogue | null {
   ]
   const categories: TicketCategory[] = definitions.map((item, index) => ({
     id: item.id, name: item.name, description: item.description, color: item.color,
-    price: Math.round(event.price * item.multiplier), feePercent: [10, 8, 12][index], capacity: seated ? 80 : [60, 120, 40][index],
+    price: Math.round(basePrice * item.multiplier), feePercent: [10, 8, 12][index], capacity: seated ? 80 : [60, 120, 40][index],
     remaining: event.status === 'available' ? item.remaining : 0,
   }))
   const seats: Seat[] = seated ? Array.from({ length: 240 }, (_, index) => {
