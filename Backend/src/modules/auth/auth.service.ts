@@ -240,3 +240,28 @@ export const updateProfile = async (userId: string, data: { fullName: string; ph
     select: { id: true, fullName: true, email: true, phone: true, role: true },
   })
 }
+
+/**
+ * Changes the password of a logged-in user after checking the current one
+ */
+export const changePassword = async (userId: string, currentPassword: string, newPassword: string) => {
+  const user = await prisma.user.findUnique({ where: { id: userId } })
+  if (!user) throw new Error('User not found')
+
+  // Google-only accounts have no password to check
+  if (!user.passwordHash) {
+    throw new Error('This account signs in with Google and has no password. Use "Forgot password" to create one.')
+  }
+
+  // Check the current password
+  const isMatch = await bcrypt.compare(currentPassword, user.passwordHash)
+  if (!isMatch) throw new Error('Current password is incorrect')
+
+  if (currentPassword === newPassword) throw new Error('New password must be different from the current one')
+
+  // Save the new password, hashed (never store the plain text)
+  const passwordHash = await bcrypt.hash(newPassword, 10)
+  await prisma.user.update({ where: { id: userId }, data: { passwordHash } })
+
+  return { message: 'Password changed successfully' }
+}
