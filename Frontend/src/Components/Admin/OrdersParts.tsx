@@ -22,8 +22,8 @@ export function HeroStatus({ status, t }: { status: Status; t: OrdersStrings }) 
   return <span className={`od-hero-status od-hero-status--${status}`}>{t[status]}</span>
 }
 
-export function OrdersTabs({ active, orders, tickets, t, fmt }: { active: 'orders' | 'tickets'; orders: number; tickets: number; t: OrdersStrings; fmt: (n: number) => string }) {
-  const tab = (key: 'orders' | 'tickets', to: string, label: string, count: number) => (
+export function OrdersTabs({ active, orders, tickets, refunds, t, fmt }: { active: 'orders' | 'tickets' | 'refunds'; orders: number; tickets: number; refunds: number; t: OrdersStrings; fmt: (n: number) => string }) {
+  const tab = (key: 'orders' | 'tickets' | 'refunds', to: string, label: string, count: number) => (
     <Link to={to} className="od-tab" aria-current={active === key ? 'page' : undefined}>
       {label}
       <span className="ad-pill-count">{fmt(count)}</span>
@@ -33,6 +33,7 @@ export function OrdersTabs({ active, orders, tickets, t, fmt }: { active: 'order
     <nav className="od-tabs" aria-label={t.tabsLabel}>
       {tab('orders', '/admin/orders', t.tabOrders, orders)}
       {tab('tickets', '/admin/tickets', t.tabTickets, tickets)}
+      {tab('refunds', '/admin/refunds', t.tabRefunds, refunds)}
     </nav>
   )
 }
@@ -58,15 +59,17 @@ export function StatusPills<V extends string>({ id, label, value, choices, onCha
   )
 }
 
-/** Event filter as chips, the chosen one solid purple. */
-export function EventChips({ id, label, value, choices, onChange, fmt }: { id: string; label: string; value: string; choices: Choice<string>[]; onChange: (v: string) => void; fmt: (n: number) => string }) {
+/** Filter as chips, the chosen one solid purple; a calendar icon unless `icon` says otherwise. */
+export function EventChips({ id, label, value, choices, onChange, fmt, icon }: { id: string; label: string; value: string; choices: Choice<string>[]; onChange: (v: string) => void; fmt: (n: number) => string; icon?: ReactNode }) {
   return (
     <div className="ad-filter" role="group" aria-labelledby={id}>
       <span id={id} className="ad-filter-label ad-filter-label--icon">
-        <Icon size={16}>
-          <rect x="3" y="4" width="18" height="17" rx="2" />
-          <path d="M16 2v4M8 2v4M3 10h18" />
-        </Icon>
+        {icon ?? (
+          <Icon size={16}>
+            <rect x="3" y="4" width="18" height="17" rx="2" />
+            <path d="M16 2v4M8 2v4M3 10h18" />
+          </Icon>
+        )}
         {label}
       </span>
       <div className="ad-chips">

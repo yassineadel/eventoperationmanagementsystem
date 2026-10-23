@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { minutesAfter, OrderNotFoundError, SAMPLE_NOW, ticketsApi, type TicketDetail } from '../../lib/ordersApi'
+import { minutesAfter, now } from '../../lib/adminTime'
+import { OrderNotFoundError, ticketsApi } from '../../lib/ordersApi'
 import { Toast } from './AdminFeedback'
-import { AdminHero, AdminLayout, BackArrowIcon, LoadingPanel, MessagePanel, RetryButton, TicketIcon } from './AdminLayout'
+import { AdminHero, AdminLayout, BackArrowIcon, ResourceStatus, TicketIcon } from './AdminLayout'
+import { isolate } from './adminText'
+import { useErrorText } from './errorStrings'
 import { HeroStatus, InfoList, MailIcon, StatusBadge } from './OrdersParts'
 import { fillIn, useOrdersFormat, useOrdersStrings } from './ordersStrings'
-
-type LoadState = { status: 'loading' } | { status: 'error' } | { status: 'not-found' } | { status: 'ready'; detail: TicketDetail }
+import { useAdminResource } from './useAdminResource'
 
 /** 7 × 7 code-like pattern: solid squares in three corners, the rest seeded by the ticket code. */
 function qrCells(code: string) {
@@ -33,22 +35,12 @@ export default function TicketDetailPage() {
 function TicketDetailView({ code }: { code: string }) {
   const t = useOrdersStrings()
   const f = useOrdersFormat()
-  const [state, setState] = useState<LoadState>({ status: 'loading' })
-  const [attempt, setAttempt] = useState(0)
+  const errorText = useErrorText()
+  const { state, retry } = useAdminResource(code, () => ticketsApi.get(code), (e) => e instanceof OrderNotFoundError)
   const [busy, setBusy] = useState(false)
-  const [notice, setNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
+  const [notice, setNotice] = useState<{ tone: 'success' | 'error'; text: string; n: number } | null>(null)
+  const say = (tone: 'success' | 'error', text: string) => setNotice((prev) => ({ tone, text, n: (prev?.n ?? 0) + 1 }))
   const cells = useMemo(() => qrCells(code), [code])
-
-  useEffect(() => {
-    let cancelled = false
-    ticketsApi
-      .get(code)
-      .then((detail) => !cancelled && setState({ status: 'ready', detail }))
-      .catch((err) => !cancelled && setState({ status: err instanceof OrderNotFoundError ? 'not-found' : 'error' }))
-    return () => {
-      cancelled = true
-    }
-  }, [code, attempt])
 
   const crumbs = [
     { label: t.ordersTitle, to: '/admin/orders' },
@@ -65,30 +57,23 @@ function TicketDetailView({ code }: { code: string }) {
     return (
       <AdminLayout title={t.ticketEyebrow} crumbs={[...crumbs, { label: t.ticketEyebrow }]}>
         {backLink}
-        {state.status === 'loading' && <LoadingPanel label={t.loadingTicket} rows={3} />}
-        {state.status === 'error' && (
-          <MessagePanel
-            tone="error"
-            title={t.errorTickets}
-            text={t.errorText}
-            action={
-              <RetryButton
-                label={t.tryAgain}
-                onClick={() => {
-                  setState({ status: 'loading' })
-                  setAttempt((n) => n + 1)
-                }}
-              />
-            }
-          />
-        )}
-        {state.status === 'not-found' && <MessagePanel tone="empty" title={t.ticketNotFound} text={t.notFoundText} />}
+        <ResourceStatus
+          state={state}
+          loading={t.loadingTicket}
+          rows={3}
+          errorTitle={t.errorTickets}
+          errorText={t.errorText}
+          retryLabel={t.tryAgain}
+          onRetry={retry}
+          notFoundTitle={t.ticketNotFound}
+          notFoundText={t.notFoundText}
+        />
       </AdminLayout>
     )
   }
 
-  const { ticket, event, order } = state.detail
-  const past = event.startsAt < SAMPLE_NOW
+  const { ticket, event, order } = state.data
+  const past = event.startsAt < now()
   const lastScan = ticket.scans[ticket.scans.length - 1]
   const checkRows =
     ticket.status === 'checked'
@@ -107,9 +92,9 @@ function TicketDetailView({ code }: { code: string }) {
     setBusy(true)
     try {
       await ticketsApi.resend(ticket.code)
-      setNotice({ tone: 'success', text: fillIn(t.sentTicket, { email: order.customer.email }) })
-    } catch {
-      setNotice({ tone: 'error', text: t.failed })
+      say('success', fillIn(t.sentTicket, { email: isolate(order.customer.email) }))
+    } catch (error) {
+      say('error', errorText(error, t.failed))
     } finally {
       setBusy(false)
     }
@@ -164,7 +149,7 @@ function TicketDetailView({ code }: { code: string }) {
           </div>
           <div className="od-actions">
             {ticket.status === 'valid' && !past && (
-              <button type="button" className="ad-secondary" onClick={resend} disabled={busy}>
+              <button type="button" className="ad-secondary" onClick={() => !busy && resend()} aria-disabled={busy || undefined}>
                 <MailIcon />
                 {t.resendTicket}
               </button>
@@ -172,6 +157,9 @@ function TicketDetailView({ code }: { code: string }) {
             <Link className="ad-secondary" to={`/admin/orders/${order.id}`}>
               <TicketIcon />
               {t.viewOrder}
+            </Link>
+            <Link className="ad-secondary" to={`/admin/events/${event.eventId}`}>
+              {t.viewEvent}
             </Link>
           </div>
         </div>
@@ -183,7 +171,7 @@ function TicketDetailView({ code }: { code: string }) {
             </h2>
             <InfoList
               rows={[
-                { label: t.holder, value: ticket.holder },
+                { label: t.holder, value: <Link to={`/admin/users/${order.customer.userId}`}>{ticket.holder}</Link> },
                 { label: t.email, value: order.customer.email, ltr: true },
                 { label: t.purchased, value: f.date(order.placedAt) },
                 {
@@ -211,7 +199,7 @@ function TicketDetailView({ code }: { code: string }) {
       </div>
 
       {notice && (
-        <Toast key={notice.text} tone={notice.tone} message={notice.text} dismissLabel={t.dismiss} onDismiss={() => setNotice(null)} />
+        <Toast key={notice.n} tone={notice.tone} message={notice.text} dismissLabel={t.dismiss} onDismiss={() => setNotice(null)} />
       )}
     </AdminLayout>
   )

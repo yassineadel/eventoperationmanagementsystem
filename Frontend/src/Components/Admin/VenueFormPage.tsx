@@ -1,19 +1,31 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { adminEventsApi } from '../../lib/adminEventsApi'
 import {
   CATEGORY_COLOURS,
   formCapacity,
+  MAX_SEATS_PER_ROW,
   rowRange,
+  validateVenueForm,
   venuesApi,
   VenueNotFoundError,
   type VenueForm,
   type VenueKind,
+  type VenueProblem,
 } from '../../lib/venuesApi'
-import { usePreferences } from '../Auth/preferences'
 import { ConfirmDialog, PlusIcon, TrashIcon } from './AdminFeedback'
-import { AdminHero, AdminLayout, BackArrowIcon, Icon, LoadingPanel, MessagePanel, RetryButton } from './AdminLayout'
+import { AdminHero, AdminLayout, BackArrowIcon, Icon, ResourceStatus } from './AdminLayout'
 import { useAdminStrings, type AdminStrings } from './adminStrings'
+import { parseWhole } from './adminText'
+import { useErrorText } from './errorStrings'
+import { useOrdersFormat } from './ordersStrings'
+import { useAdminResource } from './useAdminResource'
+import { useUnsavedChanges } from './useUnsavedChanges'
 import { fill, type VenueToast } from './venueMessages'
+import './Events.css'
+
+let nextKey = 0
+const rowKey = () => `venue-row-${++nextKey}`
 
 const EMPTY: VenueForm = {
   name: '',
@@ -21,16 +33,15 @@ const EMPTY: VenueForm = {
   city: '',
   country: 'Egypt',
   kind: 'seated',
-  sections: [{ name: 'Stalls', firstRow: 'A', lastRow: 'J', seatsPerRow: 20 }],
-  zones: [{ name: 'General', capacity: 500 }],
-  categories: [{ name: 'Standard', code: 'STANDARD', colour: CATEGORY_COLOURS[4] }],
+  sections: [{ rowKey: 'empty-section', name: 'Stalls', firstRow: 'A', lastRow: 'J', seatsPerRow: 20, categoryCode: 'STANDARD' }],
+  zones: [{ rowKey: 'empty-zone', name: 'General', capacity: 500, categoryCode: 'STANDARD' }],
+  categories: [{ rowKey: 'empty-category', name: 'Standard', code: 'STANDARD', colour: CATEGORY_COLOURS[4] }],
 }
 
-type Required = 'name' | 'address' | 'city'
-const REQUIRED: Required[] = ['name', 'address', 'city']
+type Detail = 'name' | 'address' | 'city'
 
-const backLink = (t: AdminStrings) => (
-  <Link className="ad-back" to="/admin/venues">
+const backLink = (t: AdminStrings, to = '/admin/venues') => (
+  <Link className="ad-back" to={to}>
     <BackArrowIcon />
     {t.backToVenues}
   </Link>
@@ -39,109 +50,150 @@ const backLink = (t: AdminStrings) => (
 /* ------------------------------------------------------------------ pages */
 
 export function VenueAddPage() {
-  return <VenueEditor mode="add" initial={EMPTY} />
+  return <VenueEditor mode="add" initial={EMPTY} events={0} />
 }
 
-// Keyed by the venue ID so moving to another venue starts from a fresh loading state.
 export function VenueEditPage() {
   const { venueId = '' } = useParams()
-  return <VenueEditLoader key={venueId} venueId={venueId} />
-}
-
-type LoadState = { status: 'loading' } | { status: 'error' } | { status: 'not-found' } | { status: 'ready'; form: VenueForm }
-
-function VenueEditLoader({ venueId }: { venueId: string }) {
   const t = useAdminStrings()
-  const [state, setState] = useState<LoadState>({ status: 'loading' })
-  const [attempt, setAttempt] = useState(0)
+  const { state, retry } = useAdminResource(
+    venueId,
+    async () => {
+      const [form, events] = await Promise.all([venuesApi.getForm(venueId), adminEventsApi.countAtVenue(venueId)])
+      return { form, events }
+    },
+    (e) => e instanceof VenueNotFoundError,
+  )
 
-  useEffect(() => {
-    let cancelled = false
-    venuesApi
-      .getForm(venueId)
-      .then((form) => !cancelled && setState({ status: 'ready', form }))
-      .catch((err) => !cancelled && setState({ status: err instanceof VenueNotFoundError ? 'not-found' : 'error' }))
-    return () => {
-      cancelled = true
-    }
-  }, [venueId, attempt])
-
-  if (state.status === 'ready') return <VenueEditor mode="edit" venueId={venueId} initial={state.form} />
+  if (state.status === 'ready') return <VenueEditor key={venueId} mode="edit" venueId={venueId} initial={state.data.form} events={state.data.events} />
 
   return (
     <AdminLayout title={t.editVenue} crumbs={[{ label: t.listTitle, to: '/admin/venues' }, { label: t.editVenue }]}>
       {backLink(t)}
-      {state.status === 'loading' && <LoadingPanel label={t.loadingForm} rows={4} />}
-      {state.status === 'error' && (
-        <MessagePanel
-          tone="error"
-          title={t.venueErrorTitle}
-          text={t.errorText}
-          action={
-            <RetryButton
-              label={t.tryAgain}
-              onClick={() => {
-                setState({ status: 'loading' })
-                setAttempt((n) => n + 1)
-              }}
-            />
-          }
-        />
-      )}
-      {state.status === 'not-found' && <MessagePanel tone="empty" title={t.notFoundTitle} text={t.notFoundText} />}
+      <ResourceStatus
+        state={state}
+        loading={t.loadingForm}
+        rows={4}
+        errorTitle={t.venueErrorTitle}
+        errorText={t.errorText}
+        retryLabel={t.tryAgain}
+        onRetry={retry}
+        notFoundTitle={t.notFoundTitle}
+        notFoundText={t.notFoundText}
+      />
     </AdminLayout>
   )
 }
 
 /* ----------------------------------------------------------------- editor */
 
-type EditorProps = { mode: 'add' | 'edit'; venueId?: string; initial: VenueForm }
+type EditorProps = { mode: 'add' | 'edit'; venueId?: string; initial: VenueForm; events: number }
 
-function VenueEditor({ mode, venueId, initial }: EditorProps) {
+/** The id of the first control for a problem, for focus after a failed save. */
+function problemTarget(p: VenueProblem, form: VenueForm) {
+  switch (p.field) {
+    case 'name':
+    case 'address':
+    case 'city':
+      return `venue-${p.field}`
+    case 'section':
+      return `venue-section-${form.sections[p.index].rowKey}`
+    case 'zone':
+      return `venue-zone-${form.zones[p.index].rowKey}`
+    case 'category':
+      return `venue-category-${form.categories[p.index].rowKey}`
+    case 'sections':
+      return 'venue-add-section'
+    case 'zones':
+      return 'venue-add-zone'
+    case 'categories':
+      return 'venue-add-category'
+  }
+}
+
+function VenueEditor({ mode, venueId, initial, events }: EditorProps) {
   const t = useAdminStrings()
-  const { lang } = usePreferences()
+  const f = useOrdersFormat()
   const navigate = useNavigate()
-  const locale = lang === 'ar' ? 'ar-EG' : 'en-US'
-  const fmt = useCallback((n: number) => n.toLocaleString(locale), [locale])
+  const errorText = useErrorText()
+  const fmt = f.num
 
   const [form, setForm] = useState<VenueForm>(initial)
-  const [tried, setTried] = useState(false)
+  const [touched, setTouched] = useState<Set<Detail>>(() => new Set())
+  const [tried, setTried] = useState(0)
   const [saving, setSaving] = useState(false)
-  const [failed, setFailed] = useState(false)
+  const [failure, setFailure] = useState<string | null>(null)
   const [confirming, setConfirming] = useState(false)
   const originalName = initial.name
 
-  const missing = (key: Required) => !form[key].trim()
-  const valid = REQUIRED.every((key) => !missing(key))
+  const problems = validateVenueForm(form)
+  const dirty = !saving && JSON.stringify(form) !== JSON.stringify(initial)
+  const guard = useUnsavedChanges(dirty)
   const seated = form.kind === 'seated'
   const capacity = formCapacity(form)
-  const errorText: Record<Required, string> = { name: t.errName, address: t.errAddress, city: t.errCity }
+  const detailText: Record<Detail, string> = { name: t.errName, address: t.errAddress, city: t.errCity }
+  const showDetail = (key: Detail) => (tried > 0 || touched.has(key)) && problems.some((p) => p.field === key)
+  const rowBad = (field: 'section' | 'zone' | 'category', index: number) => tried > 0 && problems.some((p) => p.field === field && 'index' in p && p.index === index)
+  const listBad = (field: 'section' | 'zone' | 'category' | 'sections' | 'zones' | 'categories') => tried > 0 && problems.some((p) => p.field === field)
+  const codes = form.categories.map((c) => c.code)
 
-  const patch = (changes: Partial<VenueForm>) => setForm((f) => ({ ...f, ...changes }))
+  // After a failed save, focus the first problem once its message is on screen.
+  useEffect(() => {
+    if (!tried || !problems[0]) return
+    document.getElementById(problemTarget(problems[0], form))?.focus()
+    // Only when the admin presses Save.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tried])
+
+  const patch = (changes: Partial<VenueForm>) => setForm((current) => ({ ...current, ...changes }))
   function patchItem<K extends 'sections' | 'zones' | 'categories'>(key: K, index: number, changes: Partial<VenueForm[K][number]>) {
-    setForm((f) => ({ ...f, [key]: f[key].map((item, i) => (i === index ? { ...item, ...changes } : item)) }))
+    setForm((current) => ({ ...current, [key]: current[key].map((item, i) => (i === index ? { ...item, ...changes } : item)) }))
   }
-  function removeItem(key: 'sections' | 'zones' | 'categories', index: number) {
-    setForm((f) => ({ ...f, [key]: f[key].filter((_, i) => i !== index) }))
+  function removeItem(key: 'sections' | 'zones', index: number) {
+    setForm((current) => ({ ...current, [key]: current[key].filter((_, i) => i !== index) }))
+  }
+
+  /** Renaming a category's code keeps the sections and zones that use it pointing at it. */
+  function changeCode(index: number, code: string) {
+    setForm((current) => {
+      const old = current.categories[index].code
+      const follow = <T extends { categoryCode: string }>(items: T[]) => items.map((it) => (it.categoryCode === old ? { ...it, categoryCode: code } : it))
+      return {
+        ...current,
+        categories: current.categories.map((c, i) => (i === index ? { ...c, code } : c)),
+        sections: follow(current.sections),
+        zones: follow(current.zones),
+      }
+    })
+  }
+
+  /** Removing a category moves its sections and zones to the first remaining one. */
+  function removeCategory(index: number) {
+    setForm((current) => {
+      const removed = current.categories[index].code
+      const categories = current.categories.filter((_, i) => i !== index)
+      const fallback = categories[0]?.code ?? ''
+      const move = <T extends { categoryCode: string }>(items: T[]) => items.map((it) => (it.categoryCode === removed ? { ...it, categoryCode: fallback } : it))
+      return { ...current, categories, sections: move(current.sections), zones: move(current.zones) }
+    })
   }
 
   async function submit(e: FormEvent) {
     e.preventDefault()
-    if (!valid) {
-      setTried(true)
-      const first = REQUIRED.find(missing)
-      if (first) document.getElementById(`venue-${first}`)?.focus()
+    if (saving) return
+    if (problems.length) {
+      setTried((n) => n + 1)
       return
     }
     setSaving(true)
-    setFailed(false)
+    setFailure(null)
     try {
       const venue = mode === 'add' ? await venuesApi.create(form) : await venuesApi.update(venueId!, form)
       const toast: VenueToast = { kind: mode === 'add' ? 'added' : 'saved', name: venue.name, id: venue.id }
       navigate('/admin/venues', { state: { toast } })
-    } catch {
+    } catch (error) {
       setSaving(false)
-      setFailed(true)
+      setFailure(errorText(error, t.actionFailed))
     }
   }
 
@@ -151,15 +203,15 @@ function VenueEditor({ mode, venueId, initial }: EditorProps) {
       await venuesApi.remove(venueId!)
       const toast: VenueToast = { kind: 'deleted', name: originalName, id: venueId! }
       navigate('/admin/venues', { state: { toast } })
-    } catch {
+    } catch (error) {
       setSaving(false)
       setConfirming(false)
-      setFailed(true)
+      setFailure(errorText(error, t.actionFailed))
     }
   }
 
-  const field = (key: Required | 'country', label: string, placeholder?: string, wide = false) => {
-    const show = key !== 'country' && tried && missing(key)
+  const field = (key: Detail | 'country', label: string, placeholder?: string, wide = false) => {
+    const show = key !== 'country' && showDetail(key)
     return (
       <div className={`ad-field${wide ? ' ad-field--wide' : ''}`}>
         <label htmlFor={`venue-${key}`}>
@@ -180,27 +232,42 @@ function VenueEditor({ mode, venueId, initial }: EditorProps) {
           aria-invalid={show}
           aria-describedby={show ? `venue-${key}-error` : undefined}
           onChange={(e) => patch({ [key]: e.target.value })}
+          onBlur={() => key !== 'country' && setTouched((s) => new Set(s).add(key))}
         />
         {show && (
           <p id={`venue-${key}-error`} className="ad-field-error">
-            {errorText[key as Required]}
+            {detailText[key as Detail]}
           </p>
         )}
       </div>
     )
   }
 
+  const categorySelect = (id: string, label: string, value: string, onChange: (code: string) => void) => (
+    <div className="ad-select ad-select--row">
+      <select id={id} aria-label={label} value={value} onChange={(e) => onChange(e.target.value)}>
+        {form.categories.map((c) => (
+          <option key={c.rowKey ?? c.code} value={c.code}>
+            {c.name || c.code}
+          </option>
+        ))}
+      </select>
+      <Icon size={16}>
+        <path d="m6 9 6 6 6-6" />
+      </Icon>
+    </div>
+  )
+
   const kinds: Array<{ value: VenueKind; label: string; hint: string }> = [
     { value: 'seated', label: t.seated, hint: t.seatedHint },
     { value: 'standing', label: t.standing, hint: t.standingHint },
   ]
-  const number = (value: string) => Number(value.replace(/[^0-9]/g, '')) || 0
   const title = mode === 'add' ? t.addTitle : `${t.editVenue} · ${originalName}`
   const crumb = mode === 'add' ? t.newVenue : originalName
 
   return (
     <AdminLayout title={title} crumbs={[{ label: t.listTitle, to: '/admin/venues' }, { label: crumb }]}>
-      {backLink(t)}
+      {backLink(t, mode === 'edit' ? `/admin/venues/${venueId}` : '/admin/venues')}
       <AdminHero eyebrow={t.listEyebrow} title={title}>
         <p className="ad-hero-lead">{mode === 'add' ? t.addLead : t.editLead}</p>
       </AdminHero>
@@ -226,11 +293,98 @@ function VenueEditor({ mode, venueId, initial }: EditorProps) {
             </div>
           </section>
 
-          <section className="ad-card" aria-labelledby="step-layout">
+          <section className="ad-card" aria-labelledby="step-categories">
             <div className="ad-card-head ad-card-head--tight">
               <div className="ad-card-title">
                 <span className="ad-step" aria-hidden="true">
                   {fmt(2)}
+                </span>
+                <h2 id="step-categories" className="ad-card-h">
+                  {t.stepCategories}
+                </h2>
+              </div>
+            </div>
+            <div className="ad-form-body">
+              <p className="ad-muted">{t.categoriesHint}</p>
+              <div className="ad-editor">
+                <div className="ad-editor-head ad-editor-row--cats" aria-hidden="true">
+                  <span />
+                  <span>{t.categoryName}</span>
+                  <span>{t.categoryCode}</span>
+                  <span />
+                </div>
+                {form.categories.map((c, i) => {
+                  const bad = rowBad('category', i)
+                  return (
+                    <div className="ad-editor-row ad-editor-row--cats" key={c.rowKey ?? i}>
+                      <button
+                        type="button"
+                        className="ad-swatch-btn"
+                        aria-label={`${t.changeColour} ${c.name}`}
+                        onClick={() => {
+                          const next = (CATEGORY_COLOURS.indexOf(c.colour) + 1) % CATEGORY_COLOURS.length
+                          patchItem('categories', i, { colour: CATEGORY_COLOURS[next] })
+                        }}
+                      >
+                        <span style={{ background: c.colour }} />
+                      </button>
+                      <input
+                        id={`venue-category-${c.rowKey}`}
+                        aria-label={`${t.categoryName} ${fmt(i + 1)}`}
+                        value={c.name}
+                        required
+                        aria-invalid={bad && !c.name.trim()}
+                        aria-describedby={bad ? 'venue-categories-error' : undefined}
+                        onChange={(e) => patchItem('categories', i, { name: e.target.value })}
+                      />
+                      <input
+                        className="ad-mono"
+                        dir="ltr"
+                        aria-label={`${t.categoryCode} ${fmt(i + 1)}`}
+                        value={c.code}
+                        required
+                        aria-invalid={bad && (!c.code.trim() || codes.indexOf(c.code) !== i)}
+                        aria-describedby={bad ? 'venue-categories-error' : undefined}
+                        onChange={(e) => changeCode(i, e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ''))}
+                      />
+                      {form.categories.length > 1 ? (
+                        <RemoveButton label={`${t.remove} ${c.name}`} onClick={() => removeCategory(i)} />
+                      ) : (
+                        <span />
+                      )}
+                    </div>
+                  )
+                })}
+                <button
+                  id="venue-add-category"
+                  type="button"
+                  className="ad-add-row"
+                  onClick={() =>
+                    patch({
+                      categories: [
+                        ...form.categories,
+                        { rowKey: rowKey(), name: '', code: '', colour: CATEGORY_COLOURS[form.categories.length % CATEGORY_COLOURS.length] },
+                      ],
+                    })
+                  }
+                >
+                  <PlusIcon size={16} />
+                  {t.addCategory}
+                </button>
+                {(listBad('category') || listBad('categories')) && (
+                  <p id="venue-categories-error" className="ad-field-error">
+                    {listBad('categories') ? t.errCategories : t.errCategory}
+                  </p>
+                )}
+              </div>
+            </div>
+          </section>
+
+          <section className="ad-card" aria-labelledby="step-layout">
+            <div className="ad-card-head ad-card-head--tight">
+              <div className="ad-card-title">
+                <span className="ad-step" aria-hidden="true">
+                  {fmt(3)}
                 </span>
                 <h2 id="step-layout" className="ad-card-h">
                   {t.stepLayout}
@@ -242,13 +396,7 @@ function VenueEditor({ mode, venueId, initial }: EditorProps) {
                 <legend className="ad-sr-only">{t.stepLayout}</legend>
                 {kinds.map((k) => (
                   <label key={k.value} className="ad-kind-card">
-                    <input
-                      type="radio"
-                      name="venue-kind"
-                      value={k.value}
-                      checked={form.kind === k.value}
-                      onChange={() => patch({ kind: k.value })}
-                    />
+                    <input type="radio" name="venue-kind" value={k.value} checked={form.kind === k.value} onChange={() => patch({ kind: k.value })} />
                     <span>
                       <strong>{k.label}</strong>
                       <span>{k.hint}</span>
@@ -265,48 +413,76 @@ function VenueEditor({ mode, venueId, initial }: EditorProps) {
                     <span>{t.firstRow}</span>
                     <span>{t.lastRow}</span>
                     <span>{t.seatsPerRow}</span>
+                    <span>{t.sectionCategory}</span>
                     <span className="ad-end">{t.seatsCol}</span>
                     <span />
                   </div>
-                  {form.sections.map((s, i) => (
-                    <div className="ad-editor-row ad-editor-row--sections" key={i}>
-                      <input
-                        aria-label={`${t.sectionName} ${i + 1}`}
-                        value={s.name}
-                        onChange={(e) => patchItem('sections', i, { name: e.target.value })}
-                      />
-                      <input
-                        className="ad-mono"
-                        aria-label={`${t.firstRow} · ${t.sectionName} ${i + 1}`}
-                        maxLength={1}
-                        value={s.firstRow}
-                        onChange={(e) => patchItem('sections', i, { firstRow: e.target.value.toUpperCase() })}
-                      />
-                      <input
-                        className="ad-mono"
-                        aria-label={`${t.lastRow} · ${t.sectionName} ${i + 1}`}
-                        maxLength={1}
-                        value={s.lastRow}
-                        onChange={(e) => patchItem('sections', i, { lastRow: e.target.value.toUpperCase() })}
-                      />
-                      <input
-                        inputMode="numeric"
-                        aria-label={`${t.seatsPerRow} · ${t.sectionName} ${i + 1}`}
-                        value={String(s.seatsPerRow)}
-                        onChange={(e) => patchItem('sections', i, { seatsPerRow: number(e.target.value) })}
-                      />
-                      <strong className="ad-end">{fmt(rowRange(s.firstRow, s.lastRow).length * s.seatsPerRow)}</strong>
-                      <RemoveButton label={`${t.remove} ${s.name}`} onClick={() => removeItem('sections', i)} />
-                    </div>
-                  ))}
+                  {form.sections.map((s, i) => {
+                    const bad = rowBad('section', i)
+                    const describe = bad ? 'venue-sections-error' : undefined
+                    const label = s.name || `${t.sectionName} ${fmt(i + 1)}`
+                    return (
+                      <div className="ad-editor-row ad-editor-row--sections" key={s.rowKey ?? i}>
+                        <input
+                          id={`venue-section-${s.rowKey}`}
+                          aria-label={`${t.sectionName} ${fmt(i + 1)}`}
+                          value={s.name}
+                          required
+                          aria-invalid={bad && !s.name.trim()}
+                          aria-describedby={describe}
+                          onChange={(e) => patchItem('sections', i, { name: e.target.value })}
+                        />
+                        <input
+                          className="ad-mono"
+                          dir="ltr"
+                          aria-label={`${t.firstRow} · ${label}`}
+                          maxLength={1}
+                          value={s.firstRow}
+                          aria-invalid={bad && rowRange(s.firstRow, s.lastRow).length === 0}
+                          aria-describedby={describe}
+                          onChange={(e) => patchItem('sections', i, { firstRow: e.target.value.toUpperCase() })}
+                        />
+                        <input
+                          className="ad-mono"
+                          dir="ltr"
+                          aria-label={`${t.lastRow} · ${label}`}
+                          maxLength={1}
+                          value={s.lastRow}
+                          aria-invalid={bad && rowRange(s.firstRow, s.lastRow).length === 0}
+                          aria-describedby={describe}
+                          onChange={(e) => patchItem('sections', i, { lastRow: e.target.value.toUpperCase() })}
+                        />
+                        <input
+                          inputMode="numeric"
+                          dir="ltr"
+                          aria-label={`${t.seatsPerRow} · ${label}`}
+                          value={String(s.seatsPerRow)}
+                          aria-invalid={bad && (s.seatsPerRow < 1 || s.seatsPerRow > MAX_SEATS_PER_ROW)}
+                          aria-describedby={describe}
+                          onChange={(e) => patchItem('sections', i, { seatsPerRow: parseWhole(e.target.value, 999) })}
+                        />
+                        {categorySelect(`venue-section-cat-${s.rowKey}`, `${t.sectionCategory} · ${label}`, s.categoryCode, (code) => patchItem('sections', i, { categoryCode: code }))}
+                        <strong className="ad-end">{fmt(rowRange(s.firstRow, s.lastRow).length * s.seatsPerRow)}</strong>
+                        <RemoveButton label={`${t.remove} ${label}`} onClick={() => removeItem('sections', i)} />
+                      </div>
+                    )
+                  })}
                   <button
+                    id="venue-add-section"
                     type="button"
                     className="ad-add-row"
-                    onClick={() => patch({ sections: [...form.sections, { name: '', firstRow: 'A', lastRow: 'A', seatsPerRow: 10 }] })}
+                    onClick={() =>
+                      patch({ sections: [...form.sections, { rowKey: rowKey(), name: '', firstRow: 'A', lastRow: 'A', seatsPerRow: 10, categoryCode: codes[0] ?? '' }] })
+                    }
                   >
                     <PlusIcon size={16} />
                     {t.addSection}
                   </button>
+                  {(listBad('section') || listBad('sections')) && (
+                    <p id="venue-sections-error" className="ad-field-error">
+                      {listBad('sections') ? t.errSections : t.errSection}
+                    </p>
+                  )}
                 </div>
               ) : (
                 <div className="ad-editor">
@@ -314,100 +490,54 @@ function VenueEditor({ mode, venueId, initial }: EditorProps) {
                   <div className="ad-editor-head ad-editor-row--zones" aria-hidden="true">
                     <span>{t.zoneName}</span>
                     <span>{t.zoneCapacity}</span>
+                    <span>{t.sectionCategory}</span>
                     <span />
                   </div>
-                  {form.zones.map((z, i) => (
-                    <div className="ad-editor-row ad-editor-row--zones" key={i}>
-                      <input
-                        aria-label={`${t.zoneName} ${i + 1}`}
-                        value={z.name}
-                        onChange={(e) => patchItem('zones', i, { name: e.target.value })}
-                      />
-                      <input
-                        inputMode="numeric"
-                        aria-label={`${t.zoneCapacity} · ${t.zoneName} ${i + 1}`}
-                        value={String(z.capacity)}
-                        onChange={(e) => patchItem('zones', i, { capacity: number(e.target.value) })}
-                      />
-                      <RemoveButton label={`${t.remove} ${z.name}`} onClick={() => removeItem('zones', i)} />
-                    </div>
-                  ))}
+                  {form.zones.map((z, i) => {
+                    const bad = rowBad('zone', i)
+                    const describe = bad ? 'venue-zones-error' : undefined
+                    const label = z.name || `${t.zoneName} ${fmt(i + 1)}`
+                    return (
+                      <div className="ad-editor-row ad-editor-row--zones" key={z.rowKey ?? i}>
+                        <input
+                          id={`venue-zone-${z.rowKey}`}
+                          aria-label={`${t.zoneName} ${fmt(i + 1)}`}
+                          value={z.name}
+                          required
+                          aria-invalid={bad && !z.name.trim()}
+                          aria-describedby={describe}
+                          onChange={(e) => patchItem('zones', i, { name: e.target.value })}
+                        />
+                        <input
+                          inputMode="numeric"
+                          dir="ltr"
+                          aria-label={`${t.zoneCapacity} · ${label}`}
+                          value={String(z.capacity)}
+                          aria-invalid={bad && z.capacity < 1}
+                          aria-describedby={describe}
+                          onChange={(e) => patchItem('zones', i, { capacity: parseWhole(e.target.value, 100_000) })}
+                        />
+                        {categorySelect(`venue-zone-cat-${z.rowKey}`, `${t.sectionCategory} · ${label}`, z.categoryCode, (code) => patchItem('zones', i, { categoryCode: code }))}
+                        <RemoveButton label={`${t.remove} ${label}`} onClick={() => removeItem('zones', i)} />
+                      </div>
+                    )
+                  })}
                   <button
+                    id="venue-add-zone"
                     type="button"
                     className="ad-add-row"
-                    onClick={() => patch({ zones: [...form.zones, { name: '', capacity: 100 }] })}
+                    onClick={() => patch({ zones: [...form.zones, { rowKey: rowKey(), name: '', capacity: 100, categoryCode: codes[0] ?? '' }] })}
                   >
                     <PlusIcon size={16} />
                     {t.addZone}
                   </button>
+                  {(listBad('zone') || listBad('zones')) && (
+                    <p id="venue-zones-error" className="ad-field-error">
+                      {listBad('zones') ? t.errZones : t.errZone}
+                    </p>
+                  )}
                 </div>
               )}
-            </div>
-          </section>
-
-          <section className="ad-card" aria-labelledby="step-categories">
-            <div className="ad-card-head ad-card-head--tight">
-              <div className="ad-card-title">
-                <span className="ad-step" aria-hidden="true">
-                  {fmt(3)}
-                </span>
-                <h2 id="step-categories" className="ad-card-h">
-                  {t.stepCategories}
-                </h2>
-              </div>
-            </div>
-            <div className="ad-form-body">
-              <p className="ad-muted">{t.categoriesHint}</p>
-              <div className="ad-editor">
-                <div className="ad-editor-head ad-editor-row--cats" aria-hidden="true">
-                  <span />
-                  <span>{t.categoryName}</span>
-                  <span>{t.categoryCode}</span>
-                  <span />
-                </div>
-                {form.categories.map((c, i) => (
-                  <div className="ad-editor-row ad-editor-row--cats" key={i}>
-                    <button
-                      type="button"
-                      className="ad-swatch-btn"
-                      aria-label={`${t.changeColour} ${c.name}`}
-                      onClick={() => {
-                        const next = (CATEGORY_COLOURS.indexOf(c.colour) + 1) % CATEGORY_COLOURS.length
-                        patchItem('categories', i, { colour: CATEGORY_COLOURS[next] })
-                      }}
-                    >
-                      <span style={{ background: c.colour }} />
-                    </button>
-                    <input
-                      aria-label={`${t.categoryName} ${i + 1}`}
-                      value={c.name}
-                      onChange={(e) => patchItem('categories', i, { name: e.target.value })}
-                    />
-                    <input
-                      className="ad-mono"
-                      aria-label={`${t.categoryCode} ${i + 1}`}
-                      value={c.code}
-                      onChange={(e) => patchItem('categories', i, { code: e.target.value.toUpperCase().replace(/\s+/g, '_') })}
-                    />
-                    <RemoveButton label={`${t.remove} ${c.name}`} onClick={() => removeItem('categories', i)} />
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  className="ad-add-row"
-                  onClick={() =>
-                    patch({
-                      categories: [
-                        ...form.categories,
-                        { name: '', code: '', colour: CATEGORY_COLOURS[form.categories.length % CATEGORY_COLOURS.length] },
-                      ],
-                    })
-                  }
-                >
-                  <PlusIcon size={16} />
-                  {t.addCategory}
-                </button>
-              </div>
             </div>
           </section>
         </div>
@@ -438,38 +568,46 @@ function VenueEditor({ mode, venueId, initial }: EditorProps) {
               </div>
             </dl>
             <div className="ad-summary-actions">
-              {tried && !valid && (
+              {tried > 0 && problems.length > 0 && (
                 <p className="ad-error-summary" role="alert">
-                  {t.errSummary}
+                  {t.errFix}
                 </p>
               )}
-              {failed && (
+              {failure && (
                 <p className="ad-error-summary" role="alert">
-                  {t.actionFailed}
+                  {failure}
                 </p>
               )}
-              <button type="submit" className="ad-primary" disabled={saving}>
+              <button type="submit" className="ad-primary" aria-disabled={saving || undefined}>
                 <Icon>
                   <path d="m5 12.5 4.5 4.5L19 7.5" />
                 </Icon>
                 {saving ? t.saving : mode === 'add' ? t.saveVenue : t.saveChanges}
               </button>
-              <Link className="ad-secondary" to="/admin/venues">
+              <Link className="ad-secondary" to={mode === 'edit' ? `/admin/venues/${venueId}` : '/admin/venues'}>
                 {t.cancel}
               </Link>
             </div>
           </section>
 
-          {mode === 'edit' && (
-            <section className="ad-card ad-danger-card" aria-labelledby="danger-title">
-              <h2 id="danger-title">{t.dangerTitle}</h2>
-              <p>{t.deleteText}</p>
-              <button type="button" className="ad-danger-outline" onClick={() => setConfirming(true)}>
-                <TrashIcon size={16} />
-                {t.deleteVenue}
-              </button>
-            </section>
-          )}
+          {mode === 'edit' &&
+            (events === 0 ? (
+              <section className="ad-card ad-danger-card" aria-labelledby="danger-title">
+                <h2 id="danger-title">{t.dangerTitle}</h2>
+                <p>{t.deleteText}</p>
+                <button type="button" className="ad-danger-outline" onClick={() => setConfirming(true)}>
+                  <TrashIcon size={16} />
+                  {t.deleteVenue}
+                </button>
+              </section>
+            ) : (
+              <section className="ad-card" aria-labelledby="in-use-title">
+                <h2 id="in-use-title" className="ad-card-h ad-card-h--bar">
+                  {t.inUseTitle}
+                </h2>
+                <p className="ev-card-text">{t.inUseText}</p>
+              </section>
+            ))}
         </aside>
       </form>
 
@@ -482,6 +620,17 @@ function VenueEditor({ mode, venueId, initial }: EditorProps) {
           busy={saving}
           onConfirm={confirmDelete}
           onCancel={() => setConfirming(false)}
+        />
+      )}
+
+      {guard.pending && (
+        <ConfirmDialog
+          title={t.unsavedTitle}
+          text={t.unsavedText}
+          confirmLabel={t.leavePage}
+          cancelLabel={t.keepEditing}
+          onConfirm={guard.leave}
+          onCancel={guard.stay}
         />
       )}
     </AdminLayout>

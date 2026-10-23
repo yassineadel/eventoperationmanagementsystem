@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { lazy } from 'react';
 import './App.css'
 import Homepage from './Components/Homepage/Homepage';
@@ -21,13 +21,7 @@ import BookingProvider from './Components/Booking/BookingProvider';
 import TicketSelection from './Components/Booking/TicketSelection';
 import Cart from './Components/Booking/Cart';
 import Checkout from './Components/Booking/Checkout';
-import VenueListPage from './Components/Admin/VenueListPage';
-import VenueDetailPage from './Components/Admin/VenueDetailPage';
-import { VenueAddPage, VenueEditPage } from './Components/Admin/VenueFormPage';
-import OrderListPage from './Components/Admin/OrderListPage';
-import OrderDetailPage from './Components/Admin/OrderDetailPage';
-import TicketListPage from './Components/Admin/TicketListPage';
-import TicketDetailPage from './Components/Admin/TicketDetailPage';
+import RequireAdmin from './Components/Admin/RequireAdmin';
 import TicketsProvider from './Components/Tickets/TicketsProvider';
 import Chatbot from './Components/Chatbot/Chatbot';
 const EventsListing = lazy(() => import('./Components/Discovery/EventsListing'));
@@ -37,6 +31,30 @@ const MyTickets = lazy(() => import('./Components/Tickets/MyTickets'));
 const TicketDetail = lazy(() => import('./Components/Tickets/TicketDetail'));
 const TransferTicket = lazy(() => import('./Components/Tickets/TransferTicket'));
 const RefundRequest = lazy(() => import('./Components/Tickets/RefundRequest'));
+// The admin console loads only behind RequireAdmin, so customers never download it.
+const AdminHomePage = lazy(() => import('./Components/Admin/AdminHomePage'));
+const VenueListPage = lazy(() => import('./Components/Admin/VenueListPage'));
+const VenueDetailPage = lazy(() => import('./Components/Admin/VenueDetailPage'));
+const VenueAddPage = lazy(() => import('./Components/Admin/VenueFormPage').then((m) => ({ default: m.VenueAddPage })));
+const VenueEditPage = lazy(() => import('./Components/Admin/VenueFormPage').then((m) => ({ default: m.VenueEditPage })));
+const OrderListPage = lazy(() => import('./Components/Admin/OrderListPage'));
+const OrderDetailPage = lazy(() => import('./Components/Admin/OrderDetailPage'));
+const TicketListPage = lazy(() => import('./Components/Admin/TicketListPage'));
+const TicketDetailPage = lazy(() => import('./Components/Admin/TicketDetailPage'));
+const RefundRequestsPage = lazy(() => import('./Components/Admin/RefundRequestsPage'));
+const EventListPage = lazy(() => import('./Components/Admin/EventListPage'));
+const EventDetailPage = lazy(() => import('./Components/Admin/EventDetailPage'));
+const EventAddPage = lazy(() => import('./Components/Admin/EventFormPage').then((m) => ({ default: m.EventAddPage })));
+const EventEditPage = lazy(() => import('./Components/Admin/EventFormPage').then((m) => ({ default: m.EventEditPage })));
+const EventTicketsPage = lazy(() => import('./Components/Admin/EventTicketsPage'));
+const UserListPage = lazy(() => import('./Components/Admin/UserListPage'));
+const UserDetailPage = lazy(() => import('./Components/Admin/UserDetailPage'));
+
+// The customer help chat stays off the admin console.
+function CustomerChatbot() {
+  const { pathname } = useLocation();
+  return pathname.startsWith('/admin') ? null : <Chatbot />;
+}
 
 function App() {
   return(
@@ -73,18 +91,28 @@ function App() {
           <Route path="/reset-password" element={<ResetPassword />} />
           {/* The backend redirects here after Google sign-in */}
           <Route path="/auth/callback" element={<AuthCallback />} />
-          {/* Admin console: venues (add, edit, delete) */}
-          <Route path="/admin/venues" element={<VenueListPage />} />
-          <Route path="/admin/venues/new" element={<VenueAddPage />} />
-          <Route path="/admin/venues/:venueId" element={<VenueDetailPage />} />
-          <Route path="/admin/venues/:venueId/edit" element={<VenueEditPage />} />
-          {/* Admin console: orders & tickets */}
-          <Route path="/admin/orders" element={<OrderListPage />} />
-          <Route path="/admin/orders/:orderId" element={<OrderDetailPage />} />
-          <Route path="/admin/tickets" element={<TicketListPage />} />
-          <Route path="/admin/tickets/:code" element={<TicketDetailPage />} />
+          {/* Admin console: admins only, loaded on demand */}
+          <Route path="/admin" element={<RequireAdmin />}>
+            <Route index element={<AdminHomePage />} />
+            <Route path="events" element={<EventListPage />} />
+            <Route path="events/new" element={<EventAddPage />} />
+            <Route path="events/:eventId" element={<EventDetailPage />} />
+            <Route path="events/:eventId/edit" element={<EventEditPage />} />
+            <Route path="events/:eventId/tickets" element={<EventTicketsPage />} />
+            <Route path="venues" element={<VenueListPage />} />
+            <Route path="venues/new" element={<VenueAddPage />} />
+            <Route path="venues/:venueId" element={<VenueDetailPage />} />
+            <Route path="venues/:venueId/edit" element={<VenueEditPage />} />
+            <Route path="orders" element={<OrderListPage />} />
+            <Route path="orders/:orderId" element={<OrderDetailPage />} />
+            <Route path="tickets" element={<TicketListPage />} />
+            <Route path="tickets/:code" element={<TicketDetailPage />} />
+            <Route path="refunds" element={<RefundRequestsPage />} />
+            <Route path="users" element={<UserListPage />} />
+            <Route path="users/:userId" element={<UserDetailPage />} />
+          </Route>
         </Routes>
-        <Chatbot />
+        <CustomerChatbot />
       </BrowserRouter>
       </TicketsProvider>
       </BookingProvider>

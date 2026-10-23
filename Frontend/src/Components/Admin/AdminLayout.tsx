@@ -1,9 +1,13 @@
-import { useEffect, type ReactNode } from 'react'
-import { Link, NavLink } from 'react-router-dom'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import concertPanel from '../../assets/hafletna-concert.webp'
 import { usePreferences } from '../Auth/preferences'
+import { useSession } from '../Auth/sessionContext'
 import { useScrollReveal } from '../Homepage/useScrollReveal'
+import { AnnounceContext, type Announce } from './adminAnnounce'
+import { useAdminActor } from './adminIdentity'
 import { useAdminStrings } from './adminStrings'
+import type { ResourceState } from './useAdminResource'
 import './Admin.css'
 
 /* ---------------------------------------------------------------- icons */
@@ -45,6 +49,29 @@ export const TicketIcon = ({ size = 18 }: { size?: number }) => (
   <Icon size={size}>
     <path d="M3 8a2 2 0 0 0 2-2h14a2 2 0 0 0 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 0-2 2H5a2 2 0 0 0-2-2v-2a2 2 0 0 0 0-4z" />
     <path d="M13 6v12" strokeDasharray="2 2" />
+  </Icon>
+)
+
+export const CalendarIcon = ({ size = 18 }: { size?: number }) => (
+  <Icon size={size}>
+    <rect x="3" y="4" width="18" height="17" rx="2" />
+    <path d="M16 2v4M8 2v4M3 10h18" />
+  </Icon>
+)
+
+export const UsersIcon = ({ size = 18 }: { size?: number }) => (
+  <Icon size={size}>
+    <circle cx="9" cy="8" r="4" />
+    <path d="M2 21a7 7 0 0 1 14 0" />
+    <path d="M16 4a4 4 0 0 1 0 8M22 21a7 7 0 0 0-4-6.3" />
+  </Icon>
+)
+
+export const HomeIcon = ({ size = 18 }: { size?: number }) => (
+  <Icon size={size}>
+    <path d="M3 11 12 4l9 7" />
+    <path d="M5 10v10h14V10" />
+    <path d="M10 20v-6h4v6" />
   </Icon>
 )
 
@@ -119,6 +146,44 @@ function PreferenceControls() {
   )
 }
 
+function Account() {
+  const t = useAdminStrings()
+  const actor = useAdminActor()
+  const { signOut } = useSession()
+  const navigate = useNavigate()
+  const [busy, setBusy] = useState(false)
+
+  async function leave() {
+    setBusy(true)
+    try {
+      await signOut()
+    } finally {
+      navigate('/login')
+    }
+  }
+
+  return (
+    <div className="ad-account">
+      <span className="ad-avatar" aria-hidden="true">
+        {actor.name.charAt(0).toUpperCase()}
+      </span>
+      <span>
+        <strong>{actor.name}</strong>
+        <span>{actor.preview ? t.previewRole : t.accountRole}</span>
+      </span>
+      {!actor.preview && (
+        <button type="button" className="ad-signout" aria-label={t.signOut} title={t.signOut} disabled={busy} onClick={leave}>
+          <Icon size={18}>
+            <path d="M15 4h4v16h-4" />
+            <path d="M10 8l-4 4 4 4" />
+            <path d="M6 12h10" />
+          </Icon>
+        </button>
+      )}
+    </div>
+  )
+}
+
 /* --------------------------------------------------------------- layout */
 
 type Crumb = { label: string; to?: string }
@@ -131,86 +196,120 @@ type AdminLayoutProps = {
   revealCount?: number
 }
 
+// The path the console showed last, so focus moves to the new page only after navigating.
+let lastPath: string | null = null
+
 export function AdminLayout({ title, crumbs, children, revealCount = 0 }: AdminLayoutProps) {
   const t = useAdminStrings()
   const { lang, theme } = usePreferences()
+  const { pathname } = useLocation()
   const mainRef = useScrollReveal<HTMLElement>(revealCount)
+  const [polite, setPolite] = useState('')
+  const [assertive, setAssertive] = useState('')
+  const timers = useRef<number[]>([])
+
+  // Live regions stay mounted; clearing first makes a repeated message speak again.
+  const announce = useCallback<Announce>((text, urgency = 'polite') => {
+    const set = urgency === 'assertive' ? setAssertive : setPolite
+    set('')
+    timers.current.push(window.setTimeout(() => set(text), 80))
+  }, [])
+
+  useEffect(() => {
+    const pending = timers.current
+    return () => pending.forEach((id) => window.clearTimeout(id))
+  }, [])
 
   useEffect(() => {
     document.title = `${title} | ${t.brandName} ${t.adminTag}`
   }, [title, t.brandName, t.adminTag])
 
-  const soon = (label: string, icon: ReactNode) => (
-    <span className="ad-nav-item is-disabled" aria-disabled="true" title={t.comingSoon}>
-      {icon}
-      <span>{label}</span>
-      <span className="ad-soon">{t.soon}</span>
-    </span>
-  )
+  // After moving to another page, start keyboard and screen reader users at its content.
+  useEffect(() => {
+    if (lastPath !== null && lastPath !== pathname) mainRef.current?.focus({ preventScroll: true })
+    lastPath = pathname
+  }, [pathname, mainRef])
+
+  const ordersSection = /^\/admin\/(orders|tickets|refunds)(\/|$)/.test(pathname)
 
   return (
-    <div className="ad-root" lang={lang} dir={lang === 'ar' ? 'rtl' : 'ltr'} data-theme={theme}>
-      <nav className="ad-side" aria-label={t.navLabel}>
-        <div className="ad-brand">
-          <BrandMark />
-          <span>{t.brandName}</span>
-          <span className="ad-brand-tag">{t.adminTag}</span>
-        </div>
-        <span className="ad-nav-label">{t.navManage}</span>
-        {soon(
-          t.navEvents,
-          <Icon>
-            <rect x="3" y="4" width="18" height="17" rx="2" />
-            <path d="M16 2v4M8 2v4M3 10h18" />
-          </Icon>,
-        )}
-        <NavLink to="/admin/venues" className="ad-nav-item">
-          <VenueIcon />
-          <span>{t.navVenues}</span>
-        </NavLink>
-        <NavLink to="/admin/orders" className="ad-nav-item">
-          <TicketIcon />
-          <span>{t.navOrders}</span>
-        </NavLink>
-        {soon(
-          t.navUsers,
-          <Icon>
-            <circle cx="9" cy="8" r="4" />
-            <path d="M2 21a7 7 0 0 1 14 0" />
-            <path d="M16 4a4 4 0 0 1 0 8M22 21a7 7 0 0 0-4-6.3" />
-          </Icon>,
-        )}
-        <div className="ad-side-spacer" />
-        <div className="ad-account">
-          <span className="ad-avatar" aria-hidden="true">
-            A
-          </span>
-          <span>
-            <strong>{t.accountName}</strong>
-            <span>{t.accountRole}</span>
-          </span>
-        </div>
-      </nav>
+    <AnnounceContext.Provider value={announce}>
+      <div className="ad-root" lang={lang} dir={lang === 'ar' ? 'rtl' : 'ltr'} data-theme={theme}>
+        <a
+          className="ad-skip"
+          href="#ad-main"
+          onClick={(e) => {
+            e.preventDefault()
+            mainRef.current?.focus()
+          }}
+        >
+          {t.skipToContent}
+        </a>
+        <nav className="ad-side" aria-label={t.navLabel}>
+          <div className="ad-brand">
+            <BrandMark />
+            <span>{t.brandName}</span>
+            <span className="ad-brand-tag">{t.adminTag}</span>
+          </div>
+          <NavLink to="/admin" end className="ad-nav-item">
+            <HomeIcon />
+            <span>{t.navOverview}</span>
+          </NavLink>
+          <span className="ad-nav-label">{t.navManage}</span>
+          <NavLink to="/admin/events" className="ad-nav-item">
+            <CalendarIcon />
+            <span>{t.navEvents}</span>
+          </NavLink>
+          <NavLink to="/admin/venues" className="ad-nav-item">
+            <VenueIcon />
+            <span>{t.navVenues}</span>
+          </NavLink>
+          <Link to="/admin/orders" className={`ad-nav-item${ordersSection ? ' active' : ''}`} aria-current={ordersSection ? 'page' : undefined}>
+            <TicketIcon />
+            <span>{t.navOrders}</span>
+          </Link>
+          <NavLink to="/admin/users" className="ad-nav-item">
+            <UsersIcon />
+            <span>{t.navUsers}</span>
+          </NavLink>
+          <div className="ad-side-spacer" />
+          <Account />
+        </nav>
 
-      <div className="ad-shell">
-        <header className="ad-topbar">
-          <nav aria-label="Breadcrumb">
-            <ol className="ad-crumbs">
-              <li>{t.console}</li>
-              {crumbs.map((c, i) => (
-                <li key={c.label} aria-current={i === crumbs.length - 1 ? 'page' : undefined}>
-                  {c.to ? <Link to={c.to}>{c.label}</Link> : <strong>{c.label}</strong>}
-                </li>
-              ))}
-            </ol>
-          </nav>
-          <PreferenceControls />
-        </header>
-        <main className="ad-main" ref={mainRef}>
-          {children}
-        </main>
+        <div className="ad-shell">
+          <header className="ad-topbar">
+            <nav aria-label={t.breadcrumb}>
+              <ol className="ad-crumbs">
+                <li>{t.console}</li>
+                {crumbs.map((c, i) => {
+                  const current = i === crumbs.length - 1
+                  return (
+                    <li key={`${i}:${c.label}`}>
+                      {c.to && !current ? (
+                        <Link to={c.to}>{c.label}</Link>
+                      ) : (
+                        <strong aria-current={current ? 'page' : undefined}>{c.label}</strong>
+                      )}
+                    </li>
+                  )
+                })}
+              </ol>
+            </nav>
+            <PreferenceControls />
+          </header>
+          <main className="ad-main" id="ad-main" ref={mainRef} tabIndex={-1}>
+            {children}
+          </main>
+        </div>
+
+        <div className="ad-sr-only" aria-live="polite" aria-atomic="true">
+          {polite}
+        </div>
+        <div className="ad-sr-only" aria-live="assertive" aria-atomic="true">
+          {assertive}
+        </div>
       </div>
-    </div>
+    </AnnounceContext.Provider>
   )
 }
 
@@ -274,9 +373,11 @@ type MessageProps = {
   title: string
   text: string
   action?: ReactNode
+  /** Icon for empty states; defaults to the venue icon. */
+  icon?: ReactNode
 }
 
-export function MessagePanel({ tone, title, text, action }: MessageProps) {
+export function MessagePanel({ tone, title, text, action, icon }: MessageProps) {
   return (
     <section className={`ad-card ad-message ad-message--${tone}`}>
       <span className="ad-message-icon" aria-hidden="true">
@@ -287,11 +388,11 @@ export function MessagePanel({ tone, title, text, action }: MessageProps) {
             <path d="M12 16h.01" />
           </Icon>
         ) : (
-          <VenueIcon size={34} />
+          (icon ?? <VenueIcon size={34} />)
         )}
       </span>
-      <h2 role={tone === 'error' ? 'alert' : undefined}>{title}</h2>
-      <p>{text}</p>
+      <h2>{title}</h2>
+      <p role={tone === 'error' ? 'alert' : undefined}>{text}</p>
       {action}
     </section>
   )
@@ -307,4 +408,24 @@ export function RetryButton({ label, onClick }: { label: string; onClick: () => 
       {label}
     </button>
   )
+}
+
+type StatusProps = {
+  state: ResourceState<unknown>
+  loading: string
+  rows?: number
+  errorTitle: string
+  errorText: string
+  retryLabel: string
+  onRetry: () => void
+  notFoundTitle?: string
+  notFoundText?: string
+}
+
+/** The loading, error and not-found panels every admin page shows before its data is ready. */
+export function ResourceStatus({ state, loading, rows, errorTitle, errorText, retryLabel, onRetry, notFoundTitle, notFoundText }: StatusProps) {
+  if (state.status === 'loading') return <LoadingPanel label={loading} rows={rows} />
+  if (state.status === 'error') return <MessagePanel tone="error" title={errorTitle} text={errorText} action={<RetryButton label={retryLabel} onClick={onRetry} />} />
+  if (state.status === 'not-found') return <MessagePanel tone="empty" title={notFoundTitle ?? errorTitle} text={notFoundText ?? errorText} />
+  return null
 }
