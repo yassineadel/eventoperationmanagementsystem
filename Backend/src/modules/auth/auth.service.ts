@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
 import prisma from '../../config/db'
 import redis from '../../config/redis'
-import { sendVerificationEmail } from '../../config/mailer'
+import { sendVerificationEmail, sendPasswordResetEmail } from '../../config/mailer'
 import { env } from '../../config/env'
 
 const JWT_SECRET = env.JWT_SECRET
@@ -155,7 +155,7 @@ export const forgotPassword = async (email: string) => {
   await redis.set(`reset:${email}`, code, 'EX', 600)
 
   // Send the code to the user's email
-  await sendVerificationEmail(email, code)
+  await sendPasswordResetEmail(email, code)
 
   return { message: 'Password reset code sent to your email' }
 }
