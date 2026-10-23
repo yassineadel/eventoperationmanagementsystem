@@ -1,11 +1,14 @@
 // Venue data for the admin console.
 //
-// The backend does not expose venue endpoints yet, so this module serves sample data
-// shaped like the venue layout described in the assignment: sections, rows and seats
+// The admin console runs on sample data until its endpoints are wired: venues shaped
+// like the venue layout described in the assignment: sections, rows and seats
 // with IDs for seated venues, zone rectangles on a 0–100 grid for standing venues,
 // the stage position and category colours. Adding, editing and deleting change the
 // sample data in memory until the page reloads. When the API exists, replace the
 // bodies of `venuesApi.*` with calls from './api'.
+
+import { adminEventsApi } from './adminEventsApi.ts'
+import { AdminApiError } from './adminErrors.ts'
 
 export type VenueKind = 'seated' | 'standing'
 
@@ -212,20 +215,26 @@ export class VenueNotFoundError extends Error {
 
 /* ------------------------------------------------------ add, edit, delete */
 
-/** What the add / edit form works with. Row letters run A–Z without I and O. */
+/**
+ * What the add / edit form works with. Row letters run A–Z without I and O.
+ * `sourceId` / `sourceKey` point at the section, zone or category the row was loaded from,
+ * so saving keeps existing seat IDs, seat categories and zone positions. `rowKey` only keeps
+ * the editor's rows stable while editing; saving ignores it.
+ */
 export type VenueForm = {
   name: string
   address: string
   city: string
   country: string
   kind: VenueKind
-  sections: { name: string; firstRow: string; lastRow: string; seatsPerRow: number }[]
-  zones: { name: string; capacity: number }[]
-  categories: { name: string; code: string; colour: string }[]
+  sections: { rowKey?: string; sourceId?: string; name: string; firstRow: string; lastRow: string; seatsPerRow: number; categoryCode: string }[]
+  zones: { rowKey?: string; sourceId?: string; name: string; capacity: number; categoryCode: string }[]
+  categories: { rowKey?: string; sourceKey?: string; name: string; code: string; colour: string }[]
 }
 
 export const CATEGORY_COLOURS = Object.values(COLOURS)
 const ROW_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
+export const MAX_SEATS_PER_ROW = 80
 
 /** Row labels from first to last, or [] when the letters are not a valid range. */
 export function rowRange(first: string, last: string) {
@@ -240,70 +249,149 @@ export function formCapacity(form: VenueForm) {
     : form.zones.reduce((n, z) => n + z.capacity, 0)
 }
 
-function layoutFromForm(id: string, form: VenueForm): VenueLayout {
-  const cats = form.categories.length ? form.categories : [{ name: 'General', code: 'GENERAL', colour: COLOURS.violet }]
-  const keyOf = (i: number) => cats[i % cats.length].code || `CAT${(i % cats.length) + 1}`
+export type VenueProblem =
+  | { field: 'name' | 'address' | 'city' | 'categories' | 'sections' | 'zones' }
+  | { field: 'category' | 'section' | 'zone'; index: number }
+
+/** Everything that stops the venue form from saving, in the order the form shows it. */
+export function validateVenueForm(form: VenueForm): VenueProblem[] {
+  const problems: VenueProblem[] = []
+  for (const field of ['name', 'address', 'city'] as const) if (!form[field].trim()) problems.push({ field })
+  const codes = form.categories.map((c) => c.code.trim().toUpperCase())
   if (form.kind === 'seated') {
-    const sections: SeatSection[] = form.sections.map((s, i) => ({
-      id: sampleId(`${id}:section:${i}`),
-      name: s.name,
-      tier: i === form.sections.length - 1 && form.sections.length > 3 ? 'back' : 'front',
-      rows: rowRange(s.firstRow, s.lastRow).map((label) => ({
-        label,
-        seats: Array.from({ length: s.seatsPerRow }, (_, n) => ({
-          id: sampleId(`${id}:${i}:${label}:${n + 1}`),
-          number: n + 1,
-          categoryKey: keyOf(i),
-        })),
-      })),
-    }))
-    const categories = cats.map((c, i) => ({
-      key: keyOf(i),
-      name: c.name,
-      colour: c.colour,
-      area: sections.filter((_, j) => keyOf(j) === keyOf(i)).map((sec) => sec.name).join(', '),
-      places: sections.reduce(
-        (n, sec) => n + sec.rows.reduce((m, r) => m + r.seats.filter((st) => st.categoryKey === keyOf(i)).length, 0),
-        0,
-      ),
-    }))
-    return { kind: 'seated', stage: { x: 30, y: 2, w: 40, h: 8 }, sections, categories }
+    if (form.sections.length === 0) problems.push({ field: 'sections' })
+    form.sections.forEach((s, index) => {
+      const bad =
+        !s.name.trim() ||
+        rowRange(s.firstRow, s.lastRow).length === 0 ||
+        s.seatsPerRow < 1 ||
+        s.seatsPerRow > MAX_SEATS_PER_ROW ||
+        !codes.includes(s.categoryCode)
+      if (bad) problems.push({ field: 'section', index })
+    })
+  } else {
+    if (form.zones.length === 0) problems.push({ field: 'zones' })
+    form.zones.forEach((z, index) => {
+      if (!z.name.trim() || z.capacity < 1 || !codes.includes(z.categoryCode)) problems.push({ field: 'zone', index })
+    })
   }
-  const height = 76 / Math.max(1, form.zones.length)
-  return standingLayout(
-    id,
-    { x: 30, y: 3, w: 40, h: 10 },
-    form.zones.map((z, i) => ({
-      key: keyOf(i),
-      name: z.name,
-      colour: cats[i % cats.length].colour,
-      capacity: z.capacity,
-      rect: { x: 8, y: Math.round(18 + i * height), w: 84, h: Math.max(4, Math.round(height - 4)) },
-    })),
-  )
+  if (form.categories.length === 0) problems.push({ field: 'categories' })
+  form.categories.forEach((c, index) => {
+    const code = codes[index]
+    if (!c.name.trim() || !code || codes.indexOf(code) !== index) problems.push({ field: 'category', index })
+  })
+  return problems
 }
 
-function formFromLayout(venue: Venue, layout: VenueLayout): VenueForm {
+function mostCommon(keys: string[]) {
+  const counts = new Map<string, number>()
+  for (const k of keys) counts.set(k, (counts.get(k) ?? 0) + 1)
+  return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? ''
+}
+
+const sectionKeys = (s: SeatSection) => s.rows.flatMap((r) => r.seats.map((seat) => seat.categoryKey))
+
+/**
+ * Build the layout a form describes. When the venue already has a layout, everything the
+ * form didn't change is kept: seat IDs, the category of each seat (VIP rows, accessible
+ * aisle seats), section tiers, zone positions and the stage.
+ */
+export function layoutFromForm(id: string, form: VenueForm, previous?: VenueLayout): VenueLayout {
+  const cats = form.categories.length ? form.categories : [{ name: 'General', code: 'GENERAL', colour: COLOURS.violet }]
+  const codes = cats.map((c) => c.code)
+  const renamed = new Map(cats.filter((c) => c.sourceKey).map((c) => [c.sourceKey!, c.code]))
+  const carry = (oldKey: string) => {
+    const key = renamed.get(oldKey) ?? oldKey
+    return codes.includes(key) ? key : null
+  }
+  const pick = (code: string) => (codes.includes(code) ? code : codes[0])
+  const previousArea = (key: string, places: number) => previous?.categories.find((c) => c.key === key && c.places === places)?.area
+
+  if (form.kind === 'seated') {
+    const before = previous?.kind === 'seated' ? previous.sections : []
+    const sections: SeatSection[] = form.sections.map((s, i) => {
+      const prev = before.find((p) => p.id === s.sourceId)
+      const sectionId = prev?.id ?? sampleId(`${id}:section:${i}:${s.name}:${Date.now()}`)
+      const fallback = pick(s.categoryCode)
+      // Choosing another category for the whole section repaints every seat in it.
+      const repaint = prev ? carry(mostCommon(sectionKeys(prev))) !== fallback : true
+      return {
+        id: sectionId,
+        name: s.name.trim(),
+        tier: prev?.tier ?? (i === form.sections.length - 1 && form.sections.length > 3 ? 'back' : 'front'),
+        rows: rowRange(s.firstRow, s.lastRow).map((label) => {
+          const prevRow = prev?.rows.find((r) => r.label === label)
+          return {
+            label,
+            seats: Array.from({ length: s.seatsPerRow }, (_, n) => {
+              const old = prevRow?.seats.find((seat) => seat.number === n + 1)
+              const key = repaint || !old ? fallback : (carry(old.categoryKey) ?? fallback)
+              return { id: old?.id ?? sampleId(`${sectionId}:${label}:${n + 1}`), number: n + 1, categoryKey: key }
+            }),
+          }
+        }),
+      }
+    })
+    const categories = cats.map((c) => {
+      const places = sections.reduce((n, sec) => n + sec.rows.reduce((m, r) => m + r.seats.filter((st) => st.categoryKey === c.code).length, 0), 0)
+      const area = previousArea(c.sourceKey ?? c.code, places) ?? sections.filter((sec) => sectionKeys(sec).includes(c.code)).map((sec) => sec.name).join(', ')
+      return { key: c.code, name: c.name.trim(), colour: c.colour, area, places }
+    })
+    return { kind: 'seated', stage: previous?.stage ?? { x: 30, y: 2, w: 40, h: 8 }, sections, categories }
+  }
+
+  const before = previous?.kind === 'standing' ? previous.zones : []
+  const kept = form.zones.map((z) => before.find((p) => p.id === z.sourceId))
+  const evenHeight = 76 / Math.max(1, form.zones.length)
+  let nextY = Math.max(16, ...kept.map((p) => (p ? p.rect.y + p.rect.h + 3 : 0)))
+  const zones: Zone[] = form.zones.map((z, i) => {
+    const prev = kept[i]
+    let rect: Rect
+    if (prev) rect = prev.rect
+    else if (!kept.some(Boolean)) rect = { x: 8, y: Math.round(18 + i * evenHeight), w: 84, h: Math.max(4, Math.round(evenHeight - 4)) }
+    else {
+      rect = { x: 8, y: Math.min(nextY, 88), w: 84, h: 8 }
+      nextY += 11
+    }
+    return { id: prev?.id ?? sampleId(`${id}:zone:${i}:${z.name}:${Date.now()}`), name: z.name.trim(), categoryKey: pick(z.categoryCode), capacity: z.capacity, rect }
+  })
+  const categories = cats.map((c) => {
+    const places = zones.filter((z) => z.categoryKey === c.code).reduce((n, z) => n + z.capacity, 0)
+    const names = zones.filter((z) => z.categoryKey === c.code).map((z) => z.name)
+    return { key: c.code, name: c.name.trim(), colour: c.colour, area: previousArea(c.sourceKey ?? c.code, places) ?? `Zone · ${names.join(', ')}`, places }
+  })
+  return { kind: 'standing', stage: previous?.stage ?? { x: 30, y: 3, w: 40, h: 10 }, zones, categories }
+}
+
+export function formFromLayout(venue: Venue, layout: VenueLayout): VenueForm {
   const base = { name: venue.name, address: venue.address, city: venue.city, country: venue.country, kind: venue.kind }
-  const categories = layout.categories.map((c) => ({ name: c.name, code: c.key, colour: c.colour }))
+  const categories = layout.categories.map((c) => ({ rowKey: c.key, sourceKey: c.key, name: c.name, code: c.key, colour: c.colour }))
   if (layout.kind === 'seated') {
     return {
       ...base,
       sections: layout.sections.map((s) => ({
+        rowKey: s.id,
+        sourceId: s.id,
         name: s.name,
         firstRow: s.rows[0]?.label ?? 'A',
         lastRow: s.rows[s.rows.length - 1]?.label ?? 'A',
-        seatsPerRow: s.rows[0]?.seats.length ?? 0,
+        seatsPerRow: Math.max(0, ...s.rows.map((r) => r.seats.length)),
+        categoryCode: mostCommon(sectionKeys(s)),
       })),
       zones: [],
       categories,
     }
   }
-  return { ...base, sections: [], zones: layout.zones.map((z) => ({ name: z.name, capacity: z.capacity })), categories }
+  return {
+    ...base,
+    sections: [],
+    zones: layout.zones.map((z) => ({ rowKey: z.id, sourceId: z.id, name: z.name, capacity: z.capacity, categoryCode: z.categoryKey })),
+    categories,
+  }
 }
 
 function save(id: string, form: VenueForm): Venue {
-  const layout = layoutFromForm(id, form)
+  const layout = layoutFromForm(id, form, LAYOUTS[id])
   const venue: Venue = {
     id,
     name: form.name.trim(),
@@ -342,10 +430,12 @@ export const venuesApi = {
     if (!VENUES.some((v) => v.id === id)) throw new VenueNotFoundError()
     return save(id, form)
   },
+  /** Venues that events use can't be deleted. */
   async remove(id: string): Promise<Venue> {
     await delay(300)
     const index = VENUES.findIndex((v) => v.id === id)
     if (index < 0) throw new VenueNotFoundError()
+    if ((await adminEventsApi.countAtVenue(id)) > 0) throw new AdminApiError('venue-in-use')
     const venue = VENUES[index]
     TRASH.set(id, { venue, layout: LAYOUTS[id], index })
     VENUES = VENUES.filter((v) => v.id !== id)

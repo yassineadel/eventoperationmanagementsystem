@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react'
+import { useAnnounce } from './adminAnnounce'
 import { Icon } from './AdminLayout'
 
 export const TrashIcon = ({ size = 17 }: { size?: number }) => (
@@ -23,6 +24,88 @@ export const PlusIcon = ({ size = 18 }: { size?: number }) => (
   </Icon>
 )
 
+/* ----------------------------------------------------------------- modal */
+
+type ModalProps = {
+  labelledBy: string
+  describedBy?: string
+  role?: 'dialog' | 'alertdialog'
+  className?: string
+  /** While busy, Escape and clicks outside don't close the dialog. */
+  busy?: boolean
+  onCancel: () => void
+  /** Renders the dialog as a form. */
+  onSubmit?: (e: FormEvent<HTMLFormElement>) => void
+  /** Where focus starts; defaults to the first control. */
+  initialFocus?: RefObject<HTMLElement | null>
+  /** Where focus goes when the dialog closes, when the control that opened it is gone. */
+  returnFocus?: () => HTMLElement | null
+  children: ReactNode
+}
+
+/**
+ * Every admin dialog. Uses the native <dialog> in modal mode, so the page behind is inert
+ * to the keyboard and screen readers. Focus comes back to the control that opened it,
+ * or to `returnFocus` (then the page's main area) when that control no longer exists.
+ */
+export function ModalDialog({ labelledBy, describedBy, role = 'dialog', className, busy = false, onCancel, onSubmit, initialFocus, returnFocus, children }: ModalProps) {
+  const ref = useRef<HTMLDialogElement>(null)
+  const busyRef = useRef(busy)
+  const cancelRef = useRef(onCancel)
+  const returnRef = useRef(returnFocus)
+  const startRef = useRef(initialFocus)
+
+  useEffect(() => {
+    busyRef.current = busy
+    cancelRef.current = onCancel
+    returnRef.current = returnFocus
+  })
+
+  useEffect(() => {
+    const dialog = ref.current
+    if (!dialog) return
+    const previous = document.activeElement as HTMLElement | null
+    if (!dialog.open) dialog.showModal()
+    ;(startRef.current?.current ?? dialog.querySelector<HTMLElement>('input, select, textarea, button'))?.focus()
+    return () => {
+      if (dialog.open) dialog.close()
+      const target =
+        (previous?.isConnected && previous !== document.body ? previous : null) ??
+        returnRef.current?.() ??
+        document.querySelector<HTMLElement>('.ad-main')
+      target?.focus({ preventScroll: true })
+    }
+  }, [])
+
+  return (
+    <dialog
+      ref={ref}
+      className={`ad-dialog${className ? ` ${className}` : ''}`}
+      role={role}
+      aria-modal="true"
+      aria-labelledby={labelledBy}
+      aria-describedby={describedBy}
+      aria-busy={busy || undefined}
+      onCancel={(e) => {
+        e.preventDefault()
+        if (!busyRef.current) cancelRef.current()
+      }}
+      onClick={(e) => {
+        // A click on the dialog element itself is a click on the backdrop.
+        if (e.target === e.currentTarget && !busyRef.current) cancelRef.current()
+      }}
+    >
+      {onSubmit ? (
+        <form className="ad-dialog-form" onSubmit={onSubmit} noValidate>
+          {children}
+        </form>
+      ) : (
+        children
+      )}
+    </dialog>
+  )
+}
+
 /* --------------------------------------------------------- confirm dialog */
 
 type ConfirmProps = {
@@ -32,74 +115,55 @@ type ConfirmProps = {
   confirmLabel: string
   cancelLabel: string
   busy?: boolean
+  /** Defaults to the trash icon and a red button; pass tone="primary" for non-destructive actions. */
+  icon?: ReactNode
+  tone?: 'danger' | 'primary'
+  returnFocus?: () => HTMLElement | null
   onConfirm: () => void
   onCancel: () => void
 }
 
-/** Destructive confirmation: focus starts on Cancel, Escape closes, Tab stays inside. */
-export function ConfirmDialog({ title, text, details, confirmLabel, cancelLabel, busy, onConfirm, onCancel }: ConfirmProps) {
+/** Asks before an action. Focus starts on Cancel; while busy, nothing closes it. */
+export function ConfirmDialog({ title, text, details, confirmLabel, cancelLabel, busy = false, icon, tone = 'danger', returnFocus, onConfirm, onCancel }: ConfirmProps) {
   const id = useId()
-  const boxRef = useRef<HTMLDivElement>(null)
   const cancelRef = useRef<HTMLButtonElement>(null)
 
-  useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null
-    cancelRef.current?.focus()
-    return () => previous?.focus()
-  }, [])
-
-  function onKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Escape') {
-      e.stopPropagation()
-      onCancel()
-      return
-    }
-    if (e.key !== 'Tab') return
-    const items = boxRef.current?.querySelectorAll<HTMLElement>('button:not([disabled])')
-    if (!items?.length) return
-    const first = items[0]
-    const last = items[items.length - 1]
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault()
-      last.focus()
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault()
-      first.focus()
-    }
-  }
-
   return (
-    <div className="ad-overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && onCancel()}>
-      <div
-        ref={boxRef}
-        className="ad-dialog"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby={`${id}-title`}
-        aria-describedby={`${id}-text`}
-        onKeyDown={onKeyDown}
-      >
-        <div className="ad-dialog-head">
-          <span className="ad-dialog-icon" aria-hidden="true">
-            <TrashIcon size={22} />
-          </span>
-          <div>
-            <h2 id={`${id}-title`}>{title}</h2>
-            <p id={`${id}-text`}>{text}</p>
-          </div>
-        </div>
-        {details && <div className="ad-dialog-details">{details}</div>}
-        <div className="ad-dialog-actions">
-          <button ref={cancelRef} type="button" className="ad-secondary" onClick={onCancel} disabled={busy}>
-            {cancelLabel}
-          </button>
-          <button type="button" className="ad-danger" onClick={onConfirm} disabled={busy}>
-            <TrashIcon />
-            {confirmLabel}
-          </button>
+    <ModalDialog
+      labelledBy={`${id}-title`}
+      describedBy={`${id}-text`}
+      role="alertdialog"
+      className={tone === 'primary' ? 'ad-dialog--primary' : undefined}
+      busy={busy}
+      onCancel={onCancel}
+      initialFocus={cancelRef}
+      returnFocus={returnFocus}
+    >
+      <div className="ad-dialog-head">
+        <span className="ad-dialog-icon" aria-hidden="true">
+          {icon ?? <TrashIcon size={22} />}
+        </span>
+        <div>
+          <h2 id={`${id}-title`}>{title}</h2>
+          <p id={`${id}-text`}>{text}</p>
         </div>
       </div>
-    </div>
+      {details && <div className="ad-dialog-details">{details}</div>}
+      <div className="ad-dialog-actions">
+        <button ref={cancelRef} type="button" className="ad-secondary" onClick={() => !busy && onCancel()} aria-disabled={busy || undefined}>
+          {cancelLabel}
+        </button>
+        <button
+          type="button"
+          className={tone === 'danger' ? 'ad-danger' : 'ad-primary'}
+          onClick={() => !busy && onConfirm()}
+          aria-disabled={busy || undefined}
+        >
+          {icon ?? <TrashIcon />}
+          {confirmLabel}
+        </button>
+      </div>
+    </ModalDialog>
   )
 }
 
@@ -111,26 +175,57 @@ type ToastProps = {
   onAction?: () => void
   dismissLabel: string
   onDismiss: () => void
-  tone?: 'success' | 'error'
+  tone?: 'success' | 'error' | 'info'
+  /** Move focus to the action (Undo) so keyboard users can reach it at once. */
+  focusAction?: boolean
 }
 
-/** Status message in the top corner; closes itself after a few seconds. */
-export function Toast({ message, actionLabel, onAction, dismissLabel, onDismiss, tone = 'success' }: ToastProps) {
+/**
+ * Status message in the top corner. It is announced through the console's live region,
+ * waits while the pointer or focus is on it, and stays longer when it offers an action.
+ */
+export function Toast({ message, actionLabel, onAction, dismissLabel, onDismiss, tone = 'success', focusAction = false }: ToastProps) {
+  const announce = useAnnounce()
   const dismissRef = useRef(onDismiss)
+  const actionRef = useRef<HTMLButtonElement>(null)
+  const [paused, setPaused] = useState(false)
+  const hasAction = Boolean(actionLabel && onAction)
+
   useEffect(() => {
     dismissRef.current = onDismiss
   })
+
   useEffect(() => {
-    const timer = window.setTimeout(() => dismissRef.current(), 7000)
+    announce(message, tone === 'error' ? 'assertive' : 'polite')
+  }, [announce, message, tone])
+
+  useEffect(() => {
+    if (focusAction) actionRef.current?.focus()
+  }, [focusAction])
+
+  useEffect(() => {
+    if (paused) return
+    const timer = window.setTimeout(() => dismissRef.current(), hasAction ? 20_000 : 7000)
     return () => window.clearTimeout(timer)
-  }, [message])
+  }, [message, paused, hasAction])
 
   return (
-    <div className={`ad-toast ad-toast--${tone}`} role="status">
+    <div
+      className={`ad-toast ad-toast--${tone}`}
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocus={() => setPaused(true)}
+      onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && setPaused(false)}
+    >
       <span className="ad-toast-icon" aria-hidden="true">
         {tone === 'success' ? (
           <Icon size={15}>
             <path d="m5 12.5 4.5 4.5L19 7.5" />
+          </Icon>
+        ) : tone === 'info' ? (
+          <Icon size={15}>
+            <path d="M12 11v5" />
+            <path d="M12 8h.01" />
           </Icon>
         ) : (
           <Icon size={15}>
@@ -140,8 +235,8 @@ export function Toast({ message, actionLabel, onAction, dismissLabel, onDismiss,
         )}
       </span>
       <span>{message}</span>
-      {actionLabel && onAction && (
-        <button type="button" className="ad-toast-action" onClick={onAction}>
+      {hasAction && (
+        <button ref={actionRef} type="button" className="ad-toast-action" onClick={onAction}>
           {actionLabel}
         </button>
       )}

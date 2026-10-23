@@ -1,24 +1,14 @@
-import { useCallback, useEffect, useState, type CSSProperties } from 'react'
+import { useCallback, useState, type CSSProperties } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import {
-  venuesApi,
-  VenueNotFoundError,
-  type SeatSection,
-  type VenueCategory,
-  type VenueDetail,
-  type VenueLayout,
-} from '../../lib/venuesApi'
+import { adminEventsApi } from '../../lib/adminEventsApi'
+import { venuesApi, VenueNotFoundError, type SeatSection, type VenueCategory, type VenueLayout } from '../../lib/venuesApi'
 import { usePreferences } from '../Auth/preferences'
-import { ConfirmDialog, PencilIcon, TrashIcon } from './AdminFeedback'
+import { ConfirmDialog, PencilIcon, Toast, TrashIcon } from './AdminFeedback'
 import { fill } from './venueMessages'
-import { AdminHero, AdminLayout, BackArrowIcon, Icon, LoadingPanel, MessagePanel, RetryButton } from './AdminLayout'
+import { AdminHero, AdminLayout, BackArrowIcon, Icon, ResourceStatus } from './AdminLayout'
 import { useAdminStrings, type AdminStrings } from './adminStrings'
-
-type LoadState =
-  | { status: 'loading' }
-  | { status: 'error' }
-  | { status: 'not-found' }
-  | { status: 'ready'; detail: VenueDetail }
+import { useErrorText } from './errorStrings'
+import { useAdminResource } from './useAdminResource'
 
 const ZOOMS = [0.6, 0.8, 1, 1.25, 1.5, 1.8]
 const DEFAULT_ZOOM = 2
@@ -200,6 +190,52 @@ function CategoriesPanel({ categories, active, onPick, hint, unit, fmt, t }: Cat
   )
 }
 
+/* ------------------------------------------------------- seat list */
+
+/** The seat map as a table, for screen readers and anyone who prefers text. */
+function SeatList({ layout, fmt, t }: { layout: VenueLayout; fmt: (n: number) => string; t: AdminStrings }) {
+  if (layout.kind !== 'seated') return null
+  const names = Object.fromEntries(layout.categories.map((c) => [c.key, c.name]))
+  return (
+    <details className="ad-seat-list">
+      <summary>
+        {t.seatList} <span className="ad-muted">· {t.seatListHint}</span>
+      </summary>
+      <div className="ad-table-wrap">
+        <table className="ad-table">
+          <thead>
+            <tr>
+              <th scope="col">{t.sectionName}</th>
+              <th scope="col">{t.colRows}</th>
+              <th scope="col" className="ad-num">
+                {t.colSeats}
+              </th>
+              <th scope="col">{t.colByCategory}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {layout.sections.map((s) => {
+              const counts = new Map<string, number>()
+              for (const row of s.rows) for (const seat of row.seats) counts.set(seat.categoryKey, (counts.get(seat.categoryKey) ?? 0) + 1)
+              const seats = s.rows.reduce((n, r) => n + r.seats.length, 0)
+              return (
+                <tr key={s.id}>
+                  <th scope="row">{s.name}</th>
+                  <td dir="ltr" className="ad-mono">
+                    {s.rows[0]?.label}–{s.rows[s.rows.length - 1]?.label}
+                  </td>
+                  <td className="ad-num">{fmt(seats)}</td>
+                  <td>{[...counts.entries()].map(([key, n]) => `${names[key] ?? key} ${fmt(n)}`).join(' · ')}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  )
+}
+
 /* ---------------------------------------------------------------- page */
 
 // Keyed by the venue ID so moving to another venue starts from a fresh loading state.
@@ -214,30 +250,21 @@ function VenueDetail({ venueId }: { venueId: string }) {
   const locale = lang === 'ar' ? 'ar-EG' : 'en-US'
   const fmt = useCallback((n: number) => n.toLocaleString(locale), [locale])
 
-  const [state, setState] = useState<LoadState>({ status: 'loading' })
+  const errorText = useErrorText()
+  const { state, retry } = useAdminResource(
+    venueId,
+    async () => {
+      const [detail, events] = await Promise.all([venuesApi.get(venueId), adminEventsApi.countAtVenue(venueId)])
+      return { ...detail, events }
+    },
+    (e) => e instanceof VenueNotFoundError,
+  )
   const [active, setActive] = useState<string | null>(null)
   const [zoomIndex, setZoomIndex] = useState(DEFAULT_ZOOM)
   const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [failure, setFailure] = useState<string | null>(null)
   const navigate = useNavigate()
-
-  const [attempt, setAttempt] = useState(0)
-
-  useEffect(() => {
-    let cancelled = false
-    venuesApi
-      .get(venueId)
-      .then((detail) => !cancelled && setState({ status: 'ready', detail }))
-      .catch((err) => !cancelled && setState({ status: err instanceof VenueNotFoundError ? 'not-found' : 'error' }))
-    return () => {
-      cancelled = true
-    }
-  }, [venueId, attempt])
-
-  function retry() {
-    setState({ status: 'loading' })
-    setAttempt((n) => n + 1)
-  }
 
   const backLink = (
     <Link className="ad-back" to="/admin/venues">
@@ -250,30 +277,32 @@ function VenueDetail({ venueId }: { venueId: string }) {
     return (
       <AdminLayout title={t.detailEyebrow} crumbs={[{ label: t.listTitle, to: '/admin/venues' }, { label: t.detailEyebrow }]}>
         {backLink}
-        {state.status === 'loading' && <LoadingPanel label={t.loadingVenue} rows={4} />}
-        {state.status === 'error' && (
-          <MessagePanel
-            tone="error"
-            title={t.venueErrorTitle}
-            text={t.errorText}
-            action={<RetryButton label={t.tryAgain} onClick={retry} />}
-          />
-        )}
-        {state.status === 'not-found' && <MessagePanel tone="empty" title={t.notFoundTitle} text={t.notFoundText} />}
+        <ResourceStatus
+          state={state}
+          loading={t.loadingVenue}
+          rows={4}
+          errorTitle={t.venueErrorTitle}
+          errorText={t.errorText}
+          retryLabel={t.tryAgain}
+          onRetry={retry}
+          notFoundTitle={t.notFoundTitle}
+          notFoundText={t.notFoundText}
+        />
       </AdminLayout>
     )
   }
 
-  const { venue, layout } = state.detail
+  const { venue, layout, events } = state.data
 
   async function confirmDelete() {
     setBusy(true)
     try {
       await venuesApi.remove(venue.id)
       navigate('/admin/venues', { state: { toast: { kind: 'deleted', name: venue.name, id: venue.id } } })
-    } catch {
+    } catch (error) {
       setBusy(false)
       setConfirming(false)
+      setFailure(errorText(error, t.actionFailed))
     }
   }
   const seated = layout.kind === 'seated'
@@ -300,10 +329,12 @@ function VenueDetail({ venueId }: { venueId: string }) {
               <PencilIcon size={16} />
               {t.editVenue}
             </Link>
-            <button type="button" className="ad-glass-btn ad-glass-btn--danger" onClick={() => setConfirming(true)}>
-              <TrashIcon size={16} />
-              {t.delete}
-            </button>
+            {events === 0 && (
+              <button type="button" className="ad-glass-btn ad-glass-btn--danger" onClick={() => setConfirming(true)}>
+                <TrashIcon size={16} />
+                {t.delete}
+              </button>
+            )}
           </>
         }
       >
@@ -372,6 +403,8 @@ function VenueDetail({ venueId }: { venueId: string }) {
             <ZoneMap layout={layout} active={active} zoom={zoom} t={t} fmt={fmt} dark={theme === 'dark'} />
           )}
 
+          <SeatList layout={layout} fmt={fmt} t={t} />
+
           <div className="ad-legend">
             <span>
               <span className="ad-legend-box ad-legend-box--stage" aria-hidden="true" />
@@ -405,7 +438,9 @@ function VenueDetail({ venueId }: { venueId: string }) {
             <dl className="ad-info">
               <div>
                 <dt>{t.venueId}</dt>
-                <dd className="ad-mono">{venue.id.slice(0, 8)}</dd>
+                <dd className="ad-mono" dir="ltr">
+                  {venue.id.slice(0, 8)}
+                </dd>
               </div>
               <div>
                 <dt>{t.address}</dt>
@@ -424,12 +459,21 @@ function VenueDetail({ venueId }: { venueId: string }) {
                 <dd>{fmt(venue.totalCapacity)}</dd>
               </div>
               <div>
+                <dt>{t.eventsHere}</dt>
+                <dd>{fmt(events)}</dd>
+              </div>
+              <div>
                 <dt>{t.stagePosition}</dt>
                 <dd className={seated ? undefined : 'ad-mono'} dir={seated ? undefined : 'ltr'}>
                   {stageText}
                 </dd>
               </div>
             </dl>
+            {events > 0 && (
+              <p className="ev-card-text" role="note">
+                {t.inUseText}
+              </p>
+            )}
           </section>
         </aside>
       </div>
@@ -455,6 +499,7 @@ function VenueDetail({ venueId }: { venueId: string }) {
           onCancel={() => setConfirming(false)}
         />
       )}
+      {failure && <Toast key={failure} tone="error" message={failure} dismissLabel={t.dismiss} onDismiss={() => setFailure(null)} />}
     </AdminLayout>
   )
 }

@@ -1,86 +1,70 @@
-import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { EVENTS, ordersApi, ticketsApi, type Order, type OrderStatus } from '../../lib/ordersApi'
-import { AdminHero, AdminLayout, ForwardArrowIcon, Icon, LoadingPanel, MessagePanel, RetryButton } from './AdminLayout'
+import { EVENTS, loadOrdersBook, type Order, type OrderStatus } from '../../lib/ordersApi'
+import { AdminHero, AdminLayout, ForwardArrowIcon, Icon, MessagePanel, ResourceStatus, TicketIcon } from './AdminLayout'
 import { EventChips, Metric, OrdersTabs, SearchBox, StatusBadge, StatusPills } from './OrdersParts'
 import { useOrdersFormat, useOrdersStrings } from './ordersStrings'
+import { useAdminResource } from './useAdminResource'
+import { oneOf, useListParams } from './useListParams'
 
-type LoadState = { status: 'loading' } | { status: 'error' } | { status: 'ready'; orders: Order[]; ticketCount: number }
 type StatusFilter = 'all' | OrderStatus
+const STATUSES: StatusFilter[] = ['all', 'paid', 'pending', 'refunded', 'cancelled']
+const FILTERS = { q: '', status: 'all', event: 'all' }
 
 export default function OrderListPage() {
   const t = useOrdersStrings()
   const f = useOrdersFormat()
-  const [state, setState] = useState<LoadState>({ status: 'loading' })
-  const [attempt, setAttempt] = useState(0)
-  const [query, setQuery] = useState('')
-  const [status, setStatus] = useState<StatusFilter>('all')
-  const [event, setEvent] = useState('all')
+  const { state, retry } = useAdminResource('orders', loadOrdersBook)
+  const { values, set, clear } = useListParams(FILTERS)
+  const status = oneOf(values.status, STATUSES, 'all')
+  const event = values.event
 
-  useEffect(() => {
-    let cancelled = false
-    Promise.all([ordersApi.list(), ticketsApi.list()])
-      .then(([orders, tickets]) => !cancelled && setState({ status: 'ready', orders, ticketCount: tickets.length }))
-      .catch(() => !cancelled && setState({ status: 'error' }))
-    return () => {
-      cancelled = true
-    }
-  }, [attempt])
-
-  function retry() {
-    setState({ status: 'loading' })
-    setAttempt((n) => n + 1)
-  }
-
-  const orders = state.status === 'ready' ? state.orders : []
-  const q = query.trim().toLowerCase()
+  const orders = state.status === 'ready' ? state.data.orders : []
+  const eventIdOf = (o: Order) => EVENTS[o.eventKey].eventId
+  const q = values.q.trim().toLowerCase()
   const matchesText = (o: Order) => !q || `${o.id} ${o.customer.name} ${o.customer.email}`.toLowerCase().includes(q)
-  const matchesEvent = (o: Order) => event === 'all' || o.eventKey === event
-  const matchesStatus = (o: Order) => status === 'all' || o.status === status
+  const matchesEvent = (o: Order, e = event) => e === 'all' || eventIdOf(o) === e
+  const matchesStatus = (o: Order, s = status) => s === 'all' || o.status === s
   const rows = orders.filter((o) => matchesText(o) && matchesEvent(o) && matchesStatus(o))
   const paid = orders.filter((o) => o.status === 'paid')
   const hasFilters = q !== '' || status !== 'all' || event !== 'all'
-  const eventKeys = Object.keys(EVENTS).filter((k) => orders.some((o) => o.eventKey === k))
+  const events = Object.values(EVENTS).filter((e) => orders.some((o) => o.eventKey === e.key))
 
-  const statusChoices = (['all', 'paid', 'pending', 'refunded', 'cancelled'] as StatusFilter[]).map((v) => ({
+  const statusChoices = STATUSES.map((v) => ({
     value: v,
     label: v === 'all' ? t.all : t[v],
-    count: orders.filter((o) => matchesText(o) && matchesEvent(o) && (v === 'all' || o.status === v)).length,
+    count: orders.filter((o) => matchesText(o) && matchesEvent(o) && matchesStatus(o, v)).length,
   }))
-  const eventChoices = ['all', ...eventKeys].map((k) => ({
-    value: k,
-    label: k === 'all' ? t.allEvents : EVENTS[k].name,
-    count: orders.filter((o) => matchesText(o) && matchesStatus(o) && (k === 'all' || o.eventKey === k)).length,
+  const eventChoices = [{ value: 'all', label: t.allEvents }, ...events.map((e) => ({ value: e.eventId, label: e.name }))].map((c) => ({
+    ...c,
+    count: orders.filter((o) => matchesText(o) && matchesStatus(o) && matchesEvent(o, c.value)).length,
   }))
-
-  function clearFilters() {
-    setQuery('')
-    setStatus('all')
-    setEvent('all')
-  }
 
   return (
-    <AdminLayout title={t.ordersTitle} crumbs={[{ label: t.ordersTitle }]} revealCount={state.status === 'ready' ? orders.length : 0}>
+    <AdminLayout title={t.ordersTitle} crumbs={[{ label: t.ordersTitle }]} revealCount={state.status === 'ready' ? 5 : 0}>
       <AdminHero eyebrow={t.ordersEyebrow} title={t.ordersTitle}>
         <p className="ad-hero-lead">{t.ordersLead}</p>
       </AdminHero>
 
-      {state.status === 'loading' && <LoadingPanel label={t.loadingOrders} />}
-      {state.status === 'error' && (
-        <MessagePanel tone="error" title={t.errorOrders} text={t.errorText} action={<RetryButton label={t.tryAgain} onClick={retry} />} />
-      )}
+      <ResourceStatus state={state} loading={t.loadingOrders} errorTitle={t.errorOrders} errorText={t.errorText} retryLabel={t.tryAgain} onRetry={retry} />
       {state.status === 'ready' && (
         <>
-          <OrdersTabs active="orders" orders={orders.length} tickets={state.ticketCount} t={t} fmt={f.num} />
+          <OrdersTabs
+            active="orders"
+            orders={orders.length}
+            tickets={state.data.tickets.length}
+            refunds={state.data.requests.filter((r) => r.status === 'submitted').length}
+            t={t}
+            fmt={f.num}
+          />
           {orders.length === 0 ? (
-            <MessagePanel tone="empty" title={t.emptyOrders} text={t.emptyOrdersText} />
+            <MessagePanel tone="empty" title={t.emptyOrders} text={t.emptyOrdersText} icon={<TicketIcon size={34} />} />
           ) : (
             <>
               <div className="ad-metrics">
-                <Metric label={t.mOrders} value={f.num(orders.length)} sub={t.mOrdersSub} dot="#7200f5" />
-                <Metric label={t.mTickets} value={f.num(paid.reduce((n, o) => n + o.qty, 0))} sub={t.mTicketsSub} dot="#a78bfa" />
-                <Metric label={t.mRevenue} value={f.num(paid.reduce((n, o) => n + o.total, 0))} sub={t.mRevenueSub} dot="#c4b5fd" />
-                <Metric label={t.mPending} value={f.num(orders.filter((o) => o.status === 'pending').length)} sub={t.mPendingSub} dot="#5c00c9" />
+                <Metric label={t.mOrders} value={f.num(orders.length)} sub={t.mOrdersSub} dot="var(--ad-dot-1)" />
+                <Metric label={t.mTickets} value={f.num(paid.reduce((n, o) => n + o.qty, 0))} sub={t.mTicketsSub} dot="var(--ad-dot-2)" />
+                <Metric label={t.mRevenue} value={f.money(paid.reduce((n, o) => n + o.total, 0))} sub={t.mRevenueSub} dot="var(--ad-dot-3)" />
+                <Metric label={t.mPending} value={f.num(orders.filter((o) => o.status === 'pending').length)} sub={t.mPendingSub} dot="var(--ad-dot-4)" />
               </div>
 
               <section className="ad-card" aria-labelledby="orders-title" data-scroll-reveal="">
@@ -94,14 +78,14 @@ export default function OrderListPage() {
                     <h2 id="orders-title">{t.allOrders}</h2>
                     <span className="ad-count">{f.num(rows.length)}</span>
                   </div>
-                  <SearchBox id="order-search" label={t.searchOrdersLabel} placeholder={t.searchOrders} value={query} onChange={setQuery} />
+                  <SearchBox id="order-search" label={t.searchOrdersLabel} placeholder={t.searchOrders} value={values.q} onChange={(v) => set('q', v)} />
                 </div>
 
                 <div className="ad-filters" role="group" aria-label={t.filterOrders}>
-                  <StatusPills id="order-status" label={t.status} value={status} choices={statusChoices} onChange={setStatus} fmt={f.num} />
-                  <EventChips id="order-event" label={t.event} value={event} choices={eventChoices} onChange={setEvent} fmt={f.num} />
+                  <StatusPills id="order-status" label={t.status} value={status} choices={statusChoices} onChange={(v) => set('status', v)} fmt={f.num} />
+                  <EventChips id="order-event" label={t.event} value={event} choices={eventChoices} onChange={(v) => set('event', v)} fmt={f.num} />
                   {hasFilters && (
-                    <button type="button" className="ad-textbtn ad-clear" onClick={clearFilters}>
+                    <button type="button" className="ad-textbtn ad-clear" onClick={clear}>
                       <Icon size={16}>
                         <path d="M6 6l12 12M18 6 6 18" />
                       </Icon>
@@ -116,15 +100,19 @@ export default function OrderListPage() {
                       <tr>
                         <th scope="col">{t.cOrder}</th>
                         <th scope="col">{t.cCustomer}</th>
-                        <th scope="col">{t.cEvent}</th>
-                        <th scope="col" className="ad-num">
+                        <th scope="col" className="ad-hide-sm">
+                          {t.cEvent}
+                        </th>
+                        <th scope="col" className="ad-num ad-hide-sm">
                           {t.cTickets}
                         </th>
                         <th scope="col" className="ad-num">
                           {t.cTotal}
                         </th>
                         <th scope="col">{t.cPayment}</th>
-                        <th scope="col">{t.cPlaced}</th>
+                        <th scope="col" className="ad-hide-sm">
+                          {t.cPlaced}
+                        </th>
                         <th scope="col" className="ad-end">
                           {t.cActions}
                         </th>
@@ -139,18 +127,22 @@ export default function OrderListPage() {
                             </Link>
                           </td>
                           <td>
-                            <strong className="ad-block">{o.customer.name}</strong>
+                            <Link className="ad-block" to={`/admin/users/${o.customer.userId}`}>
+                              {o.customer.name}
+                            </Link>
                             <span className="ad-block ad-muted" dir="ltr">
                               {o.customer.email}
                             </span>
                           </td>
-                          <td>{EVENTS[o.eventKey].name}</td>
-                          <td className="ad-num ad-strong">{f.num(o.qty)}</td>
+                          <td className="ad-hide-sm">
+                            <Link to={`/admin/events/${eventIdOf(o)}`}>{EVENTS[o.eventKey].name}</Link>
+                          </td>
+                          <td className="ad-num ad-strong ad-hide-sm">{f.num(o.qty)}</td>
                           <td className="ad-num ad-strong od-nowrap">{f.money(o.total)}</td>
                           <td>
                             <StatusBadge status={o.status} t={t} />
                           </td>
-                          <td className="ad-muted od-nowrap">{f.date(o.placedAt)}</td>
+                          <td className="ad-muted od-nowrap ad-hide-sm">{f.date(o.placedAt)}</td>
                           <td className="ad-end">
                             <Link className="ad-tint-btn ad-tint-btn--small" to={`/admin/orders/${o.id}`} aria-label={`${t.viewOrder} ${o.id}`}>
                               {t.view}
@@ -166,13 +158,13 @@ export default function OrderListPage() {
                 {rows.length === 0 && (
                   <div className="ad-no-matches">
                     <p>{t.noOrders}</p>
-                    <button type="button" className="ad-tint-btn" onClick={clearFilters}>
+                    <button type="button" className="ad-tint-btn" onClick={clear}>
                       {t.clear}
                     </button>
                   </div>
                 )}
 
-                <div className="ad-card-foot">
+                <div className="ad-card-foot" role="status">
                   {t.showing} {f.num(rows.length)} {t.of} {f.num(orders.length)} {t.ordersWord}
                 </div>
               </section>

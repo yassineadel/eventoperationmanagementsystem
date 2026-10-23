@@ -1,0 +1,310 @@
+/* Events & users pages. Builds on Admin.css and Orders.css (status badges, reason banner, dialogs). */
+
+.ad-root {
+  --ev-track: #ece6dc;
+  --ev-fill: #7200f5;
+  --ev-full: #b42318;
+  --ev-user-bg: #f3f1ec;
+  --ev-user-line: #ddd7cc;
+  --ev-user-ink: #45445a;
+}
+
+.ad-root[data-theme='dark'] {
+  --ev-track: #252a5c;
+  --ev-fill: #ad76ff;
+  --ev-full: #ff8a80;
+  --ev-user-bg: #1a1e3c;
+  --ev-user-line: #343a6b;
+  --ev-user-ink: #c1bdd3;
+}
+
+/* ------------------------------------------------------------------ lists */
+
+.ev-table {
+  min-width: 1040px;
+}
+
+.ev-sales {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 130px;
+}
+
+.ev-progress {
+  display: block;
+  width: 100%;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--ev-track);
+}
+
+.ev-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ev-fill);
+}
+
+.ev-progress > span.is-full {
+  background: var(--ev-full);
+}
+
+.ev-role--user {
+  background: var(--ev-user-bg);
+  border-color: var(--ev-user-line);
+  color: var(--ev-user-ink);
+}
+
+.ev-you {
+  margin-inline-start: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--ad-tint);
+  color: var(--ad-tint-ink);
+  font-size: 11px;
+  font-weight: 800;
+  vertical-align: middle;
+}
+
+.ad-icon-action:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ----------------------------------------------------------------- detail */
+
+.ad-root .ev-note {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border: 1px solid var(--ad-tint-line);
+  border-radius: 14px;
+  background: var(--ad-tint);
+  color: var(--ad-tint-ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ad-root .ev-description {
+  padding: 0 22px 22px;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--ad-ink);
+  white-space: pre-line;
+}
+
+.ev-cat-sold {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.ev-cat-sold .ev-progress {
+  width: 90px;
+}
+
+.ev-hero-hint {
+  flex-basis: 100%;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* ------------------------------------------------------------------- form */
+
+.ad-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 14px;
+  border: 1.5px solid var(--ad-input-line);
+  border-radius: 7px;
+  background: var(--ad-surface);
+  color: var(--ad-ink);
+  font: 500 15px var(--ad-font);
+  resize: vertical;
+}
+
+.ad-field .ad-select select {
+  width: 100%;
+  min-height: 48px;
+  font-size: 15px;
+}
+
+.ad-field select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ad-field textarea:focus,
+.ad-field select:focus {
+  outline: none;
+  border-color: var(--ad-focus);
+  box-shadow: 0 0 0 4px rgba(114, 0, 245, 0.16);
+}
+
+.ad-field textarea[aria-invalid='true'],
+.ad-field select[aria-invalid='true'] {
+  border-color: var(--ad-error);
+}
+
+.ad-root .ev-hint {
+  font-size: 13px;
+  color: var(--ad-muted);
+}
+
+/* ------------------------------------------------------------ role dialog */
+
+.ev-role-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* Non-destructive dialogs (publish, unblock, role) use the purple icon instead of red. */
+.ad-dialog--primary .ad-dialog-icon {
+  background: var(--ad-tint);
+  color: var(--ad-tint-ink);
+}
+
+/* ---------------------------------------------------------- ticket waves */
+
+.ev-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.ev-waves {
+  padding-top: 0;
+}
+
+.ev-wave-row {
+  grid-template-columns: minmax(0, 1.3fr) 110px 100px 60px 120px 128px;
+}
+
+/* Each cell's visible label shows only when the grid stacks on small screens. */
+.ev-cell {
+  display: block;
+  min-width: 0;
+}
+
+.ev-cell-label {
+  display: none;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ad-muted);
+}
+
+.ev-wave-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+}
+
+.ev-wave-actions .ad-icon-action {
+  width: 36px;
+  height: 36px;
+}
+
+.ad-root .ev-row-error {
+  margin-top: 4px;
+}
+
+.ev-change-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 14px 24px 0;
+  padding: 12px 14px 12px 32px;
+  border: 1px solid var(--ad-line);
+  border-radius: 12px;
+  background: var(--ad-head);
+  font-size: 14px;
+}
+
+.ad-root[dir='rtl'] .ev-change-list {
+  padding: 12px 32px 12px 14px;
+}
+
+.ev-change-list .is-highlight {
+  font-weight: 700;
+  color: var(--ad-tint-ink);
+}
+
+.ev-checkin-bar {
+  padding: 0 22px 20px;
+}
+
+.ad-editor-row input[readonly],
+.ad-field input[readonly] {
+  background: var(--ad-head);
+  color: var(--ad-muted);
+  cursor: not-allowed;
+}
+
+.ad-editor-row input[aria-invalid='true'] {
+  border-color: var(--ad-error);
+}
+
+.ev-fieldset > .ad-add-row {
+  align-self: flex-start;
+}
+
+.ev-cat-group + .ev-cat-group .ev-cat-row > * {
+  border-top: 1px solid var(--ad-line);
+}
+
+.ev-cat-row th {
+  text-align: start;
+  font-weight: 400;
+}
+
+.ev-cat-code {
+  margin-inline-start: 8px;
+  font-size: 12px;
+}
+
+.ev-wave-line th {
+  text-align: start;
+  font-weight: 400;
+}
+
+.ev-wave-line th:first-child {
+  padding-inline-start: 36px;
+  color: var(--ad-muted);
+}
+
+@media (max-width: 760px) {
+  .ev-wave-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    padding: 12px;
+    border: 1px solid var(--ad-line);
+    border-radius: 12px;
+  }
+
+  .ev-wave-row > .ev-cell:first-child,
+  .ev-wave-actions {
+    grid-column: 1 / -1;
+  }
+
+  .ev-cell-label {
+    display: block;
+  }
+
+  .ev-wave-row .ad-end {
+    text-align: start;
+  }
+
+  .ev-wave-actions {
+    justify-content: flex-start;
+  }
+}

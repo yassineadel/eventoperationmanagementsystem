@@ -1,47 +1,30 @@
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
+import { useId, useRef, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import {
-  minutesAfter,
-  OrderNotFoundError,
-  ordersApi,
-  SAMPLE_NOW,
-  type OrderDetail,
-  type RefundReason,
-} from '../../lib/ordersApi'
-import { Toast } from './AdminFeedback'
-import { AdminHero, AdminLayout, BackArrowIcon, ForwardArrowIcon, Icon, LoadingPanel, MessagePanel, RetryButton, TicketIcon } from './AdminLayout'
+import { minutesAfter, now } from '../../lib/adminTime'
+import { OrderNotFoundError, ordersApi, refundQuote, type OrderDetail, type RefundReason } from '../../lib/ordersApi'
+import { ModalDialog, Toast } from './AdminFeedback'
+import { AdminHero, AdminLayout, BackArrowIcon, ForwardArrowIcon, Icon, ResourceStatus, TicketIcon } from './AdminLayout'
+import { useAdminActor } from './adminIdentity'
+import { isolate } from './adminText'
+import { useErrorText } from './errorStrings'
 import { AlertIcon, HeroStatus, InfoList, MailIcon, RefundIcon, StatusBadge } from './OrdersParts'
 import { fillIn, useOrdersFormat, useOrdersStrings, type OrdersStrings } from './ordersStrings'
+import { useAdminResource } from './useAdminResource'
 
-type LoadState = { status: 'loading' } | { status: 'error' } | { status: 'not-found' } | { status: 'ready'; detail: OrderDetail }
-type Notice = { tone: 'success' | 'error'; text: string }
+type Notice = { tone: 'success' | 'error'; text: string; n: number }
 type Step = { label: string; at: string; kind: 'done' | 'now' | 'todo' | 'fail' }
 
-// Keyed by the order ID so moving to another order starts from a fresh loading state.
 export default function OrderDetailPage() {
   const { orderId = '' } = useParams()
-  return <OrderDetailView key={orderId} orderId={orderId} />
-}
-
-function OrderDetailView({ orderId }: { orderId: string }) {
   const t = useOrdersStrings()
   const f = useOrdersFormat()
-  const [state, setState] = useState<LoadState>({ status: 'loading' })
-  const [attempt, setAttempt] = useState(0)
+  const actor = useAdminActor()
+  const errorText = useErrorText()
+  const { state, retry, setData } = useAdminResource(orderId, () => ordersApi.get(orderId), (e) => e instanceof OrderNotFoundError)
   const [refunding, setRefunding] = useState(false)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<Notice | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    ordersApi
-      .get(orderId)
-      .then((detail) => !cancelled && setState({ status: 'ready', detail }))
-      .catch((err) => !cancelled && setState({ status: err instanceof OrderNotFoundError ? 'not-found' : 'error' }))
-    return () => {
-      cancelled = true
-    }
-  }, [orderId, attempt])
+  const say = (tone: Notice['tone'], text: string) => setNotice((prev) => ({ tone, text, n: (prev?.n ?? 0) + 1 }))
 
   const backLink = (
     <Link className="ad-back" to="/admin/orders">
@@ -54,38 +37,31 @@ function OrderDetailView({ orderId }: { orderId: string }) {
     return (
       <AdminLayout title={t.orderEyebrow} crumbs={[{ label: t.ordersTitle, to: '/admin/orders' }, { label: t.orderEyebrow }]}>
         {backLink}
-        {state.status === 'loading' && <LoadingPanel label={t.loadingOrder} rows={4} />}
-        {state.status === 'error' && (
-          <MessagePanel
-            tone="error"
-            title={t.errorOrders}
-            text={t.errorText}
-            action={
-              <RetryButton
-                label={t.tryAgain}
-                onClick={() => {
-                  setState({ status: 'loading' })
-                  setAttempt((n) => n + 1)
-                }}
-              />
-            }
-          />
-        )}
-        {state.status === 'not-found' && <MessagePanel tone="empty" title={t.orderNotFound} text={t.notFoundText} />}
+        <ResourceStatus
+          state={state}
+          loading={t.loadingOrder}
+          rows={4}
+          errorTitle={t.errorOrders}
+          errorText={t.errorText}
+          retryLabel={t.tryAgain}
+          onRetry={retry}
+          notFoundTitle={t.orderNotFound}
+          notFoundText={t.notFoundText}
+        />
       </AdminLayout>
     )
   }
 
-  const { order, event, tickets } = state.detail
+  const { order, event, tickets } = state.data
   const pay = order.payment
 
   async function run(action: () => Promise<void>, success: string) {
     setBusy(true)
     try {
       await action()
-      setNotice({ tone: 'success', text: success })
-    } catch {
-      setNotice({ tone: 'error', text: t.failed })
+      say('success', success)
+    } catch (error) {
+      say('error', errorText(error, t.failed))
     } finally {
       setBusy(false)
     }
@@ -94,12 +70,11 @@ function OrderDetailView({ orderId }: { orderId: string }) {
   async function refund(reason: RefundReason, note: string) {
     setBusy(true)
     try {
-      const detail = await ordersApi.refund(order.id, { reason, note })
-      setState({ status: 'ready', detail })
+      setData(await ordersApi.refund(order.id, { reason, note }, actor.name))
       setRefunding(false)
-      setNotice({ tone: 'success', text: fillIn(t.refundDone, { id: order.id }) })
-    } catch {
-      setNotice({ tone: 'error', text: t.failed })
+      say('success', fillIn(t.refundDone, { id: order.id }))
+    } catch (error) {
+      say('error', errorText(error, t.failed))
     } finally {
       setBusy(false)
     }
@@ -114,7 +89,8 @@ function OrderDetailView({ orderId }: { orderId: string }) {
     ...(pay.dueBy && order.status === 'pending' ? [{ label: t.payBy, value: f.date(pay.dueBy) }] : []),
     ...(pay.refundedAt ? [{ label: t.refundedOn, value: f.date(pay.refundedAt) }] : []),
     ...(pay.cancelledAt ? [{ label: t.cancelledOn, value: f.date(pay.cancelledAt) }] : []),
-    { label: order.status === 'refunded' ? t.refundAmount : t.total, value: f.money(order.total) },
+    { label: t.total, value: f.money(order.total) },
+    ...(pay.refundAmount !== undefined ? [{ label: t.refundAmount, value: f.money(pay.refundAmount) }] : []),
   ]
 
   return (
@@ -131,13 +107,13 @@ function OrderDetailView({ orderId }: { orderId: string }) {
                 <button
                   type="button"
                   className="ad-glass-btn"
-                  disabled={busy}
-                  onClick={() => run(() => ordersApi.resendTickets(order.id), fillIn(t.sentTickets, { email: order.customer.email }))}
+                  aria-disabled={busy || undefined}
+                  onClick={() => !busy && run(() => ordersApi.resendTickets(order.id), fillIn(t.sentTickets, { email: isolate(order.customer.email) }))}
                 >
                   <MailIcon />
                   {t.resend}
                 </button>
-                <button type="button" className="ad-glass-btn ad-glass-btn--danger" onClick={() => setRefunding(true)}>
+                <button type="button" className="ad-glass-btn ad-glass-btn--danger" aria-disabled={busy || undefined} onClick={() => !busy && setRefunding(true)}>
                   <RefundIcon />
                   {t.refund}
                 </button>
@@ -147,8 +123,8 @@ function OrderDetailView({ orderId }: { orderId: string }) {
               <button
                 type="button"
                 className="ad-glass-btn"
-                disabled={busy}
-                onClick={() => run(() => ordersApi.remindPayment(order.id), fillIn(t.sentReminder, { email: order.customer.email }))}
+                aria-disabled={busy || undefined}
+                onClick={() => !busy && run(() => ordersApi.remindPayment(order.id), fillIn(t.sentReminder, { email: isolate(order.customer.email) }))}
               >
                 <MailIcon />
                 {t.remind}
@@ -175,9 +151,9 @@ function OrderDetailView({ orderId }: { orderId: string }) {
                 <AlertIcon size={22} />
               </span>
               <div>
-                <p id="reason-title" className="od-reason-kicker">
+                <h2 id="reason-title" className="od-reason-kicker">
                   {order.status === 'refunded' ? t.refundDetails : t.cancelDetails}
-                </p>
+                </h2>
                 <p className="od-reason-title">
                   {t.reason}: {t.reasons[order.reason.key]}
                 </p>
@@ -216,9 +192,9 @@ function OrderDetailView({ orderId }: { orderId: string }) {
                 <tbody>
                   {order.items.map((it) => (
                     <tr key={it.category}>
-                      <td>
+                      <th scope="row">
                         <strong>{it.category}</strong>
-                      </td>
+                      </th>
                       <td className="ad-num">{f.money(it.unitPrice)}</td>
                       <td className="ad-num">{f.num(it.qty)}</td>
                       <td className="ad-num ad-strong">{f.money(it.unitPrice * it.qty)}</td>
@@ -269,9 +245,9 @@ function OrderDetailView({ orderId }: { orderId: string }) {
                   <tbody>
                     {tickets.map((k) => (
                       <tr key={k.code}>
-                        <td className="ad-mono" dir="ltr">
+                        <th scope="row" className="ad-mono" dir="ltr">
                           {k.code}
-                        </td>
+                        </th>
                         <td>{k.category}</td>
                         <td className="ad-muted">{k.seat}</td>
                         <td>
@@ -316,7 +292,7 @@ function OrderDetailView({ orderId }: { orderId: string }) {
             </h2>
             <InfoList
               rows={[
-                { label: t.cCustomer, value: order.customer.name },
+                { label: t.cCustomer, value: <Link to={`/admin/users/${order.customer.userId}`}>{order.customer.name}</Link> },
                 { label: t.email, value: order.customer.email, ltr: true },
                 { label: t.phone, value: f.phone(order.customer.phone), ltr: true },
               ]}
@@ -329,7 +305,7 @@ function OrderDetailView({ orderId }: { orderId: string }) {
             </h2>
             <InfoList
               rows={[
-                { label: t.cEvent, value: event.name },
+                { label: t.cEvent, value: <Link to={`/admin/events/${event.eventId}`}>{event.name}</Link> },
                 { label: t.venue, value: event.venueId ? <Link to={`/admin/venues/${event.venueId}`}>{event.venue}</Link> : event.venue },
                 { label: t.date, value: f.date(event.startsAt) },
               ]}
@@ -341,7 +317,7 @@ function OrderDetailView({ orderId }: { orderId: string }) {
               {t.timeline}
             </h2>
             <ol className="od-timeline">
-              {timeline(state.detail, t, f.date).map((s) => (
+              {timeline(state.data, t, f.date).map((s) => (
                 <li key={s.label} className={`od-step od-step--${s.kind}`}>
                   <span className="od-step-dot" aria-hidden="true">
                     {s.kind === 'done' && (
@@ -375,10 +351,8 @@ function OrderDetailView({ orderId }: { orderId: string }) {
       {refunding && (
         <RefundDialog
           t={t}
-          orderId={order.id}
-          customer={order.customer.name}
-          tickets={tickets.length}
-          amount={f.money(order.total)}
+          detail={state.data}
+          money={f.money}
           count={f.num(tickets.length)}
           busy={busy}
           onCancel={() => setRefunding(false)}
@@ -386,9 +360,7 @@ function OrderDetailView({ orderId }: { orderId: string }) {
         />
       )}
 
-      {notice && (
-        <Toast key={notice.text} tone={notice.tone} message={notice.text} dismissLabel={t.dismiss} onDismiss={() => setNotice(null)} />
-      )}
+      {notice && <Toast key={notice.n} tone={notice.tone} message={notice.text} dismissLabel={t.dismiss} onDismiss={() => setNotice(null)} />}
     </AdminLayout>
   )
 }
@@ -402,7 +374,7 @@ function timeline({ order, event }: OrderDetail, t: OrdersStrings, date: (iso: s
         placed,
         { label: t.tPaid, at: date(pay.paidAt!), kind: 'done' },
         { label: t.tIssued, at: date(pay.paidAt!), kind: 'done' },
-        { label: t.tEvent, at: date(event.startsAt), kind: event.startsAt < SAMPLE_NOW ? 'done' : 'todo' },
+        { label: t.tEvent, at: date(event.startsAt), kind: event.startsAt < now() ? 'done' : 'todo' },
       ]
     case 'pending':
       return [placed, { label: t.tWaiting, at: date(pay.dueBy!), kind: 'now' }, { label: t.tIssueAfter, at: '—', kind: 'todo' }]
@@ -426,120 +398,99 @@ function timeline({ order, event }: OrderDetail, t: OrdersStrings, date: (iso: s
 
 type RefundProps = {
   t: OrdersStrings
-  orderId: string
-  customer: string
-  tickets: number
+  detail: OrderDetail
   count: string
-  amount: string
+  money: (n: number) => string
   busy: boolean
   onCancel: () => void
   onConfirm: (reason: RefundReason, note: string) => void
 }
 
-function RefundDialog({ t, orderId, customer, tickets, count, amount, busy, onCancel, onConfirm }: RefundProps) {
+/** The refund amount follows the reason: on a customer request Hafletna keeps the service fee. */
+function RefundDialog({ t, detail, count, money, busy, onCancel, onConfirm }: RefundProps) {
   const id = useId()
-  const boxRef = useRef<HTMLFormElement>(null)
   const firstRef = useRef<HTMLSelectElement>(null)
   const [reason, setReason] = useState<RefundReason>('customer')
   const [note, setNote] = useState('')
-
-  useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null
-    firstRef.current?.focus()
-    return () => previous?.focus()
-  }, [])
-
-  function onKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Escape' && !busy) {
-      e.stopPropagation()
-      onCancel()
-      return
-    }
-    if (e.key !== 'Tab') return
-    const items = boxRef.current?.querySelectorAll<HTMLElement>('select, textarea, button:not([disabled])')
-    if (!items?.length) return
-    const first = items[0]
-    const last = items[items.length - 1]
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault()
-      last.focus()
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault()
-      first.focus()
-    }
-  }
+  const { order, tickets } = detail
+  const quote = refundQuote(order, reason)
 
   function submit(e: FormEvent) {
     e.preventDefault()
-    onConfirm(reason, note)
+    if (!busy) onConfirm(reason, note)
   }
 
   return (
-    <div className="ad-overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && onCancel()}>
-      <form
-        ref={boxRef}
-        className="ad-dialog od-refund"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={`${id}-title`}
-        onKeyDown={onKeyDown}
-        onSubmit={submit}
-      >
-        <div className="ad-dialog-head">
-          <span className="ad-dialog-icon" aria-hidden="true">
-            <RefundIcon size={22} />
-          </span>
-          <div>
-            <h2 id={`${id}-title`}>{t.refundTitle}</h2>
-            <p>
-              {t.refundLead}{' '}
-              <span className="ad-mono" dir="ltr">
-                {orderId}
-              </span>{' '}
-              · {customer}
-            </p>
-          </div>
-        </div>
-        <div className="od-refund-body">
-          <p className="od-refund-scope">{tickets === 1 ? t.refundOne : fillIn(t.refundAll, { n: count })}</p>
-          <div className="ad-field">
-            <label htmlFor={`${id}-reason`}>{t.reasonLabel}</label>
-            <div className="ad-select">
-              <select ref={firstRef} id={`${id}-reason`} value={reason} onChange={(e) => setReason(e.target.value as RefundReason)}>
-                {(['customer', 'eventChanged', 'duplicate', 'other'] as RefundReason[]).map((r) => (
-                  <option key={r} value={r}>
-                    {t.reasons[r]}
-                  </option>
-                ))}
-              </select>
-              <Icon size={16}>
-                <path d="m6 9 6 6 6-6" />
-              </Icon>
-            </div>
-          </div>
-          <div className="ad-field">
-            <label htmlFor={`${id}-note`}>{t.noteLabel}</label>
-            <textarea id={`${id}-note`} rows={3} value={note} onChange={(e) => setNote(e.target.value)} />
-          </div>
-          <div className="od-refund-amount">
-            <span>{t.refundAmount}</span>
-            <strong>{amount}</strong>
-          </div>
-          <p className="od-refund-warning" role="note">
-            <AlertIcon />
-            <span>{t.refundNote}</span>
+    <ModalDialog labelledBy={`${id}-title`} className="od-refund" busy={busy} onCancel={onCancel} onSubmit={submit} initialFocus={firstRef}>
+      <div className="ad-dialog-head">
+        <span className="ad-dialog-icon" aria-hidden="true">
+          <RefundIcon size={22} />
+        </span>
+        <div>
+          <h2 id={`${id}-title`}>{t.refundTitle}</h2>
+          <p>
+            {t.refundLead}{' '}
+            <span className="ad-mono" dir="ltr">
+              {order.id}
+            </span>{' '}
+            · {order.customer.name}
           </p>
         </div>
-        <div className="ad-dialog-actions">
-          <button type="button" className="ad-secondary" onClick={onCancel} disabled={busy}>
-            {t.cancel}
-          </button>
-          <button type="submit" className="ad-danger" disabled={busy}>
-            <RefundIcon />
-            {busy ? t.refunding : fillIn(t.confirmRefund, { amount })}
-          </button>
+      </div>
+      <div className="od-refund-body">
+        <p className="od-refund-scope">{tickets.length === 1 ? t.refundOne : fillIn(t.refundAll, { n: count })}</p>
+        <div className="ad-field">
+          <label htmlFor={`${id}-reason`}>{t.reasonLabel}</label>
+          <div className="ad-select">
+            <select ref={firstRef} id={`${id}-reason`} value={reason} onChange={(e) => setReason(e.target.value as RefundReason)}>
+              {(['customer', 'eventChanged', 'duplicate', 'other'] as RefundReason[]).map((r) => (
+                <option key={r} value={r}>
+                  {t.reasons[r]}
+                </option>
+              ))}
+            </select>
+            <Icon size={16}>
+              <path d="m6 9 6 6 6-6" />
+            </Icon>
+          </div>
         </div>
-      </form>
-    </div>
+        <div className="ad-field">
+          <label htmlFor={`${id}-note`}>{t.noteLabel}</label>
+          <textarea id={`${id}-note`} rows={3} value={note} onChange={(e) => setNote(e.target.value)} />
+        </div>
+        <dl className="od-refund-breakdown" aria-live="polite">
+          <div>
+            <dt>{t.refundTickets}</dt>
+            <dd>{money(quote.tickets)}</dd>
+          </div>
+          <div className={quote.feeKept ? 'is-kept' : undefined}>
+            <dt>{quote.feeKept ? t.refundFeeKept : t.refundFeeBack}</dt>
+            <dd>{quote.feeKept ? `− ${money(quote.fee)}` : money(quote.fee)}</dd>
+          </div>
+          <div className="od-refund-amount">
+            <dt>{t.refundAmount}</dt>
+            <dd>
+              <strong>{money(quote.amount)}</strong>
+            </dd>
+          </div>
+        </dl>
+        <p className="ev-hint">{t.refundFeeRule}</p>
+        <p className="od-refund-warning" role="note">
+          <AlertIcon />
+          <span>
+            {t.refundNote} {t.settlement}
+          </span>
+        </p>
+      </div>
+      <div className="ad-dialog-actions">
+        <button type="button" className="ad-secondary" onClick={() => !busy && onCancel()} aria-disabled={busy || undefined}>
+          {t.cancel}
+        </button>
+        <button type="submit" className="ad-danger" aria-disabled={busy || undefined}>
+          <RefundIcon />
+          {busy ? t.refunding : fillIn(t.confirmRefund, { amount: money(quote.amount) })}
+        </button>
+      </div>
+    </ModalDialog>
   )
 }
