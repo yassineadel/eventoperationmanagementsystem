@@ -8,7 +8,8 @@ import {
   resetPassword,
   logoutUser,
   getCurrentUser,
-  updateProfile
+  updateProfile,
+  changePassword
 } from './auth.service'
 
 export const register = async (req: Request, res: Response) => {
@@ -91,6 +92,16 @@ export const updateMe = async (req: Request, res: Response) => {
   try {
     const user = await updateProfile(req.user!.id, req.body)
     res.status(200).json({ user })
+  } catch (error: any) {
+    res.status(400).json({ message: error.message })
+  }
+}
+
+export const changePasswordHandler = async (req: Request, res: Response) => {
+  try {
+    const { currentPassword, newPassword } = req.body
+    const result = await changePassword(req.user!.id, currentPassword, newPassword)
+    res.status(200).json(result)
   } catch (error: any) {
     res.status(400).json({ message: error.message })
   }

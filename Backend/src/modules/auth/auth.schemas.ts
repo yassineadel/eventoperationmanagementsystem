@@ -47,3 +47,8 @@ export const updateProfileSchema = z.object({
   fullName: z.string().trim().min(2, 'Full name must be at least 2 characters').max(200),
   phone: z.string().trim().regex(/^(01[0125][0-9]{8})?$/, 'Please provide a valid Egyptian phone number').optional(),
 })
+
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+  newPassword: password, // same strength rules as sign-up
+})
