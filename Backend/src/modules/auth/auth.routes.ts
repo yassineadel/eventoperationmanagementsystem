@@ -11,6 +11,7 @@ import {
   verifyEmailSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  updateProfileSchema,
 } from './auth.schemas'
 import {
   register,
@@ -19,7 +20,8 @@ import {
   forgotPasswordHandler,
   resetPasswordHandler,
   logout,
-  me
+  me,
+  updateMe,
 } from './auth.controller'
 import { protect } from '../../middleware/auth.middleware'
 
@@ -34,6 +36,7 @@ router.post('/logout', logout)
 
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }))
 router.get('/me', protect, me)
+router.patch('/me', protect, validate(updateProfileSchema), updateMe)
 router.get(
   '/google/callback',
   passport.authenticate('google', {

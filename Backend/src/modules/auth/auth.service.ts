@@ -225,3 +225,18 @@ export const getCurrentUser = async (userId: string) => {
   if (!user) throw new Error('User not found')
   return user
 }
+
+/**
+ * Updates the logged-in user's name and phone
+ */
+export const updateProfile = async (userId: string, data: { fullName: string; phone?: string }) => {
+  return prisma.user.update({
+    where: { id: userId },
+    data: {
+      fullName: data.fullName,
+      // phone not sent → leave it; '' → remove it
+      phone: data.phone === undefined ? undefined : data.phone || null,
+    },
+    select: { id: true, fullName: true, email: true, phone: true, role: true },
+  })
+}
