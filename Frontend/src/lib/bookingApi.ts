@@ -117,6 +117,30 @@ export const getOrder = (orderId: string, signal?: AbortSignal) =>
 export const cancelOrder = (orderId: string) =>
   postJson<{ message: string }>(`/api/orders/${encodeURIComponent(orderId)}/cancel`, {})
 
+// One ticket as GET /api/tickets sends it
+export type ApiTicket = {
+  id: string
+  // TRANSFERRED_AWAY: the user gave it to someone else. EXPIRED: the event is over.
+  status: 'VALID' | 'USED' | 'REFUNDED' | 'VOID' | 'TRANSFERRED_AWAY' | 'EXPIRED'
+  attendeeName: string
+  // Only sent while the ticket is VALID: this is what the gate scans
+  qrToken: string | null
+  orderReference: string
+  category: string
+  seat: { section: string; row: string; number: number } | null
+  event: {
+    id: string
+    name: string
+    startAt: string
+    doorsOpenAt: string
+    endsAt: string
+    venue: { name: string; address: string | null; city: string }
+  }
+  transferCount: number
+  transfersLeft: number
+  usedAt: string | null
+}
+
 // The user's tickets, split into upcoming and past
 export const getMyTickets = (signal?: AbortSignal) =>
-  getJson<{ upcoming: unknown[]; past: unknown[] }>('/api/tickets', { signal })
+  getJson<{ upcoming: ApiTicket[]; past: ApiTicket[] }>('/api/tickets', { signal })

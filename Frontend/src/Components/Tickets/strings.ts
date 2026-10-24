@@ -2,6 +2,8 @@ import type { TicketRule } from './ticketsModel'
 import type { Language } from '../Homepage/types'
 
 const en = {
+  liveTitle: 'Your tickets', liveLead: 'These are your real tickets. Show the QR code at the gate. In test mode, payments take no money.',
+  liveLoading: 'Loading your tickets…', liveError: 'We could not load your tickets. Refresh the page to try again.',
   wallet: 'My Tickets', walletTitle: 'Your next story, in your pocket.', walletLead: 'Every plan has a place. Find your upcoming experiences and look back at the ones you have made.',
   sample: 'Sample ticket wallet', sampleLead: 'This preview uses fictional tickets. QR codes are demonstration codes, not valid for admission. Transfers, refunds, and email actions are simulated.',
   storageNote: 'Browser storage is unavailable. This sample wallet will last only while this page is open.',
@@ -36,6 +38,8 @@ const en = {
 }
 
 const ar: Record<keyof typeof en, string> = {
+    liveTitle: 'تذاكرك', liveLead: 'هذه تذاكرك الحقيقية. اعرض رمز QR عند البوابة. في وضع الاختبار لا يُخصم أي مبلغ.',
+  liveLoading: 'جارٍ تحميل تذاكرك…', liveError: 'تعذّر تحميل تذاكرك. حدّث الصفحة للمحاولة مرة أخرى.',
   wallet: 'تذاكري', walletTitle: 'قصتك القادمة، بين يديك.', walletLead: 'لكل خطة مكانها. تابع تجاربك القادمة واستعد ذكريات الفعاليات السابقة.',
   sample: 'محفظة تذاكر تجريبية', sampleLead: 'يعرض هذا النموذج تذاكر وهمية. رموز QR للعرض فقط ولا تصلح للدخول. التحويل والاسترداد والبريد الإلكتروني عمليات محاكاة.',
   storageNote: 'تخزين المتصفح غير متاح. ستبقى المحفظة التجريبية أثناء فتح هذه الصفحة فقط.',
