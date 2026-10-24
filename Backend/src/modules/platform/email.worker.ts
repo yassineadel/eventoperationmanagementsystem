@@ -1,12 +1,12 @@
 import { Worker } from 'bullmq'
-import IORedis from 'ioredis'
+import { createEmailRedis } from './email.redis'
 import { env } from '../../config/env'
 import { transporter } from '../../config/mailer'
 import type { EmailJob } from './email.queue'
 
 export const startEmailWorker = () => {
   // A worker needs its own Redis connection (it waits on Redis while the queue is empty)
-  const connection = new IORedis(env.REDIS_URL, { maxRetriesPerRequest: null })
+  const connection = createEmailRedis(env.REDIS_URL)
 
   const worker = new Worker<EmailJob>(
     'email',

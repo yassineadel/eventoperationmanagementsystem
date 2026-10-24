@@ -39,12 +39,21 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
   return data as T
 }
 
-export function postJson<T>(path: string, body: unknown) {
+export function postJson<T>(path: string, body: unknown, init: Pick<RequestInit, 'signal'> = {}) {
   return request<T>(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    ...init,
   })
+}
+
+export function patchJson<T>(path: string, body: unknown, init: Pick<RequestInit, 'signal'> = {}) {
+  return request<T>(path, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), ...init })
+}
+
+export function deleteJson<T>(path: string, init: Pick<RequestInit, 'signal'> = {}) {
+  return request<T>(path, { method: 'DELETE', ...init })
 }
 
 export function getJson<T>(path: string, init: Pick<RequestInit, 'signal'> = {}) {

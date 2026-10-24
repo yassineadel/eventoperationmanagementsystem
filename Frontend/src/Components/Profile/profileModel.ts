@@ -1,7 +1,7 @@
 import { isCode, isEmail, isFullName, isPhone, isStrongPassword } from '../../lib/validation.ts'
 
 export type CommunicationPreferences = { eventNews: boolean; personalisedOffers: boolean }
-export type Profile = { fullName: string; phone: string; email: string; emailVerified: boolean | null; communications: CommunicationPreferences; deletionRequestedAt: string | null }
+export type Profile = { fullName: string; phone: string; email: string; emailVerified: boolean | null; communications: CommunicationPreferences; deletionRequestedAt: string | null; marketingOptIn?: boolean | null }
 export const previewStorageKey = 'hafletna.profile-preview'
 export const previewPassword = 'HafletnaDemo1'
 export const defaultPreviewProfile: Profile = {
@@ -43,7 +43,7 @@ export function validateDetails(fullName: string, phone: string) {
   return { fullName: !isFullName(fullName), phone: Boolean(phone.trim()) && !isPhone(phone) }
 }
 export function validatePasswordChange(current: string, password: string, confirm: string) {
-  return { current: current !== previewPassword, password: !isStrongPassword(password) || password === current, confirm: password !== confirm }
+  return { current: current.length === 0, password: !isStrongPassword(password) || password === current, confirm: password !== confirm }
 }
 export type EmailChange = { email: string; code: string; expiresAt: number; resendAt: number; attempts: number }
 export function beginEmailChange(current: string, next: string, now = Date.now()): EmailChange | null {
@@ -62,4 +62,11 @@ export function verifySampleEmail(change: EmailChange, code: string, now = Date.
 }
 export function canRequestDeletion(email: string, confirmation: string, acknowledged: boolean) {
   return acknowledged && confirmation.trim().toLowerCase() === email.trim().toLowerCase()
+}
+
+// GET /me returns the request timestamp; the backend defines a 14-day grace period.
+// Used only to display the deadline after a reload, never to delete an account.
+export function deletionGraceEnds(requestedAt: string | null): string | null {
+  const timestamp = requestedAt ? Date.parse(requestedAt) : NaN
+  return Number.isFinite(timestamp) ? new Date(timestamp + 14 * 24 * 60 * 60 * 1000).toISOString() : null
 }

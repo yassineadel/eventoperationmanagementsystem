@@ -77,7 +77,7 @@ function render(path, lang = 'en', theme = 'light', savedIds = [], sessionState 
   const value = { lang, theme, setLang() {}, setTheme() {} }
   let savedValue = JSON.stringify(savedIds)
   const storage = { getItem: () => savedValue, setItem: (_key, value) => { savedValue = value } }
-  const session = { ...sessionState, acceptUser() {}, async refresh() {}, async signOut() {} }
+  const session = { ...sessionState, acceptUser() {}, updateUser() {}, async refresh() {}, async signOut() {} }
   const bookingValue = { state: booking.state ?? emptyBooking(), now: booking.now ?? Date.now(), names: booking.names ?? {}, storageAvailable: true, act() {}, setAttendee() {} }
   const ticketsValue = { state: wallet.state ?? createSampleWallet(), now: wallet.now ?? Date.parse('2026-10-20T12:00:00Z'), storageAvailable: wallet.storageAvailable ?? true, completeOrder() {}, transferTicket() {}, requestRefund() {}, resendTicket() {}, resetSamples() {} }
   return renderToStaticMarkup(h(EventsClientContext.Provider, { value: null }, h(PreferencesContext.Provider, { value },
@@ -236,7 +236,7 @@ test('account routes require sign-in without offering a sample profile', () => {
 })
 
 test('signed-in profile screens render both languages and themes without sample access', () => {
-  const session = { status: 'authenticated', user: { id: 'real-user', fullName: 'Real Member', email: 'real@example.com', role: 'customer', phone: '', emailVerified: null } }
+  const session = { status: 'authenticated', user: { id: 'real-user', fullName: 'Real Member', email: 'real@example.com', role: 'customer', phone: '', emailVerified: null, marketingOptIn: false, deletionRequestedAt: null } }
   for (const lang of ['en', 'ar']) for (const theme of ['light', 'dark']) {
     const html = render('/profile?preview=1', lang, theme, [], session)
     assert.match(html, new RegExp(`dir="${lang === 'ar' ? 'rtl' : 'ltr'}"`))
@@ -245,7 +245,7 @@ test('signed-in profile screens render both languages and themes without sample 
     assert.match(html, /value="Real Member"/)
     assert.match(html, /id="profile-phone"/)
     assert.match(html, /href="\/profile\/settings"/)
-    assert.match(html, /class="account-fields" disabled/)
+    assert.doesNotMatch(html, /class="account-fields" disabled/)
     assert.doesNotMatch(html, /[Ss]ample profile|ملف شخصي تجريبي|تجربة الملف الشخصي|preview=1|Youssef Hassan/)
     const settings = render('/profile/settings?preview=1', lang, theme, [], session)
     for (const section of ['account-security', 'account-password', 'account-email', 'account-communications', 'account-deletion']) assert.ok(settings.includes(`id="${section}"`))
@@ -253,29 +253,61 @@ test('signed-in profile screens render both languages and themes without sample 
     assert.match(settings, /id="account-change-password"[^>]*aria-haspopup="dialog"/)
     assert.match(settings, /id="account-change-email"[^>]*aria-haspopup="dialog"/)
     assert.doesNotMatch(settings, /<dialog|id="account-confirm-password"|id="account-new-email"/)
-    assert.equal((settings.match(/role="switch"/g) ?? []).length, 0)
+    assert.equal((settings.match(/role="switch"/g) ?? []).length, 1)
+    assert.doesNotMatch(settings, /id="account-request-deletion"[^>]*disabled/)
     assert.doesNotMatch(settings, /HafletnaDemo1|[Ss]ample profile|الملف التجريبي|preview=1/)
     assert.ok(settings.includes(lang === 'ar' ? 'الدخول والأمان' : 'Sign-in &amp; security'))
     assert.ok(settings.includes(lang === 'ar' ? 'طلب حذف الحساب' : 'Request account deletion'))
   }
 })
 
-test('real account details stay read-only and legacy preview URLs cannot replace the account', () => {
+test('real account details and security are editable without allowing legacy sample profiles', () => {
   const session = { status: 'authenticated', user: { id: 'real-user', fullName: 'Real Member', email: 'real@example.com', role: 'customer', phone: '', emailVerified: null } }
   const html = render('/profile', 'en', 'light', [], session)
   assert.match(html, /value="Real Member"/)
   assert.match(html, /Verification status unavailable/)
-  assert.match(html, /class="account-fields" disabled=""/)
-  assert.match(html, /Account changes are not enabled yet/)
+  assert.doesNotMatch(html, /class="account-fields" disabled=""/)
+  assert.match(html, /Changes are saved to your account/)
   const settings = render('/profile/settings', 'en', 'dark', [], session)
-  assert.match(settings, /id="account-change-password"[^>]*disabled=""/)
-  assert.match(settings, /id="account-change-email"[^>]*disabled=""/)
+  assert.doesNotMatch(settings, /id="account-change-password"[^>]*disabled=""/)
+  assert.doesNotMatch(settings, /id="account-change-email"[^>]*disabled=""/)
+  assert.match(settings, /id="account-request-deletion"[^>]*disabled=""/)
   assert.doesNotMatch(settings, /HafletnaDemo1/)
-  assert.match(settings, /Your saved communication preferences are not available yet/)
+  assert.match(settings, /We could not load your saved account settings/)
+  assert.match(settings, /Refresh account/)
   assert.doesNotMatch(settings, /role="switch"/)
   const legacy = render('/profile?preview=1', 'en', 'light', [], session)
   assert.match(legacy, /value="Real Member"/)
   assert.doesNotMatch(legacy, /value="Youssef Hassan"|Try sample profile|preview=1/)
+})
+
+test('the combined email preference reflects the backend value in both languages and themes', () => {
+  for (const marketingOptIn of [true, false]) for (const lang of ['en', 'ar']) for (const theme of ['light', 'dark']) {
+    const session = { status: 'authenticated', user: { id: 'qa', fullName: 'QA Member', email: 'member@example.test', role: 'customer', phone: '', emailVerified: true, marketingOptIn, deletionRequestedAt: null } }
+    const html = render('/profile/settings', lang, theme, [], session)
+    const toggle = html.match(/<input[^>]*id="preference-marketing"[^>]*>/)?.[0]
+    assert.ok(toggle)
+    assert.equal(toggle.includes('checked=""'), marketingOptIn)
+    assert.equal((html.match(/role="switch"/g) ?? []).length, 1)
+    assert.ok(html.includes(lang === 'ar' ? 'أخبار الفعاليات والعروض' : 'Event news and offers'))
+    assert.doesNotMatch(html, /id="preference-offers"|id="preference-event-news"/)
+  }
+})
+
+test('pending deletion survives account reload and exposes cancellation with localised dates', () => {
+  const session = { status: 'authenticated', user: { id: 'qa', fullName: 'QA Member', email: 'member@example.test', role: 'customer', phone: '', emailVerified: true, marketingOptIn: true, deletionRequestedAt: '2026-10-24T12:00:00.000Z' } }
+  for (const lang of ['en', 'ar']) for (const theme of ['light', 'dark']) {
+    const html = render('/profile/settings', lang, theme, [], session)
+    assert.match(html, /id="account-cancel-deletion"/)
+    assert.doesNotMatch(html, /id="account-cancel-deletion"[^>]*disabled/)
+    assert.doesNotMatch(html, /id="account-request-deletion"|id="account-delete-email"/)
+    assert.match(html, /dateTime="2026-10-24T12:00:00.000Z"/)
+    assert.match(html, /dateTime="2026-11-07T12:00:00.000Z"/)
+    assert.match(html, /class="account-fields account-preferences-fields" disabled=""/)
+    assert.match(html, /id="account-change-password"[^>]*disabled=""/)
+    assert.ok(html.includes(lang === 'ar' ? 'إلغاء طلب الحذف' : 'Cancel deletion request'))
+    assert.doesNotMatch(html, /[Ss]ample deletion|حذف تجريبي/)
+  }
 })
 
 test('password and email dialogs render accessible, localised forms in both themes', () => {
@@ -289,12 +321,13 @@ test('password and email dialogs render accessible, localised forms in both them
       assert.ok(html.includes(lang === 'ar' ? 'إغلاق النافذة' : 'Close dialog'))
       assert.ok(html.includes(lang === 'ar' ? 'إلغاء' : 'Cancel'))
       assert.doesNotMatch(html, /HafletnaDemo1/)
-      assert.match(html, /class="account-fields" disabled=""/)
+      assert.doesNotMatch(html, /class="account-fields" disabled=""/)
       if (kind === 'password') {
         for (const id of ['account-current-password', 'account-new-password', 'account-confirm-password', 'account-password-rules']) assert.ok(html.includes(`id="${id}"`))
         assert.match(html, /aria-describedby="account-password-rules"/)
       } else {
-        for (const id of ['account-new-email', 'account-email-password']) assert.ok(html.includes(`id="${id}"`))
+        assert.ok(html.includes('id="account-new-email"'))
+        assert.doesNotMatch(html, /id="account-email-password"|[Ss]ample verification code/)
         assert.match(html, /real@example.com/)
         assert.doesNotMatch(html, /id="account-email-code"/)
         assert.ok(html.includes(lang === 'ar' ? 'يبقى بريدك الحالي كما هو حتى التحقق من العنوان الجديد.' : 'Your current email stays unchanged until the new address is verified.'))

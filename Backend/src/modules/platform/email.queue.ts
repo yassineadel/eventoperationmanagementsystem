@@ -1,12 +1,12 @@
 import { Queue } from 'bullmq'
-import IORedis from 'ioredis'
+import { createEmailRedis } from './email.redis'
 import { env } from '../../config/env'
 
 // What one email job carries
 export type EmailJob = { to: string; subject: string; html: string }
 
 // BullMQ needs its own Redis connection with maxRetriesPerRequest: null
-export const queueConnection = new IORedis(env.REDIS_URL, { maxRetriesPerRequest: null })
+export const queueConnection = createEmailRedis(env.REDIS_URL)
 
 // The queue: a waiting list of emails stored in Redis
 export const emailQueue = new Queue<EmailJob>('email', { connection: queueConnection })
