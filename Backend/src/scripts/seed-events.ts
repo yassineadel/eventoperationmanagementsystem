@@ -78,6 +78,26 @@ const EVENTS = [
   { name: 'Graduation Projects Expo', category: 'conferences', performer: null, venue: 'cairo-opera-house-small-hall', days: 120, price: 0 },
 ]
 
+// Shown on the event page and accepted at checkout. Matches the rules the backend enforces.
+const POLICIES = {
+  ageRestrictions: {
+    en: 'Guests under 16 must be accompanied by an adult. Bring a valid photo ID.',
+    ar: 'يجب أن يرافق من هم دون ١٦ عامًا شخص بالغ. يُرجى إحضار إثبات هوية به صورة.',
+  },
+  entryConditions: {
+    en: 'Each ticket has one QR code, which is scanned once at the gate. Arrive before the start time for entry checks.',
+    ar: 'لكل تذكرة رمز QR واحد يُمسح مرة واحدة عند البوابة. يُرجى الحضور قبل موعد البدء لإجراءات الدخول.',
+  },
+  prohibitedItems: {
+    en: 'Glass containers, dangerous items and professional recording equipment are not allowed.',
+    ar: 'لا يُسمح بالعبوات الزجاجية أو الأدوات الخطرة أو معدات التسجيل الاحترافية.',
+  },
+  refundPolicy: {
+    en: 'You can request a refund up to 7 days before the event. Refunds need approval, and the service fee is not refunded. Transferred tickets cannot be refunded. A ticket can be transferred at most 3 times. If the event is cancelled, you get a full refund.',
+    ar: 'يمكنك طلب استرداد المبلغ حتى ٧ أيام قبل الفعالية. تخضع الطلبات للموافقة ولا تُسترد رسوم الخدمة. لا يمكن استرداد التذاكر المحوّلة. يمكن تحويل التذكرة ٣ مرات كحد أقصى. في حال إلغاء الفعالية يُسترد المبلغ كاملًا.',
+  },
+}
+
 async function main() {
   if (process.env.NODE_ENV === 'production') throw new Error('seed:events is for development databases only')
 
@@ -113,6 +133,7 @@ async function main() {
         status: 'PUBLISHED',
         publishedAt: new Date(),
         isSynthetic: true,
+        policies: POLICIES,
       },
     })
 
