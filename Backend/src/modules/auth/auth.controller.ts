@@ -11,7 +11,8 @@ import {
   updateProfile,
   changePassword,
   requestEmailChange,
-  verifyEmailChange
+  verifyEmailChange,
+  updatePreferences
 } from './auth.service'
 
 export const register = async (req: Request, res: Response) => {
@@ -121,6 +122,15 @@ export const requestEmailChangeHandler = async (req: Request, res: Response) => 
 export const verifyEmailChangeHandler = async (req: Request, res: Response) => {
   try {
     const result = await verifyEmailChange(req.user!.id, req.body.code)
+    res.status(200).json(result)
+  } catch (error: any) {
+    res.status(400).json({ message: error.message })
+  }
+}
+
+export const updatePreferencesHandler = async (req: Request, res: Response) => {
+  try {
+    const result = await updatePreferences(req.user!.id, req.body.marketingOptIn)
     res.status(200).json(result)
   } catch (error: any) {
     res.status(400).json({ message: error.message })
