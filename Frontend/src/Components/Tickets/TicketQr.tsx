@@ -4,10 +4,11 @@ import { usePreferences } from '../Auth/preferences'
 import { useTickets } from './ticketsContext'
 import { qrPayload, type SampleTicket } from './ticketsModel'
 
-export default function TicketQr({ ticket }: { ticket: SampleTicket }) {
+// value: a real ticket's QR token from the server. Without it, the sample demo code is drawn.
+export default function TicketQr({ ticket, value }: { ticket: SampleTicket; value?: string }) {
   const { lang } = usePreferences()
   const { now } = useTickets()
-  const payload = qrPayload(ticket, now)
+  const payload = value ?? qrPayload(ticket, now)
   const matrix = useMemo(() => {
     if (!payload) return null
     const code = qrcode(0, 'M')
@@ -21,5 +22,5 @@ export default function TicketQr({ ticket }: { ticket: SampleTicket }) {
     return { size: size + 8, path }
   }, [payload])
   if (!matrix) return null
-  return <svg className="tickets-qr-svg" role="img" aria-label={lang === 'ar' ? 'رمز QR تجريبي، غير صالح للدخول' : 'Sample QR code, not valid for admission'} viewBox={`0 0 ${matrix.size} ${matrix.size}`} width="248" height="248" shapeRendering="crispEdges"><rect width={matrix.size} height={matrix.size} fill="#fff" /><path d={matrix.path} fill="#090c20" /></svg>
+  return <svg className="tickets-qr-svg" role="img" aria-label={value ? (lang === 'ar' ? 'رمز QR للدخول' : 'Entry QR code') : lang === 'ar' ? 'رمز QR تجريبي، غير صالح للدخول' : 'Sample QR code, not valid for admission'} viewBox={`0 0 ${matrix.size} ${matrix.size}`} width="248" height="248" shapeRendering="crispEdges"><rect width={matrix.size} height={matrix.size} fill="#fff" /><path d={matrix.path} fill="#090c20" /></svg>
 }

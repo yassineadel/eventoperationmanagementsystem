@@ -25,7 +25,7 @@ function fallbackEvent(ticket: ApiTicket): Event {
  * Turns a ticket from the backend into the shape Youssef's wallet pages already use.
  * Prices are not sent with a ticket, so they stay 0 (the cards don't show them).
  */
-function toWalletTicket(ticket: ApiTicket, event: Event): SampleTicket {
+function toWalletTicket(ticket: ApiTicket, event: Event, coordinates: readonly [number, number] | null): SampleTicket {
   return {
     id: ticket.id,
     orderRef: ticket.orderReference,
@@ -33,7 +33,8 @@ function toWalletTicket(ticket: ApiTicket, event: Event): SampleTicket {
     endsAt: ticket.event.endsAt,
     doorsOpenAt: ticket.event.doorsOpenAt,
     venueAddress: text(ticket.event.venue.address ?? ''),
-    coordinates: [0, 0],
+    // [0, 0] means "no location known": the ticket page then hides the map link
+    coordinates: coordinates ?? [0, 0],
     attendeeName: ticket.attendeeName,
     categoryId: '',
     categoryName: text(ticket.category),
@@ -47,40 +48,49 @@ function toWalletTicket(ticket: ApiTicket, event: Event): SampleTicket {
   }
 }
 
-// Loads the user's tickets, plus each event's page once (for its photo and texts)
-async function loadLiveTickets(client: EventsClient | null, signal: AbortSignal): Promise<SampleTicket[]> {
+// Loads the user's tickets, plus each event's page once (for its photo, texts and location)
+async function loadLiveTickets(client: EventsClient | null, signal: AbortSignal) {
   const { upcoming, past } = await getMyTickets(signal)
   const all = [...upcoming, ...past]
 
-  const events = new Map<string, Event>()
+  const events = new Map<string, { event: Event; coordinates: readonly [number, number] | null }>()
   const eventIds = [...new Set(all.map((ticket) => ticket.event.id))]
   await Promise.all(eventIds.map(async (id) => {
     try {
-      if (client) events.set(id, (await client.detail(id, signal)).event)
+      if (client) {
+        const page = await client.detail(id, signal)
+        events.set(id, { event: page.event, coordinates: page.details.coordinates })
+      }
     } catch {
       // fallbackEvent() is used for this one
     }
   }))
 
-  return all.map((ticket) => toWalletTicket(ticket, events.get(ticket.event.id) ?? fallbackEvent(ticket)))
+  const tickets = all.map((ticket) => {
+    const found = events.get(ticket.event.id)
+    return toWalletTicket(ticket, found?.event ?? fallbackEvent(ticket), found?.coordinates ?? null)
+  })
+  // The QR code of each ticket, by ticket id (null when the ticket can't be used)
+  const qrTokens: Record<string, string | null> = Object.fromEntries(all.map((ticket) => [ticket.id, ticket.qrToken]))
+  return { tickets, qrTokens }
 }
 
 /**
- * The signed-in user's real tickets. tickets is null while loading.
+ * The signed-in user's real tickets and their QR codes. tickets is null while loading.
  */
 export function useLiveTickets(enabled: boolean) {
   const client = useContext(EventsClientContext)
-  const [tickets, setTickets] = useState<SampleTicket[] | null>(null)
+  const [data, setData] = useState<{ tickets: SampleTicket[]; qrTokens: Record<string, string | null> } | null>(null)
   const [failed, setFailed] = useState(false)
 
   useEffect(() => {
     if (!enabled) return
     const controller = new AbortController()
     loadLiveTickets(client, controller.signal)
-      .then(setTickets)
+      .then(setData)
       .catch(() => { if (!controller.signal.aborted) setFailed(true) })
     return () => controller.abort()
   }, [enabled, client])
 
-  return { tickets, failed }
+  return { tickets: data?.tickets ?? null, qrTokens: data?.qrTokens ?? {}, failed }
 }
