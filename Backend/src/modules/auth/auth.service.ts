@@ -337,6 +337,23 @@ export const requestAccountDeletion = async (userId: string, confirmEmail: strin
   if (!user) throw new Error('User not found')
   if (user.email !== confirmEmail) throw new Error('The email you typed does not match your account')
   if (user.deletionRequestedAt) throw new Error('Deletion has already been requested')
+    // no deletion while the user holds tickets for upcoming events
+  const lastTicket = await prisma.ticket.findFirst({
+    where: {
+      holderId: userId,                      // tickets this user holds now (after transfers too)
+      status: 'VALID',                       // not used, refunded or cancelled
+      event: { startAt: { gt: new Date() } }, // event hasn't started yet
+    },
+    orderBy: { event: { startAt: 'desc' } }, // the latest one first
+    select: { event: { select: { startAt: true } } },
+  })
+
+  if (lastTicket) {
+    const date = lastTicket.event.startAt.toLocaleDateString('en-GB', {
+      timeZone: 'Africa/Cairo', day: 'numeric', month: 'short', year: 'numeric',
+    })
+    throw new Error(`You have tickets for upcoming events. You can delete your account after your last event on ${date}.`)
+  }
 
   const { deletionRequestedAt } = await prisma.user.update({
     where: { id: userId },
