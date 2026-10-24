@@ -49,3 +49,20 @@ export const sendPasswordResetEmail = async (to: string, code: string) => {
     `
   })
 }
+
+/**
+ * Sends the code that confirms a new email address
+ */
+export const sendEmailChangeCode = async (to: string, code: string) => {
+  await queueEmail({
+    to,
+    subject: 'Confirm your new Hafletna email',
+    html: `
+      <h2>Confirm your new email</h2>
+      <p>Use this code to finish changing your Hafletna email to this address:</p>
+      <h1 style="color: #4F46E5; letter-spacing: 8px;">${code}</h1>
+      <p>This code expires in 10 minutes.</p>
+      <p>If you didn't ask for this, you can ignore this email.</p>
+    `
+  })
+}

@@ -52,3 +52,9 @@ export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, 'Current password is required'),
   newPassword: password, // same strength rules as sign-up
 })
+
+export const requestEmailChangeSchema = z.object({ newEmail: email })
+
+export const verifyEmailChangeSchema = z.object({
+  code: z.string().trim().length(6, 'Verification code must be 6 digits'),
+})
