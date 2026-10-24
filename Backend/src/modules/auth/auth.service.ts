@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
 import prisma from '../../config/db'
 import redis from '../../config/redis'
-import { sendVerificationEmail, sendPasswordResetEmail, sendEmailChangeCode } from '../../config/mailer'
+import { sendVerificationEmail, sendPasswordResetEmail, sendEmailChangeCode, sendDeletionRequestedEmail } from '../../config/mailer'
 import { env } from '../../config/env'
 
 const JWT_SECRET = env.JWT_SECRET
@@ -360,7 +360,9 @@ export const requestAccountDeletion = async (userId: string, confirmEmail: strin
     data: { deletionRequestedAt: new Date() },
     select: { deletionRequestedAt: true },
   })
-  return { deletionRequestedAt, deletesAt: deletionDate(deletionRequestedAt!) }
+  const deletesAt = deletionDate(deletionRequestedAt!)
+  await sendDeletionRequestedEmail(user.email, deletesAt)
+  return { deletionRequestedAt, deletesAt }
 }
 
 /**

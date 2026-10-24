@@ -66,3 +66,25 @@ export const sendEmailChangeCode = async (to: string, code: string) => {
     `
   })
 }
+
+/**
+ * Tells the user their account will be deleted, and how to cancel
+ */
+export const sendDeletionRequestedEmail = async (to: string, deletesAt: Date) => {
+  const date = deletesAt.toLocaleDateString('en-GB', {
+    timeZone: 'Africa/Cairo', day: 'numeric', month: 'long', year: 'numeric',
+  })
+  const cancelLink = `${env.FRONTEND_URL}/profile/settings#account-deletion`
+
+  await queueEmail({
+    to,
+    subject: 'Your Hafletna account will be deleted',
+    html: `
+      <h2>We received your request to delete your account</h2>
+      <p>Your account and personal details will be deleted on <strong>${date}</strong>.</p>
+      <p>Changed your mind? Sign in and cancel before that date:</p>
+      <p><a href="${cancelLink}">Cancel the deletion</a></p>
+      <p>If you didn't ask for this, sign in and cancel it straight away, then change your password.</p>
+    `
+  })
+}
