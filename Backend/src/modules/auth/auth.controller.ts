@@ -12,7 +12,9 @@ import {
   changePassword,
   requestEmailChange,
   verifyEmailChange,
-  updatePreferences
+  updatePreferences,
+  requestAccountDeletion,
+  cancelAccountDeletion,
 } from './auth.service'
 
 export const register = async (req: Request, res: Response) => {
@@ -131,6 +133,24 @@ export const verifyEmailChangeHandler = async (req: Request, res: Response) => {
 export const updatePreferencesHandler = async (req: Request, res: Response) => {
   try {
     const result = await updatePreferences(req.user!.id, req.body.marketingOptIn)
+    res.status(200).json(result)
+  } catch (error: any) {
+    res.status(400).json({ message: error.message })
+  }
+}
+
+export const requestDeletionHandler = async (req: Request, res: Response) => {
+  try {
+    const result = await requestAccountDeletion(req.user!.id, req.body.confirmEmail)
+    res.status(200).json(result)
+  } catch (error: any) {
+    res.status(400).json({ message: error.message })
+  }
+}
+
+export const cancelDeletionHandler = async (req: Request, res: Response) => {
+  try {
+    const result = await cancelAccountDeletion(req.user!.id)
     res.status(200).json(result)
   } catch (error: any) {
     res.status(400).json({ message: error.message })
