@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
 import prisma from '../../config/db'
 import redis from '../../config/redis'
-import { sendVerificationEmail, sendPasswordResetEmail } from '../../config/mailer'
+import { sendVerificationEmail, sendPasswordResetEmail, sendEmailChangeCode } from '../../config/mailer'
 import { env } from '../../config/env'
 
 const JWT_SECRET = env.JWT_SECRET
@@ -264,4 +264,48 @@ export const changePassword = async (userId: string, currentPassword: string, ne
   await prisma.user.update({ where: { id: userId }, data: { passwordHash } })
 
   return { message: 'Password changed successfully' }
+}
+
+/**
+ * Step 1 of changing email: send a code to the new address
+ */
+export const requestEmailChange = async (userId: string, newEmail: string) => {
+  const user = await prisma.user.findUnique({ where: { id: userId } })
+  if (!user) throw new Error('User not found')
+  if (user.email === newEmail) throw new Error('This is already your email')
+
+  const taken = await prisma.user.findUnique({ where: { email: newEmail } })
+  if (taken) throw new Error('Email already in use')
+
+  // Save the new email and its code together for 10 minutes
+  const code = generateVerificationCode()
+  await redis.set(`email-change:${userId}`, JSON.stringify({ newEmail, code }), 'EX', 600)
+
+  await sendEmailChangeCode(newEmail, code)
+  return { message: 'Verification code sent to your new email' }
+}
+
+/**
+ * Step 2 of changing email: check the code and save the new address
+ */
+export const verifyEmailChange = async (userId: string, code: string) => {
+  const saved = await redis.get(`email-change:${userId}`)
+  if (!saved) throw new Error('Code expired or not requested. Please request a new one.')
+
+  const { newEmail, code: savedCode } = JSON.parse(saved) as { newEmail: string; code: string }
+  if (code !== savedCode) throw new Error('Invalid verification code')
+
+  // Check again: someone may have signed up with this email in the last 10 minutes
+  const taken = await prisma.user.findUnique({ where: { email: newEmail } })
+  if (taken) throw new Error('Email already in use')
+
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: { email: newEmail },
+    select: { id: true, fullName: true, email: true, phone: true, role: true },
+  })
+
+  // The code is used up
+  await redis.del(`email-change:${userId}`)
+  return { user: { ...user, emailVerified: true } }
 }
