@@ -5,10 +5,11 @@ import { useSession } from '../Auth/sessionContext'
 import Icon from '../Homepage/components/Icon'
 import { useBooking } from './bookingContext'
 import { selectionTotals, validAttendee } from './bookingModel'
-import { getBookingCatalogue, selectionPath, getBookingEvent } from './catalogue'
+import { getBookingCatalogue, selectionPath, getBookingEvent, isLiveEvent } from './catalogue'
 import { bookingMoney, bookingNumber, bookingStrings } from './strings'
 import { BookingEmpty, BookingShell, OrderSummary, TicketDescription } from './BookingParts'
 import { resolveAttendeeNames } from './attendees'
+import { syncHolds } from './liveHolds'
 
 export default function Cart() {
   const { lang } = usePreferences()
@@ -18,11 +19,29 @@ export default function Cart() {
   const names = resolveAttendeeNames(state.items, enteredNames, session.status === 'authenticated' ? session.user : null)
   const navigate = useNavigate()
   const [submitted, setSubmitted] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [serverError, setServerError] = useState('')
   const event = state.eventId ? getBookingEvent(state.eventId) : undefined
   if (!event || !state.items.length || state.expired || state.expiresAt !== null && state.expiresAt <= now) return <BookingEmpty event={event} />
   if (event.status !== 'available' || Date.parse(event.date) <= now) return <BookingEmpty event={event} blocked />
   const totals = selectionTotals(event.id, state.items)
   const catalogue = getBookingCatalogue(event.id)!
+    const eventId = event.id
+  // Removing a ticket of a real event also gives its place back on the server
+  async function removeTicket(key: string) {
+    if (!isLiveEvent(eventId)) { act({ type: 'remove', key }); return }
+    setBusy(true)
+    setServerError('')
+    try {
+      const expiresAt = await syncHolds(eventId, state.items.filter((item) => item.key !== key))
+      act({ type: 'remove', key })
+      if (expiresAt) act({ type: 'held', expiresAt })
+    } catch (error) {
+      setServerError(error instanceof Error ? error.message : t.loadError)
+    } finally {
+      setBusy(false)
+    }
+  }
   function submit(event: FormEvent) {
     event.preventDefault()
     setSubmitted(true)
@@ -37,13 +56,13 @@ export default function Cart() {
           const category = catalogue.categories.find((category) => category.id === item.categoryId)!
           const invalid = submitted && !validAttendee(names[item.key] ?? '')
           const line = totals.lines.find((line) => line.key === item.key)!
-          return <article className={`booking-cart-ticket tone-${category.color}`} key={item.key}><div className="booking-ticket-index"><span>{t.ticketNumber}</span><strong>{bookingNumber(index + 1, lang)}</strong><Icon name="ticket" size={22} /></div><div className="booking-cart-ticket-content"><div className="booking-cart-ticket-top"><div className="booking-cart-ticket-description"><TicketDescription item={item} eventId={event.id} /></div><button className="booking-icon-button" type="button" aria-label={`${t.remove}: ${t.ticketNumber} ${bookingNumber(index + 1, lang)}`} onClick={() => act({ type: 'remove', key: item.key })}><Icon name="trash" size={18} /></button></div>
+          return <article className={`booking-cart-ticket tone-${category.color}`} key={item.key}><div className="booking-ticket-index"><span>{t.ticketNumber}</span><strong>{bookingNumber(index + 1, lang)}</strong><Icon name="ticket" size={22} /></div><div className="booking-cart-ticket-content"><div className="booking-cart-ticket-top"><div className="booking-cart-ticket-description"><TicketDescription item={item} eventId={event.id} /></div><button className="booking-icon-button" type="button" aria-label={`${t.remove}: ${t.ticketNumber} ${bookingNumber(index + 1, lang)}`} disabled={busy} onClick={() => removeTicket(item.key)}><Icon name="trash" size={18} /></button></div>
             <div className="booking-line-prices"><span>{t.price}: <bdi>{bookingMoney(line.price, lang)}</bdi></span><span>{t.fees} ({bookingNumber(category.feePercent, lang)}%): <bdi>{bookingMoney(line.fee, lang)}</bdi></span></div>
             <label className="booking-label" htmlFor={`attendee-${index}`}>{t.attendee} <span className="home-sr-only">{bookingNumber(index + 1, lang)}</span></label><input className="booking-input" id={`attendee-${index}`} value={names[item.key] ?? ''} onChange={(event) => setAttendee(item.key, event.target.value)} maxLength={100} autoComplete="off" placeholder={t.attendeePlaceholder} aria-invalid={invalid || undefined} aria-describedby={invalid ? `attendee-error-${index}` : undefined} required />{invalid && <p id={`attendee-error-${index}`} className="booking-field-error">{t.attendeeError}</p>}
           </div></article>
         })}</div><p className="booking-subtle-note">{t.namesNote}</p><Link className="home-text-link" to={selectionPath(event.id)}><span className="discovery-back-arrow"><Icon name="arrow" size={17} /></span>{t.editSelection}</Link>
       </section>
-      <OrderSummary event={event}><button type="submit" className="home-button booking-full-button">{t.readyCheckout}<Icon name="arrow" size={18} /></button><p className="booking-subtle-note">{t.paymentNote}</p></OrderSummary>
+      <OrderSummary event={event}>{serverError && <p className="booking-error" role="alert">{serverError}</p>}<button type="submit" disabled={busy} className="home-button booking-full-button">{t.readyCheckout}<Icon name="arrow" size={18} /></button><p className="booking-subtle-note">{t.paymentNote}</p></OrderSummary>
     </form>
   </BookingShell>
 }

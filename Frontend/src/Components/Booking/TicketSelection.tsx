@@ -10,7 +10,8 @@ import { categoryRemaining, MAX_TICKETS, type BookingError, type Selection } fro
 import { getBookingCatalogue, getBookingEvent, registerLiveCatalogue, type Seat, isLiveEvent } from './catalogue'
 import { useApiEvent } from '../../lib/useEventsApi'
 import { eventIdPattern } from '../../lib/eventsModel'
-import { getAvailability, getCart, holdStanding, releaseHold, type Availability, type Hold } from '../../lib/bookingApi'
+import { getAvailability, type Availability } from '../../lib/bookingApi'
+import { syncHolds } from './liveHolds'
 import { ApiError } from '../../lib/api'
 import { bookingMoney, bookingNumber, bookingStrings } from './strings'
 import { BookingEmpty, BookingErrorMessage, BookingShell, OrderSummary, ReservationTimer, TicketDescription } from './BookingParts'
@@ -48,25 +49,14 @@ function SelectionContent({ event }: { event: Event }) {
     }
   }
     // Real events: reserve the chosen tickets on the server, then go to the cart
+  // Real events: reserve the chosen tickets on the server, then go to the cart
   async function reserve() {
     setReserving(true)
     setServerError('')
     try {
-      // Give back anything held earlier for this event, so the server matches this selection
-      const previous = await getCart(event.id)
-      await Promise.all(previous.lines.map((line) => releaseHold(line.holdId)))
-
-      // Count the chosen tickets per category, then hold each category once
-      const counts = new Map<string, number>()
-      for (const item of items) counts.set(item.categoryId, (counts.get(item.categoryId) ?? 0) + 1)
-      const holds: Hold[] = []
-      for (const [categoryId, quantity] of counts) {
-        const result = await holdStanding(event.id, categoryId, quantity)
-        holds.push(...result.holds)
-      }
-
+      const expiresAt = await syncHolds(event.id, items)
       // The timer now follows the server's deadline
-      act({ type: 'held', expiresAt: Math.min(...holds.map((hold) => Date.parse(hold.expiresAt))) })
+      if (expiresAt) act({ type: 'held', expiresAt })
       navigate('/cart')
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) setServerError(t.signInToReserve)
