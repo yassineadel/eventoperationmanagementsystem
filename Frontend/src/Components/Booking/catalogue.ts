@@ -1,5 +1,6 @@
 import { events } from '../Homepage/data/events.ts'
-import type { LocalizedText } from '../Homepage/types.ts'
+import type { Event, LocalizedText } from '../Homepage/types.ts'
+import type { Availability } from '../../lib/bookingApi.ts'
 
 export type TicketCategory = { id: string; name: LocalizedText; description: LocalizedText; price: number; feePercent: number; color: string; capacity: number; remaining: number }
 export type Seat = { id: string; section: string; row: string; number: number; categoryId: string; status: 'available' | 'held' | 'sold' }
@@ -36,6 +37,37 @@ export function getBookingCatalogue(eventId: string): BookingCatalogue | null {
   if (seated) for (const category of categories) category.remaining = seats.filter((seat) => seat.categoryId === category.id && seat.status === 'available').length
   const catalogue: BookingCatalogue = { mode: seated ? 'seated' : 'standing', categories, seats }
   catalogues.set(eventId, catalogue)
+  return catalogue
+}
+
+// ---------- Real events from the backend ----------
+
+// Real events the user opened, so the rest of the booking code can find them by id
+const liveEvents = new Map<string, Event>()
+
+// Finds an event by id: a real one from the backend first, otherwise a sample one
+export function getBookingEvent(eventId: string): Event | undefined {
+  return liveEvents.get(eventId) ?? events.find((event) => event.id === eventId)
+}
+
+// The page colours the categories in this order
+const tones = ['violet', 'teal', 'amber']
+
+// Turns the backend's availability into the shape the booking pages already use (standing venues)
+export function registerLiveCatalogue(event: Event, availability: Availability, feePercents: Record<string, number>) {
+  const categories: TicketCategory[] = availability.categories.map((category, index) => ({
+    id: category.id,
+    name: { en: category.name, ar: category.name },
+    description: { en: '', ar: '' },
+    price: Number(category.price),
+    feePercent: feePercents[category.id] ?? 0,
+    color: tones[index % tones.length],
+    capacity: category.capacity,
+    remaining: category.available,
+  }))
+  const catalogue: BookingCatalogue = { mode: 'standing', categories, seats: [] }
+  liveEvents.set(event.id, event)
+  catalogues.set(event.id, catalogue)
   return catalogue
 }
 

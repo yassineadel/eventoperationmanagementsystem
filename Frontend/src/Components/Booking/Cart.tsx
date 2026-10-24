@@ -2,11 +2,10 @@ import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { usePreferences } from '../Auth/preferences'
 import { useSession } from '../Auth/sessionContext'
-import { events } from '../Homepage/data/events'
 import Icon from '../Homepage/components/Icon'
 import { useBooking } from './bookingContext'
 import { selectionTotals, validAttendee } from './bookingModel'
-import { getBookingCatalogue, selectionPath } from './catalogue'
+import { getBookingCatalogue, selectionPath, getBookingEvent } from './catalogue'
 import { bookingMoney, bookingNumber, bookingStrings } from './strings'
 import { BookingEmpty, BookingShell, OrderSummary, TicketDescription } from './BookingParts'
 import { resolveAttendeeNames } from './attendees'
@@ -19,7 +18,7 @@ export default function Cart() {
   const names = resolveAttendeeNames(state.items, enteredNames, session.status === 'authenticated' ? session.user : null)
   const navigate = useNavigate()
   const [submitted, setSubmitted] = useState(false)
-  const event = events.find((event) => event.id === state.eventId)
+  const event = state.eventId ? getBookingEvent(state.eventId) : undefined
   if (!event || !state.items.length || state.expired || state.expiresAt !== null && state.expiresAt <= now) return <BookingEmpty event={event} />
   if (event.status !== 'available' || Date.parse(event.date) <= now) return <BookingEmpty event={event} blocked />
   const totals = selectionTotals(event.id, state.items)

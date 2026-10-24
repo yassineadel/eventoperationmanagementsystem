@@ -1,5 +1,5 @@
 import { events } from '../Homepage/data/events.ts'
-import { getBookingCatalogue } from './catalogue.ts'
+import { getBookingCatalogue, getBookingEvent } from './catalogue.ts'
 
 export const MAX_TICKETS = 8
 export const HOLD_MS = 10 * 60_000
@@ -59,7 +59,7 @@ export function transitionBooking(state: BookingState, action: BookingAction, no
     return { state: { ...state, items, expiresAt: items.length ? state.expiresAt : null } }
   }
   const eventId = action.type === 'select' ? action.eventId : state.eventId
-  const event = events.find((event) => event.id === eventId)
+  const event = eventId ? getBookingEvent(eventId) : undefined
   const catalogue = eventId ? getBookingCatalogue(eventId) : null
   if (!event || !eventId || !catalogue) return { state, error: 'invalid' }
   if (event.status !== 'available' || Date.parse(event.date) <= now) return { state, error: 'unavailable' }

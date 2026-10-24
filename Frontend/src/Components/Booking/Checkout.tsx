@@ -2,12 +2,11 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { usePreferences } from '../Auth/preferences'
 import { useSession } from '../Auth/sessionContext'
-import { events } from '../Homepage/data/events'
 import type { Event } from '../Homepage/types'
 import Icon from '../Homepage/components/Icon'
 import { useBooking } from './bookingContext'
 import { selectionTotals, validAttendee, type BookingError, type SampleReceipt } from './bookingModel'
-import { selectionPath } from './catalogue'
+import { selectionPath, getBookingEvent } from './catalogue'
 import { bookingMoney, bookingNumber, bookingStrings } from './strings'
 import { BookingEmpty, BookingErrorMessage, BookingShell, OrderSummary, TicketDescription } from './BookingParts'
 import PolicyDialog from './PolicyDialog'
@@ -52,7 +51,7 @@ export default function Checkout() {
   const inFlight = useRef(false)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current) }, [])
-  const event = events.find((event) => event.id === state.eventId)
+  const event = state.eventId ? getBookingEvent(state.eventId) : undefined
   const isFree = selectionTotals(state.eventId, state.items).total === 0
 
   const submit = useCallback((submission: FormEvent) => {

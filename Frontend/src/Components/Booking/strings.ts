@@ -1,6 +1,7 @@
 import type { Language } from '../Homepage/types'
 
 const en = {
+    loading: 'Loading tickets…', loadError: 'We could not load the tickets.', retry: 'Try again',
   selection: 'Your place in the moment.', selectionLead: 'A little closer to the stage. A little further from the everyday.',
   standingLead: 'Find your zone. Bring your people. Make it your night.', seated: 'Seated experience', standing: 'Standing experience',
   stepSelection: 'Choose tickets', stepCart: 'Your cart', stepCheckout: 'Checkout', journey: 'Booking steps',
@@ -46,6 +47,7 @@ const en = {
   missingNamesTitle: 'Every ticket needs a name.', missingNamesLead: 'Some attendee names are missing. Return to your cart to add or review them before continuing.', returnCart: 'Return to cart',
 }
 const ar: Record<keyof typeof en, string> = {
+    loading: 'جارٍ تحميل التذاكر…', loadError: 'تعذّر تحميل التذاكر.', retry: 'حاول مرة أخرى',
   selection: 'مكانك في قلب اللحظة.', selectionLead: 'أقرب إلى المسرح، وأبعد قليلًا عن تفاصيل كل يوم.',
   standingLead: 'اختر منطقتك، واجمع أصحابك، واصنع ليلتك.', seated: 'فعالية بمقاعد محددة', standing: 'فعالية بمناطق وقوف',
   stepSelection: 'اختيار التذاكر', stepCart: 'السلة', stepCheckout: 'إتمام الحجز', journey: 'خطوات الحجز',
