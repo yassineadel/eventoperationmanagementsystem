@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "test": "node --test tests/discovery.test.mjs tests/discovery-render.test.mjs tests/profile.test.mjs tests/booking.test.mjs tests/tickets.test.mjs tests/chatbot.test.mjs tests/chat-session.test.mjs tests/events-api.test.mjs tests/admin.test.mjs",
+    "test": "node --test tests/discovery.test.mjs tests/discovery-render.test.mjs tests/profile.test.mjs tests/profile-api.test.mjs tests/booking.test.mjs tests/tickets.test.mjs tests/chatbot.test.mjs tests/chat-session.test.mjs tests/events-api.test.mjs tests/admin.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

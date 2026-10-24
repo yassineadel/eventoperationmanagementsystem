@@ -1,24 +1,27 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { usePreferences } from '../Auth/preferences'
-import { CodeInput, PasswordField, TextField } from '../Auth/AuthParts'
-import { isEmail } from '../../lib/validation'
+import { CodeInput, TextField } from '../Auth/AuthParts'
+import { isCode, isEmail } from '../../lib/validation'
+import { profileApi } from '../../lib/profileApi'
 import AccountDialog from './AccountDialog'
 import { profileStrings } from './strings'
 import { useProfile } from './profileContext'
-import { beginEmailChange, previewPassword, verifySampleEmail, type EmailChange } from './profileModel'
+import { useAccountAction } from './useAccountAction'
 
-export default function EmailChangeDialog({ onClose, onComplete }: { onClose: () => void; onComplete: (persisted: boolean) => void }) {
+type PendingEmail = { email: string; expiresAt: number; resendAt: number }
+
+export default function EmailChangeDialog({ onClose, onComplete }: { onClose: () => void; onComplete: () => void }) {
   const { lang } = usePreferences()
   const t = profileStrings[lang]
-  const { profile, preview, updatePreview } = useProfile()
+  const { profile, updateAccount } = useProfile()
+  const action = useAccountAction()
   const [newEmail, setNewEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [pending, setPending] = useState<EmailChange | null>(null)
+  const [pending, setPending] = useState<PendingEmail | null>(null)
   const [code, setCode] = useState('')
   const [submitted, setSubmitted] = useState(false)
-  const [error, setError] = useState<'invalid' | 'expired' | 'locked' | null>(null)
   const [now, setNow] = useState(Date.now)
-  const disabled = !preview || Boolean(profile.deletionRequestedAt)
+  const [sent, setSent] = useState(false)
+  const disabled = action.busy || Boolean(profile.deletionRequestedAt)
   const validAddress = isEmail(newEmail) && newEmail.trim().toLowerCase() !== profile.email.toLowerCase()
 
   useEffect(() => {
@@ -27,55 +30,55 @@ export default function EmailChangeDialog({ onClose, onComplete }: { onClose: ()
     return () => window.clearInterval(timer)
   }, [pending])
 
+  function requestCode(email: string) {
+    setSent(false)
+    void action.run((signal) => profileApi.requestEmail(email, signal), () => {
+      const timestamp = Date.now()
+      setPending({ email: email.trim().toLowerCase(), expiresAt: timestamp + 10 * 60_000, resendAt: timestamp + 60_000 })
+      setNow(timestamp); setCode(''); setSubmitted(false); setSent(true)
+      requestAnimationFrame(() => document.getElementById('account-email-code')?.focus())
+    })
+  }
+
   function start(event: FormEvent) {
     event.preventDefault()
     if (disabled) return
     setSubmitted(true)
-    if (!validAddress || password !== previewPassword) {
-      document.getElementById(!validAddress ? 'account-new-email' : 'account-email-password')?.focus()
-      return
-    }
-    const timestamp = Date.now()
-    const change = beginEmailChange(profile.email, newEmail, timestamp)
-    if (!change) return
-    setPending(change); setNow(timestamp); setPassword(''); setCode(''); setError(null); setSubmitted(false)
+    if (!validAddress) { document.getElementById('account-new-email')?.focus(); return }
+    requestCode(newEmail)
   }
 
   function verify(event: FormEvent) {
     event.preventDefault()
     if (disabled || !pending) return
-    const result = verifySampleEmail(pending, code)
-    if (result.status !== 'verified') {
-      setPending(result.change); setError(result.status); document.getElementById('account-email-code')?.focus()
-      return
-    }
-    const persisted = updatePreview({ email: pending.email, emailVerified: true })
-    setPending(null); setNewEmail(''); setCode(''); setError(null)
-    onComplete(persisted)
+    setSubmitted(true); setSent(false)
+    if (!isCode(code)) { document.getElementById('account-email-code')?.focus(); return }
+    void action.run((signal) => profileApi.verifyEmail(code, signal), ({ user }) => {
+      updateAccount({ ...user, phone: user.phone ?? '' })
+      setCode(''); setPending(null); onComplete()
+    })
   }
 
-  const issue = pending && now >= pending.expiresAt ? 'expired' : pending && pending.attempts >= 5 ? 'locked' : error
-  const errorText = issue === 'expired' ? t.expiredCode : issue === 'locked' ? t.lockedCode : issue === 'invalid' ? t.invalidCode : ''
-  return <AccountDialog id="account-email-dialog" title={t.emailTitle} lead={t.emailLead} icon="mail" focusId="account-new-email" onClose={onClose}>
+  const expired = Boolean(pending && now >= pending.expiresAt)
+  const codeError = submitted && !isCode(code) ? t.codeHint : expired ? t.expiredCode : ''
+  return <AccountDialog id="account-email-dialog" title={t.emailTitle} lead={t.emailLead} icon="mail" focusId="account-new-email" onClose={onClose} busy={action.busy}>
     <p className="account-current-email">{t.currentEmail}: <strong dir="ltr">{profile.email}</strong></p>
-    {!pending ? <form noValidate onSubmit={start}>
+    {!pending ? <form noValidate onSubmit={start} aria-busy={action.busy}>
       <fieldset className="account-fields" disabled={disabled}>
-        <TextField id="account-new-email" label={t.newEmail} type="email" inputMode="email" dir="ltr" value={newEmail} onChange={setNewEmail} autoComplete="email" error={submitted && !validAddress ? t.sameEmail : null} />
-        {preview && <p className="account-inline-note">{t.passwordDemo}</p>}
-        <PasswordField id="account-email-password" label={t.currentPassword} value={password} onChange={setPassword} autoComplete={preview ? 'off' : 'current-password'} error={submitted && password !== previewPassword ? t.currentError : null} />
+        <TextField id="account-new-email" label={t.newEmail} type="email" inputMode="email" dir="ltr" value={newEmail} onChange={(value) => { setNewEmail(value); action.clearError() }} autoComplete="email" error={submitted && !validAddress ? t.sameEmail : null} />
       </fieldset>
-      <div className="account-dialog-actions"><button className="home-outline-button" type="button" onClick={onClose}>{t.cancel}</button><button className="home-button" type="submit" disabled={disabled}>{t.sendCode}</button></div>
-    </form> : <form noValidate onSubmit={verify}>
-      <div className="account-verification"><p>{t.verifyingAddress}: <strong dir="ltr">{pending.email}</strong></p><p>{t.sampleCode}: <code dir="ltr">{pending.code}</code></p><p>{t.codeExpiry}</p></div>
+      {action.errorText && <p className="account-error" role="alert">{action.errorText}</p>}
+      <div className="account-dialog-actions"><button className="home-outline-button" type="button" disabled={action.busy} onClick={onClose}>{t.cancel}</button><button className="home-button" type="submit" disabled={disabled}>{action.busy ? t.sending : t.sendCode}</button></div>
+    </form> : <form noValidate onSubmit={verify} aria-busy={action.busy}>
+      <div className="account-verification"><p>{t.verifyingAddress}: <strong dir="ltr">{pending.email}</strong></p><p>{t.codeExpiry}</p></div>
+      {sent && <p className="account-feedback" role="status">{t.codeSent}</p>}
       <fieldset className="account-fields" disabled={disabled}>
-        <div className="hf-field"><label className="hf-label" htmlFor="account-email-code">{t.code}</label><CodeInput id="account-email-code" value={code} onChange={(value) => { setCode(value); setError(null) }} invalid={Boolean(errorText)} disabled={disabled} describedBy={`account-email-code-hint${errorText ? ' account-email-code-error' : ''}`} autoFocus /><p id="account-email-code-hint" className="hf-hint">{t.codeHint}</p>{errorText && <p id="account-email-code-error" className="account-error" role="alert">{errorText}</p>}</div>
+        <div className="hf-field"><label className="hf-label" htmlFor="account-email-code">{t.code}</label><CodeInput id="account-email-code" value={code} onChange={(value) => { setCode(value); action.clearError(); setSubmitted(false) }} invalid={Boolean(codeError || action.errorText)} disabled={disabled} describedBy={`account-email-code-hint${codeError ? ' account-email-code-error' : ''}`} autoFocus /><p id="account-email-code-hint" className="hf-hint">{t.codeHint}</p>{codeError && <p id="account-email-code-error" className="account-error" role="alert">{codeError}</p>}</div>
       </fieldset>
-      <button className="home-text-link account-resend" type="button" disabled={disabled || now < pending.resendAt} onClick={() => {
-        const timestamp = Date.now()
-        if (disabled || timestamp < pending.resendAt) return
-        setPending(beginEmailChange(profile.email, pending.email, timestamp)); setNow(timestamp); setCode(''); setError(null)
-      }}>{now < pending.resendAt ? `${t.resendWait} ${new Intl.NumberFormat(lang === 'ar' ? 'ar-EG' : 'en').format(Math.ceil((pending.resendAt - now) / 1000))} ${t.seconds}` : t.resend}</button>
-      <div className="account-dialog-actions"><button className="home-outline-button" type="button" onClick={onClose}>{t.cancel}</button><button className="home-button" type="submit" disabled={disabled || issue === 'expired' || pending.attempts >= 5}>{t.verifyEmail}</button></div>
+      {action.errorText && <p className="account-error" role="alert">{action.errorText}</p>}
+      <button className="home-text-link account-resend" type="button" disabled={disabled || now < pending.resendAt} onClick={() => requestCode(pending.email)}>{now < pending.resendAt ? `${t.resendWait} ${new Intl.NumberFormat(lang === 'ar' ? 'ar-EG' : 'en').format(Math.ceil((pending.resendAt - now) / 1000))} ${t.seconds}` : action.busy ? t.sending : t.resend}</button>
+      <button className="home-text-link account-resend" type="button" disabled={action.busy} onClick={() => { setPending(null); setCode(''); setSubmitted(false); setSent(false); action.clearError() }}>{t.changeAddress}</button>
+      <div className="account-dialog-actions"><button className="home-outline-button" type="button" disabled={action.busy} onClick={onClose}>{t.cancel}</button><button className="home-button" type="submit" disabled={disabled || expired}>{action.busy ? t.verifying : t.verifyEmail}</button></div>
     </form>}
   </AccountDialog>
 }

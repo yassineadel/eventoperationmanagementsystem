@@ -45,12 +45,24 @@ node scripts/start-hafletna.mjs
 
 On Windows, `./Start-Hafletna.ps1` starts the same launcher. From the `Frontend` folder, use `../Start-Hafletna.ps1`.
 
-The launcher reuses the existing all-in-one local runtime if this computer has one installed. That runtime is machine-local and is not included in Git. On other computers, the launcher starts the backend and frontend using the database, Redis and `.env` prepared above. Press Ctrl+C to stop the launched servers.
+The launcher reuses the existing all-in-one local runtime if this computer has one installed. That runtime is machine-local and is not included in Git. On other computers, the launcher starts the backend and frontend using the database, Redis and `.env` prepared above.
+
+On Windows, stop Hafletna from any PowerShell terminal in the repository root:
+
+```powershell
+.\Stop-Hafletna.ps1
+```
+
+Wait for the stopped message before closing the terminal or starting another instance. The stop command requests an orderly shutdown from this computer's all-in-one launcher: application servers stop, Redis saves its state, and PostgreSQL stops through `pg_ctl`. It verifies that the launcher's local database processes have exited. It preserves database files and leaves separately managed database services running. Use `..\Stop-Hafletna.ps1` from the `Frontend` folder. `-WhatIf` previews shutdown without stopping anything. You can also press Ctrl+C in the terminal actively running the launcher; simply closing a terminal can leave a server process behind.
+
+The launcher reuses Prisma Client when its schema and installed version match, avoiding unnecessary engine replacement on Windows. Generation runs only for a missing or outdated client. If only one application server is already running, stop that server before using the full launcher. A leftover backend process can keep `query_engine-windows.dll.node` locked even after its terminal closes.
 
 Open `http://localhost:5173/register` to sign up or `http://localhost:5173/events` to view database events. Accounts belong to your configured database; accounts on another developer's database are not copied automatically.
 
 ## Current integration scope
 
-Authentication and the events listing/detail pages use the backend. Homepage content, buying, checkout, and ticket-management screens still have their existing sample flows. Profile pages show the signed-in account; editing remains disabled until the profile APIs are implemented. The sample-profile option has been removed.
+Authentication and the events listing/detail pages use the backend. Homepage content, buying, checkout, and ticket-management screens still have their existing sample flows. Profile pages show the signed-in account and save name/phone, password changes, verified email changes and the combined marketing email preference through the account APIs. Account settings also record and cancel deletion requests with the backend's fourteen-day grace period; the frontend does not delete accounts itself. The sample-profile option has been removed.
 
 Run `npm run build` in `Backend`. In `Frontend`, run `npm test`, `npm run build`, and `npm run lint` for validation.
+
+From the repository root, run `node --test scripts/prisma-client.test.mjs` to check the launcher's Prisma regeneration rules.
