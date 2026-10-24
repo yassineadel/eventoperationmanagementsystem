@@ -6,14 +6,15 @@ import Icon from '../Homepage/components/Icon'
 import { useBooking } from './bookingContext'
 import { selectionTotals, validAttendee } from './bookingModel'
 import { getBookingCatalogue, selectionPath, getBookingEvent, isLiveEvent } from './catalogue'
-import { bookingMoney, bookingNumber, bookingStrings } from './strings'
+import { bookingMoney, bookingNumber } from './strings'
+import { useBookingStrings } from './liveStrings'
 import { BookingEmpty, BookingShell, OrderSummary, TicketDescription } from './BookingParts'
 import { resolveAttendeeNames } from './attendees'
 import { syncHolds } from './liveHolds'
 
 export default function Cart() {
   const { lang } = usePreferences()
-  const t = bookingStrings[lang]
+  const t = useBookingStrings()
   const { state, names: enteredNames, setAttendee, act, now } = useBooking()
   const session = useSession()
   const names = resolveAttendeeNames(state.items, enteredNames, session.status === 'authenticated' ? session.user : null)

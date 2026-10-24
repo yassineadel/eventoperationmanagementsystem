@@ -8,7 +8,8 @@ import { useBooking } from './bookingContext'
 import { selectionTotals, validAttendee, type BookingError, type SampleReceipt } from './bookingModel'
 import { selectionPath, getBookingEvent, isLiveEvent } from './catalogue'
 import { payOnServer } from './liveCheckout'
-import { bookingMoney, bookingNumber, bookingStrings } from './strings'
+import { bookingMoney, bookingNumber } from './strings'
+import { useBookingStrings } from './liveStrings'
 import { BookingEmpty, BookingErrorMessage, BookingShell, OrderSummary, TicketDescription } from './BookingParts'
 import PolicyDialog from './PolicyDialog'
 import { resolveAttendeeNames } from './attendees'
@@ -20,7 +21,7 @@ import { paymentMethodName, type PaymentMethodId } from './paymentOptions'
 
 function CheckoutResult({ event, receipt, outcome }: { event: Event; receipt?: SampleReceipt; outcome?: 'declined' | 'timeout' }) {
   const { lang } = usePreferences()
-  const t = bookingStrings[lang]
+  const t = useBookingStrings(event.id)
   const { act } = useBooking()
   return <BookingShell step={3} event={event} title={receipt ? t.successTitle : outcome === 'declined' ? t.declinedTitle : t.timeoutTitle} lead={receipt ? t.successLead : outcome === 'declined' ? t.declinedLead : t.timeoutLead}>
     <section className={`booking-result booking-panel${receipt ? ' is-success' : ''}`} aria-live="polite"><span className="booking-result-mark"><Icon name={receipt ? 'ticket' : 'clock'} size={42} /></span><h2>{event.title[lang]}</h2>
@@ -32,7 +33,7 @@ function CheckoutResult({ event, receipt, outcome }: { event: Event; receipt?: S
 
 export default function Checkout() {
   const { lang } = usePreferences()
-  const t = bookingStrings[lang]
+  const t = useBookingStrings()
   const { state, names: enteredNames, act, now } = useBooking()
   const { state: wallet, completeOrder } = useTickets()
   const navigate = useNavigate()

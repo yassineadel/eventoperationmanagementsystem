@@ -3,13 +3,13 @@ import { usePreferences } from '../Auth/preferences'
 import type { Event } from '../Homepage/types'
 import Icon from '../Homepage/components/Icon'
 import { getEventDetails } from '../Discovery/eventDetails'
-import { bookingStrings } from './strings'
+import { useBookingStrings } from './liveStrings'
 import { getLivePolicies, isLiveEvent } from './catalogue'
 import { apiStrings } from '../Discovery/apiStrings'
 
 export default function PolicyDialog({ event, onClose, onAccept }: { event: Event; onClose: () => void; onAccept: () => void }) {
   const { lang } = usePreferences()
-  const t = bookingStrings[lang]
+  const t = useBookingStrings(event.id)
   const dialog = useRef<HTMLDialogElement>(null)
     // Real events use the policies from the backend; sample events use the sample ones
   const policies = isLiveEvent(event.id) ? getLivePolicies(event.id) : getEventDetails(event).policies

@@ -13,13 +13,14 @@ import { eventIdPattern } from '../../lib/eventsModel'
 import { getAvailability, type Availability } from '../../lib/bookingApi'
 import { syncHolds } from './liveHolds'
 import { ApiError } from '../../lib/api'
-import { bookingMoney, bookingNumber, bookingStrings } from './strings'
+import { bookingMoney, bookingNumber} from './strings'
+import { useBookingStrings } from './liveStrings'
 import { BookingEmpty, BookingErrorMessage, BookingShell, OrderSummary, ReservationTimer, TicketDescription } from './BookingParts'
 import SeatMap from './SeatMap'
 
 function SelectionContent({ event }: { event: Event }) {
   const { lang } = usePreferences()
-  const t = bookingStrings[lang]
+  const t = useBookingStrings(event.id)
   const { state, act, now } = useBooking()
   const catalogue = getBookingCatalogue(event.id)!
   const [inspected, setInspected] = useState<Seat | null>(null)
@@ -110,8 +111,7 @@ function SelectionContent({ event }: { event: Event }) {
 
 // A real event from the backend: load it and its live availability, then show the same page
 function LiveSelection({ eventId }: { eventId: string }) {
-  const { lang } = usePreferences()
-  const t = bookingStrings[lang]
+  const t = useBookingStrings(eventId)
   const api = useApiEvent(eventId)
   const [availability, setAvailability] = useState<Availability | null>(null)
   const [failed, setFailed] = useState(false)
