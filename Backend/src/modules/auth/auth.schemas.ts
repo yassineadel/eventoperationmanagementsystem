@@ -58,3 +58,7 @@ export const requestEmailChangeSchema = z.object({ newEmail: email })
 export const verifyEmailChangeSchema = z.object({
   code: z.string().trim().length(6, 'Verification code must be 6 digits'),
 })
+
+export const updatePreferencesSchema = z.object({
+  marketingOptIn: z.boolean({ error: 'marketingOptIn must be true or false' }),
+})

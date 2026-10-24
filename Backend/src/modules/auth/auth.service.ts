@@ -219,6 +219,7 @@ export const getCurrentUser = async (userId: string) => {
       email: true,
       phone: true,
       role: true,
+      marketingOptIn: true,
     },
   })
 
@@ -308,4 +309,15 @@ export const verifyEmailChange = async (userId: string, code: string) => {
   // The code is used up
   await redis.del(`email-change:${userId}`)
   return { user: { ...user, emailVerified: true } }
+}
+
+/**
+ * Turns marketing emails on or off for the logged-in user
+ */
+export const updatePreferences = async (userId: string, marketingOptIn: boolean) => {
+  return prisma.user.update({
+    where: { id: userId },
+    data: { marketingOptIn },
+    select: { marketingOptIn: true },
+  })
 }
