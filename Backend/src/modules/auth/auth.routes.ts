@@ -16,6 +16,7 @@ import {
   requestEmailChangeSchema,
   verifyEmailChangeSchema,
   updatePreferencesSchema,
+  requestDeletionSchema,
 } from './auth.schemas'
 import {
   register,
@@ -30,6 +31,8 @@ import {
   requestEmailChangeHandler,
   verifyEmailChangeHandler,
   updatePreferencesHandler,
+  requestDeletionHandler,
+  cancelDeletionHandler,
 } from './auth.controller'
 import { protect } from '../../middleware/auth.middleware'
 
@@ -49,6 +52,8 @@ router.post('/change-password', protect, authLimiter, validate(changePasswordSch
 router.post('/change-email/request', protect, emailLimiter, validate(requestEmailChangeSchema), requestEmailChangeHandler)
 router.post('/change-email/verify', protect, authLimiter, validate(verifyEmailChangeSchema), verifyEmailChangeHandler)
 router.patch('/me/preferences', protect, validate(updatePreferencesSchema), updatePreferencesHandler)
+router.post('/me/deletion', protect, authLimiter, validate(requestDeletionSchema), requestDeletionHandler)
+router.delete('/me/deletion', protect, cancelDeletionHandler)
 router.get(
   '/google/callback',
   passport.authenticate('google', {

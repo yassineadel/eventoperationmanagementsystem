@@ -62,3 +62,6 @@ export const verifyEmailChangeSchema = z.object({
 export const updatePreferencesSchema = z.object({
   marketingOptIn: z.boolean({ error: 'marketingOptIn must be true or false' }),
 })
+
+// The user types their email to confirm, like the page asks
+export const requestDeletionSchema = z.object({ confirmEmail: email })

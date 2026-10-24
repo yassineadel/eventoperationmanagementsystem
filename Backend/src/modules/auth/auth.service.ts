@@ -220,6 +220,7 @@ export const getCurrentUser = async (userId: string) => {
       phone: true,
       role: true,
       marketingOptIn: true,
+      deletionRequestedAt: true,
     },
   })
 
@@ -320,4 +321,39 @@ export const updatePreferences = async (userId: string, marketingOptIn: boolean)
     data: { marketingOptIn },
     select: { marketingOptIn: true },
   })
+}
+
+const DELETION_GRACE_DAYS = 14
+
+// When the account will actually be removed
+const deletionDate = (requestedAt: Date) =>
+  new Date(requestedAt.getTime() + DELETION_GRACE_DAYS * 24 * 60 * 60 * 1000)
+
+/**
+ * Asks to delete the account. Nothing is removed for 14 days, and the user can cancel.
+ */
+export const requestAccountDeletion = async (userId: string, confirmEmail: string) => {
+  const user = await prisma.user.findUnique({ where: { id: userId } })
+  if (!user) throw new Error('User not found')
+  if (user.email !== confirmEmail) throw new Error('The email you typed does not match your account')
+  if (user.deletionRequestedAt) throw new Error('Deletion has already been requested')
+
+  const { deletionRequestedAt } = await prisma.user.update({
+    where: { id: userId },
+    data: { deletionRequestedAt: new Date() },
+    select: { deletionRequestedAt: true },
+  })
+  return { deletionRequestedAt, deletesAt: deletionDate(deletionRequestedAt!) }
+}
+
+/**
+ * Cancels a deletion request during the grace period
+ */
+export const cancelAccountDeletion = async (userId: string) => {
+  const user = await prisma.user.findUnique({ where: { id: userId } })
+  if (!user) throw new Error('User not found')
+  if (!user.deletionRequestedAt) throw new Error('There is no deletion request to cancel')
+
+  await prisma.user.update({ where: { id: userId }, data: { deletionRequestedAt: null } })
+  return { message: 'Deletion request cancelled' }
 }

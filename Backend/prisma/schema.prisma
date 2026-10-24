@@ -29,6 +29,8 @@ model User {
   blockedUsers  User[]    @relation("UserBlocks")
 
   marketingOptIn Boolean @default(false) @map("marketing_opt_in")
+    // Set when the user asks to delete their account; cleared if they cancel
+  deletionRequestedAt DateTime? @map("deletion_requested_at") @db.Timestamptz(6)
   isSynthetic    Boolean @default(false) @map("is_synthetic")
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
