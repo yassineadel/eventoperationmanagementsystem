@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { usePreferences } from '../Auth/preferences'
 import { events } from '../Homepage/data/events'
 import type { Event } from '../Homepage/types'
@@ -7,10 +7,11 @@ import Icon from '../Homepage/components/Icon'
 import NotFound from '../Discovery/NotFound'
 import { useBooking } from './bookingContext'
 import { categoryRemaining, MAX_TICKETS, type BookingError, type Selection } from './bookingModel'
-import { getBookingCatalogue, getBookingEvent, registerLiveCatalogue, type Seat } from './catalogue'
+import { getBookingCatalogue, getBookingEvent, registerLiveCatalogue, type Seat, isLiveEvent } from './catalogue'
 import { useApiEvent } from '../../lib/useEventsApi'
 import { eventIdPattern } from '../../lib/eventsModel'
-import { getAvailability, type Availability } from '../../lib/bookingApi'
+import { getAvailability, getCart, holdStanding, releaseHold, type Availability, type Hold } from '../../lib/bookingApi'
+import { ApiError } from '../../lib/api'
 import { bookingMoney, bookingNumber, bookingStrings } from './strings'
 import { BookingEmpty, BookingErrorMessage, BookingShell, OrderSummary, ReservationTimer, TicketDescription } from './BookingParts'
 import SeatMap from './SeatMap'
@@ -23,6 +24,9 @@ function SelectionContent({ event }: { event: Event }) {
   const [inspected, setInspected] = useState<Seat | null>(null)
   const [zone, setZone] = useState('middle')
   const [error, setError] = useState<BookingError | ''>('')
+  const navigate = useNavigate()
+  const [reserving, setReserving] = useState(false)
+  const [serverError, setServerError] = useState('')
   const items = state.eventId === event.id ? state.items : []
   const purchased = state.purchases[event.id]
   const atLimit = items.length + (purchased?.quantity ?? 0) >= MAX_TICKETS
@@ -41,6 +45,34 @@ function SelectionContent({ event }: { event: Event }) {
     else {
       const key = Array.from({ length: MAX_TICKETS }, (_, index) => `${categoryId}-${index + 1}`).find((key) => !current.some((item) => item.key === key))
       if (key) select([...items, { key, categoryId }])
+    }
+  }
+    // Real events: reserve the chosen tickets on the server, then go to the cart
+  async function reserve() {
+    setReserving(true)
+    setServerError('')
+    try {
+      // Give back anything held earlier for this event, so the server matches this selection
+      const previous = await getCart(event.id)
+      await Promise.all(previous.lines.map((line) => releaseHold(line.holdId)))
+
+      // Count the chosen tickets per category, then hold each category once
+      const counts = new Map<string, number>()
+      for (const item of items) counts.set(item.categoryId, (counts.get(item.categoryId) ?? 0) + 1)
+      const holds: Hold[] = []
+      for (const [categoryId, quantity] of counts) {
+        const result = await holdStanding(event.id, categoryId, quantity)
+        holds.push(...result.holds)
+      }
+
+      // The timer now follows the server's deadline
+      act({ type: 'held', expiresAt: Math.min(...holds.map((hold) => Date.parse(hold.expiresAt))) })
+      navigate('/cart')
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) setServerError(t.signInToReserve)
+      else setServerError(error instanceof Error ? error.message : t.loadError)
+    } finally {
+      setReserving(false)
     }
   }
   const inspectedCategory = catalogue.categories.find((category) => category.id === inspected?.categoryId)
@@ -77,7 +109,10 @@ function SelectionContent({ event }: { event: Event }) {
       </div>
       <OrderSummary event={event}>
         {items.length ? <ul className="booking-selection-items">{items.map((item) => <li key={item.key}><div><TicketDescription item={item} eventId={event.id} /></div><button type="button" aria-label={`${t.remove}: ${item.seatId ? catalogue.seats.find((seat) => seat.id === item.seatId)?.row + ' ' + catalogue.seats.find((seat) => seat.id === item.seatId)?.number : catalogue.categories.find((category) => category.id === item.categoryId)?.name[lang]}`} onClick={() => select(items.filter((current) => current.key !== item.key))}><Icon name="close" size={16} /></button></li>)}</ul> : <div className="booking-summary-empty"><Icon name="ticket" size={26} /><h3>{t.selectionEmpty}</h3><p>{t.selectionEmptyLead}</p></div>}
-        {items.length ? <Link className="home-button booking-full-button" to="/cart">{t.continueCart}<Icon name="arrow" size={18} /></Link> : <button className="home-button booking-full-button" disabled>{t.continueCart}</button>}
+{serverError && <p className="booking-error" role="alert">{serverError}</p>}
+        {!items.length ? <button className="home-button booking-full-button" disabled>{t.continueCart}</button>
+          : isLiveEvent(event.id) ? <button className="home-button booking-full-button" type="button" disabled={reserving} onClick={reserve}>{reserving ? t.reserving : t.continueCart}<Icon name="arrow" size={18} /></button>
+          : <Link className="home-button booking-full-button" to="/cart">{t.continueCart}<Icon name="arrow" size={18} /></Link>}
       </OrderSummary>
     </div>
   </BookingShell>

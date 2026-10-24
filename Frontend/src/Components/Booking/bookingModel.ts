@@ -19,6 +19,7 @@ export type BookingAction =
   | { type: 'expire' }
   | { type: 'release' }
   | { type: 'complete'; reference: string }
+  | { type: 'held'; expiresAt: number }
 export type BookingResult = { state: BookingState; error?: BookingError }
 
 export function emptyBooking(): BookingState {
@@ -48,6 +49,8 @@ export function validAttendee(name: string) { return name.trim().length >= 2 && 
 export function transitionBooking(state: BookingState, action: BookingAction, now: number): BookingResult {
   const timedOut = state.expiresAt !== null && now >= state.expiresAt
   if (action.type === 'expire') return { state: timedOut ? { ...state, items: [], expiresAt: null, expired: true } : state }
+    // The server reserved the tickets: its deadline replaces the local one
+  if (action.type === 'held') return { state: { ...state, expiresAt: action.expiresAt, expired: false } }
   if (action.type === 'release') return { state: { ...state, items: [], expiresAt: null, expired: false, receipt: null } }
   if (action.type === 'reset') {
     if (!getBookingCatalogue(action.eventId)) return { state, error: 'invalid' }

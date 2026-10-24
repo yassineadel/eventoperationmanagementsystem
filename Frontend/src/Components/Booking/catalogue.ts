@@ -50,6 +50,11 @@ export function getBookingEvent(eventId: string): Event | undefined {
   return liveEvents.get(eventId) ?? events.find((event) => event.id === eventId)
 }
 
+// True for a real event from the backend (not a sample one)
+export function isLiveEvent(eventId: string) {
+  return liveEvents.has(eventId)
+}
+
 // The page colours the categories in this order
 const tones = ['violet', 'teal', 'amber']
 
