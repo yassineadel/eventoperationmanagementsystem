@@ -50,6 +50,13 @@ export function getBookingEvent(eventId: string): Event | undefined {
   return liveEvents.get(eventId) ?? events.find((event) => event.id === eventId)
 }
 
+// The real event's policies, for the policy window at checkout
+type Policy = { title: LocalizedText; body: LocalizedText }
+const livePolicies = new Map<string, Policy[]>()
+export function getLivePolicies(eventId: string): Policy[] {
+  return livePolicies.get(eventId) ?? []
+}
+
 // True for a real event from the backend (not a sample one)
 export function isLiveEvent(eventId: string) {
   return liveEvents.has(eventId)
@@ -59,7 +66,7 @@ export function isLiveEvent(eventId: string) {
 const tones = ['violet', 'teal', 'amber']
 
 // Turns the backend's availability into the shape the booking pages already use (standing venues)
-export function registerLiveCatalogue(event: Event, availability: Availability, feePercents: Record<string, number>) {
+export function registerLiveCatalogue(event: Event, availability: Availability, feePercents: Record<string, number>, policies: Policy[]) {
   const categories: TicketCategory[] = availability.categories.map((category, index) => ({
     id: category.id,
     name: { en: category.name, ar: category.name },
@@ -72,6 +79,7 @@ export function registerLiveCatalogue(event: Event, availability: Availability, 
   }))
   const catalogue: BookingCatalogue = { mode: 'standing', categories, seats: [] }
   liveEvents.set(event.id, event)
+  livePolicies.set(event.id, policies)
   catalogues.set(event.id, catalogue)
   return catalogue
 }

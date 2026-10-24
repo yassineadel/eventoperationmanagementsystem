@@ -132,7 +132,7 @@ function LiveSelection({ eventId }: { eventId: string }) {
   if (api.data.details.venueType === 'SEATED') return <BookingEmpty step={1} event={api.data.event} blocked />
 
   const feePercents = Object.fromEntries(api.data.details.ticketCategories?.map((c) => [c.id, c.feePercent ?? 0]) ?? [])
-  registerLiveCatalogue(api.data.event, availability, feePercents)
+  registerLiveCatalogue(api.data.event, availability, feePercents, api.data.details.policies)
   return <SelectionContent key={eventId} event={api.data.event} />
 }
 
