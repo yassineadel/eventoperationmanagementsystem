@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { usePreferences } from '../Auth/preferences'
 import { events } from '../Homepage/data/events'
 import type { Event } from '../Homepage/types'
@@ -7,19 +7,28 @@ import Icon from '../Homepage/components/Icon'
 import NotFound from '../Discovery/NotFound'
 import { useBooking } from './bookingContext'
 import { categoryRemaining, MAX_TICKETS, type BookingError, type Selection } from './bookingModel'
-import { getBookingCatalogue, type Seat } from './catalogue'
-import { bookingMoney, bookingNumber, bookingStrings } from './strings'
+import { getBookingCatalogue, getBookingEvent, registerLiveCatalogue, type Seat, isLiveEvent } from './catalogue'
+import { useApiEvent } from '../../lib/useEventsApi'
+import { eventIdPattern } from '../../lib/eventsModel'
+import { getAvailability, type Availability } from '../../lib/bookingApi'
+import { syncHolds } from './liveHolds'
+import { ApiError } from '../../lib/api'
+import { bookingMoney, bookingNumber} from './strings'
+import { useBookingStrings } from './liveStrings'
 import { BookingEmpty, BookingErrorMessage, BookingShell, OrderSummary, ReservationTimer, TicketDescription } from './BookingParts'
 import SeatMap from './SeatMap'
 
 function SelectionContent({ event }: { event: Event }) {
   const { lang } = usePreferences()
-  const t = bookingStrings[lang]
+  const t = useBookingStrings(event.id)
   const { state, act, now } = useBooking()
   const catalogue = getBookingCatalogue(event.id)!
   const [inspected, setInspected] = useState<Seat | null>(null)
   const [zone, setZone] = useState('middle')
   const [error, setError] = useState<BookingError | ''>('')
+  const navigate = useNavigate()
+  const [reserving, setReserving] = useState(false)
+  const [serverError, setServerError] = useState('')
   const items = state.eventId === event.id ? state.items : []
   const purchased = state.purchases[event.id]
   const atLimit = items.length + (purchased?.quantity ?? 0) >= MAX_TICKETS
@@ -27,7 +36,7 @@ function SelectionContent({ event }: { event: Event }) {
   if (event.status !== 'available' || Date.parse(event.date) <= now) return <BookingEmpty step={1} event={event} blocked />
   if (state.expired) return <BookingEmpty step={1} event={event} />
   if (state.items.length && state.eventId !== event.id) return <BookingShell step={1} event={event} title={t.replaceTitle} lead={t.replaceLead}>
-    <section className="booking-replace booking-panel"><Icon name="ticket" size={36} /><h2>{events.find((event) => event.id === state.eventId)?.title[lang]}</h2><ReservationTimer /><div className="booking-actions"><Link className="home-outline-button" to="/cart">{t.keepCart}</Link><button className="home-button" type="button" onClick={() => act({ type: 'reset', eventId: event.id })}>{t.replace}</button></div></section>
+    <section className="booking-replace booking-panel"><Icon name="ticket" size={36} /><h2>{state.eventId ? getBookingEvent(state.eventId)?.title[lang] : ''}</h2><ReservationTimer /><div className="booking-actions"><Link className="home-outline-button" to="/cart">{t.keepCart}</Link><button className="home-button" type="button" onClick={() => act({ type: 'reset', eventId: event.id })}>{t.replace}</button></div></section>
   </BookingShell>
 
   function select(next: Selection[]) { setError(act({ type: 'select', eventId: event.id, items: next }) ?? '') }
@@ -38,6 +47,23 @@ function SelectionContent({ event }: { event: Event }) {
     else {
       const key = Array.from({ length: MAX_TICKETS }, (_, index) => `${categoryId}-${index + 1}`).find((key) => !current.some((item) => item.key === key))
       if (key) select([...items, { key, categoryId }])
+    }
+  }
+    // Real events: reserve the chosen tickets on the server, then go to the cart
+  // Real events: reserve the chosen tickets on the server, then go to the cart
+  async function reserve() {
+    setReserving(true)
+    setServerError('')
+    try {
+      const expiresAt = await syncHolds(event.id, items)
+      // The timer now follows the server's deadline
+      if (expiresAt) act({ type: 'held', expiresAt })
+      navigate('/cart')
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) setServerError(t.signInToReserve)
+      else setServerError(error instanceof Error ? error.message : t.loadError)
+    } finally {
+      setReserving(false)
     }
   }
   const inspectedCategory = catalogue.categories.find((category) => category.id === inspected?.categoryId)
@@ -74,14 +100,46 @@ function SelectionContent({ event }: { event: Event }) {
       </div>
       <OrderSummary event={event}>
         {items.length ? <ul className="booking-selection-items">{items.map((item) => <li key={item.key}><div><TicketDescription item={item} eventId={event.id} /></div><button type="button" aria-label={`${t.remove}: ${item.seatId ? catalogue.seats.find((seat) => seat.id === item.seatId)?.row + ' ' + catalogue.seats.find((seat) => seat.id === item.seatId)?.number : catalogue.categories.find((category) => category.id === item.categoryId)?.name[lang]}`} onClick={() => select(items.filter((current) => current.key !== item.key))}><Icon name="close" size={16} /></button></li>)}</ul> : <div className="booking-summary-empty"><Icon name="ticket" size={26} /><h3>{t.selectionEmpty}</h3><p>{t.selectionEmptyLead}</p></div>}
-        {items.length ? <Link className="home-button booking-full-button" to="/cart">{t.continueCart}<Icon name="arrow" size={18} /></Link> : <button className="home-button booking-full-button" disabled>{t.continueCart}</button>}
+{serverError && <p className="booking-error" role="alert">{serverError}</p>}
+        {!items.length ? <button className="home-button booking-full-button" disabled>{t.continueCart}</button>
+          : isLiveEvent(event.id) ? <button className="home-button booking-full-button" type="button" disabled={reserving} onClick={reserve}>{reserving ? t.reserving : t.continueCart}<Icon name="arrow" size={18} /></button>
+          : <Link className="home-button booking-full-button" to="/cart">{t.continueCart}<Icon name="arrow" size={18} /></Link>}
       </OrderSummary>
     </div>
   </BookingShell>
 }
 
+// A real event from the backend: load it and its live availability, then show the same page
+function LiveSelection({ eventId }: { eventId: string }) {
+  const t = useBookingStrings(eventId)
+  const api = useApiEvent(eventId)
+  const [availability, setAvailability] = useState<Availability | null>(null)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    getAvailability(eventId, controller.signal)
+      .then(setAvailability)
+      .catch(() => { if (!controller.signal.aborted) setFailed(true) })
+    return () => controller.abort()
+  }, [eventId])
+
+  if (api.status === 'not-found' || api.status === 'idle') return <NotFound event />
+  if (api.status === 'error' || failed) return <section className="home-container discovery-not-found" role="alert"><h1 className="discovery-title">{t.loadError}</h1><button type="button" className="home-button" onClick={() => window.location.reload()}>{t.retry}</button></section>
+  if (!api.data || !availability) return <section className="home-container" role="status"><p>{t.loading}</p></section>
+
+  // Seat maps for seated venues come in a later step
+  if (api.data.details.venueType === 'SEATED') return <BookingEmpty step={1} event={api.data.event} blocked />
+
+  const feePercents = Object.fromEntries(api.data.details.ticketCategories?.map((c) => [c.id, c.feePercent ?? 0]) ?? [])
+  registerLiveCatalogue(api.data.event, availability, feePercents, api.data.details.policies)
+  return <SelectionContent key={eventId} event={api.data.event} />
+}
+
 export default function TicketSelection() {
-  const { eventId } = useParams()
-  const event = events.find((event) => event.id === eventId)
-  return event ? <SelectionContent key={event.id} event={event} /> : <NotFound event />
+  const { eventId = '' } = useParams()
+  const sample = events.find((event) => event.id === eventId)
+  if (sample) return <SelectionContent key={sample.id} event={sample} />
+  // Real event ids are UUIDs; anything else can't exist
+  return eventIdPattern.test(eventId) ? <LiveSelection eventId={eventId} /> : <NotFound event />
 }

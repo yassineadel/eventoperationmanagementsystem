@@ -2,13 +2,14 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { usePreferences } from '../Auth/preferences'
 import { useSession } from '../Auth/sessionContext'
-import { events } from '../Homepage/data/events'
 import type { Event } from '../Homepage/types'
 import Icon from '../Homepage/components/Icon'
 import { useBooking } from './bookingContext'
 import { selectionTotals, validAttendee, type BookingError, type SampleReceipt } from './bookingModel'
-import { selectionPath } from './catalogue'
-import { bookingMoney, bookingNumber, bookingStrings } from './strings'
+import { selectionPath, getBookingEvent, isLiveEvent } from './catalogue'
+import { payOnServer } from './liveCheckout'
+import { bookingMoney, bookingNumber } from './strings'
+import { useBookingStrings } from './liveStrings'
 import { BookingEmpty, BookingErrorMessage, BookingShell, OrderSummary, TicketDescription } from './BookingParts'
 import PolicyDialog from './PolicyDialog'
 import { resolveAttendeeNames } from './attendees'
@@ -20,7 +21,7 @@ import { paymentMethodName, type PaymentMethodId } from './paymentOptions'
 
 function CheckoutResult({ event, receipt, outcome }: { event: Event; receipt?: SampleReceipt; outcome?: 'declined' | 'timeout' }) {
   const { lang } = usePreferences()
-  const t = bookingStrings[lang]
+  const t = useBookingStrings(event.id)
   const { act } = useBooking()
   return <BookingShell step={3} event={event} title={receipt ? t.successTitle : outcome === 'declined' ? t.declinedTitle : t.timeoutTitle} lead={receipt ? t.successLead : outcome === 'declined' ? t.declinedLead : t.timeoutLead}>
     <section className={`booking-result booking-panel${receipt ? ' is-success' : ''}`} aria-live="polite"><span className="booking-result-mark"><Icon name={receipt ? 'ticket' : 'clock'} size={42} /></span><h2>{event.title[lang]}</h2>
@@ -32,7 +33,7 @@ function CheckoutResult({ event, receipt, outcome }: { event: Event; receipt?: S
 
 export default function Checkout() {
   const { lang } = usePreferences()
-  const t = bookingStrings[lang]
+  const t = useBookingStrings()
   const { state, names: enteredNames, act, now } = useBooking()
   const { state: wallet, completeOrder } = useTickets()
   const navigate = useNavigate()
@@ -50,9 +51,13 @@ export default function Checkout() {
   const [error, setError] = useState<BookingError | ''>('')
   const [walletError, setWalletError] = useState<TicketRule | ''>('')
   const inFlight = useRef(false)
+    // Made once per visit to this page: retrying the same checkout never creates a second order
+  const idempotencyKey = useRef(crypto.randomUUID())
+  const [liveReceipt, setLiveReceipt] = useState<SampleReceipt | null>(null)
+  const [serverError, setServerError] = useState('')
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current) }, [])
-  const event = events.find((event) => event.id === state.eventId)
+  const event = state.eventId ? getBookingEvent(state.eventId) : undefined
   const isFree = selectionTotals(state.eventId, state.items).total === 0
 
   const submit = useCallback((submission: FormEvent) => {
@@ -65,6 +70,20 @@ export default function Checkout() {
     if (state.items.some((item) => !validAttendee(names[item.key] ?? ''))) return
     inFlight.current = true
     setProcessing(true); setError(''); setWalletError('')
+        // Real events: buy on the server instead of the local simulation
+    if (isLiveEvent(state.eventId!)) {
+      setServerError('')
+      const quantity = state.items.length
+      payOnServer(state.eventId!, state.items, names, idempotencyKey.current, isFree ? 'success' : choice)
+        .then((order) => {
+          if (order.status === 'PAID') setLiveReceipt({ reference: order.reference, eventId: order.eventId, quantity, total: Number(order.total) })
+          else setOutcome(order.status === 'FAILED' ? 'declined' : 'timeout')
+          act({ type: 'release' })
+        })
+        .catch((error) => setServerError(error instanceof Error ? error.message : t.loadError))
+        .finally(() => { inFlight.current = false; setProcessing(false) })
+      return
+    }
     // Local UI simulation only: no payment endpoint, financial details or ticket issuance.
     timer.current = setTimeout(() => {
       inFlight.current = false
@@ -82,8 +101,9 @@ export default function Checkout() {
       if (result.ok) navigate(`/orders/${encodeURIComponent(reference)}/confirmation`)
       else setWalletError(result.error ?? 'not-found')
     }, 1200)
-  }, [accepted, reviewed, state, names, act, choice, wallet, completeOrder, navigate, method, isFree])
+  }, [accepted, reviewed, state, names, act, choice, wallet, completeOrder, navigate, method, isFree, t])
 
+  if (liveReceipt && event) return <CheckoutResult event={event} receipt={liveReceipt} />
   if (state.receipt && wallet.orders.some((order) => order.reference === state.receipt!.reference)) return <Navigate to={`/orders/${encodeURIComponent(state.receipt.reference)}/confirmation`} replace />
   if (state.receipt && event) return <CheckoutResult event={event} receipt={state.receipt} />
   if (outcome && event) return <CheckoutResult event={event} outcome={outcome} />
@@ -103,7 +123,7 @@ export default function Checkout() {
         </section>
         <section className="booking-panel" aria-labelledby="booking-policy-section-title"><header className="booking-panel-heading"><p className="discovery-eyebrow">03 / {t.stepCheckout}</p><h2 id="booking-policy-section-title">{t.policies}</h2><p>{t.policyLead}</p></header><button id="booking-read-policies" className="home-outline-button" type="button" aria-haspopup="dialog" aria-controls="booking-policy-dialog" disabled={processing} onClick={() => setPolicyOpen(true)}>{t.readPolicies}<Icon name="arrow" size={16} /></button><label className="booking-policy-checkbox"><input id="booking-policy-accept" type="checkbox" checked={accepted} disabled={!reviewed || processing} onChange={(event) => { setAccepted(event.target.checked); setPolicyError(false) }} aria-describedby={policyError ? 'booking-policy-error' : undefined} />{t.policyAccept}</label>{policyError && <p id="booking-policy-error" className="booking-field-error" role="alert">{t.policyRequired}</p>}</section>
       </div>
-      <OrderSummary event={event}><div className="booking-payment-review" role="status"><span>{t.paymentMethod}</span><strong>{isFree ? paymentMethodName('free', lang) : method ? paymentMethodName(method, lang) : t.choosePaymentMethod}</strong></div><BookingErrorMessage error={error} />{walletError && <p className="booking-field-error" role="alert">{ticketRuleText(walletError, lang)}</p>}<button className="home-button booking-full-button" type="submit" disabled={processing}>{processing ? <><span className="booking-spinner" aria-hidden="true" />{t.processing}</> : <>{isFree ? t.reserveFree : t.pay}<Icon name="arrow" size={18} /></>}</button><p className="booking-subtle-note" role="status">{processing ? t.processing : t.paymentNote}</p></OrderSummary>
+      <OrderSummary event={event}><div className="booking-payment-review" role="status"><span>{t.paymentMethod}</span><strong>{isFree ? paymentMethodName('free', lang) : method ? paymentMethodName(method, lang) : t.choosePaymentMethod}</strong></div><BookingErrorMessage error={error} />{walletError && <p className="booking-field-error" role="alert">{ticketRuleText(walletError, lang)}</p>}{serverError && <p className="booking-error" role="alert">{serverError}</p>}<button className="home-button booking-full-button" type="submit" disabled={processing}>{processing ? <><span className="booking-spinner" aria-hidden="true" />{t.processing}</> : <>{isFree ? t.reserveFree : t.pay}<Icon name="arrow" size={18} /></>}</button><p className="booking-subtle-note" role="status">{processing ? t.processing : t.paymentNote}</p></OrderSummary>
       {policyOpen && <PolicyDialog event={event} onClose={() => setPolicyOpen(false)} onAccept={() => { setAccepted(true); setReviewed(true); setPolicyError(false); setPolicyOpen(false) }} />}
     </form>
   </BookingShell>
