@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom'
 import { EVENTS, loadOrdersBook, type Ticket, type TicketStatus } from '../../lib/ordersApi'
 import { AdminHero, AdminLayout, ForwardArrowIcon, Icon, MessagePanel, ResourceStatus, TicketIcon } from './AdminLayout'
-import { EventChips, OrdersTabs, SearchBox, StatusBadge, StatusPills } from './OrdersParts'
+import { EventChips, ListCount, OrdersTabs, SearchBox, StatusBadge, StatusPills } from './OrdersParts'
 import { useOrdersFormat, useOrdersStrings } from './ordersStrings'
+import { shownOf } from './adminText'
 import { useAdminResource } from './useAdminResource'
 import { oneOf, useListParams } from './useListParams'
 
@@ -86,7 +87,7 @@ export default function TicketListPage() {
               </div>
 
               <div className="ad-table-wrap">
-                <table className="ad-table od-table">
+                <table aria-labelledby="tickets-title" className="ad-table od-table">
                   <thead>
                     <tr>
                       <th scope="col">{t.cCode}</th>
@@ -156,9 +157,9 @@ export default function TicketListPage() {
                 </div>
               )}
 
-              <div className="ad-card-foot" role="status">
-                {t.showing} {f.num(rows.length)} {t.of} {f.num(tickets.length)} {t.ticketsWord}
-              </div>
+              <div className="ad-card-foot">
+                  <ListCount text={shownOf(f.lang, rows.length, tickets.length, t.ticketsShowing, f.num)} />
+                </div>
             </section>
           )}
         </>

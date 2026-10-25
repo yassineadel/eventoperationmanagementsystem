@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import type { OrderStatus, TicketStatus } from '../../lib/ordersApi'
 import { Icon } from './AdminLayout'
@@ -96,6 +96,26 @@ export function SearchBox({ id, label, placeholder, value, onChange }: { id: str
       </Icon>
       <input id={id} type="search" placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)} />
     </div>
+  )
+}
+
+/**
+ * The "Showing 3 of 12" line under a list. It updates on screen at once, but screen readers
+ * hear it once typing in the search pauses, not on every keystroke.
+ */
+export function ListCount({ text }: { text: string }) {
+  const [spoken, setSpoken] = useState(text)
+  useEffect(() => {
+    const id = window.setTimeout(() => setSpoken(text), 700)
+    return () => window.clearTimeout(id)
+  }, [text])
+  return (
+    <span>
+      <span aria-hidden="true">{text}</span>
+      <span className="ad-sr-only" role="status">
+        {spoken}
+      </span>
+    </span>
   )
 }
 

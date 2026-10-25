@@ -1,6 +1,6 @@
 // Status, validation and change rules for the admin events pages. Pure functions, so the
 // tests in tests/admin.test.mjs can check them without a browser.
-import { waveStates, type AdminEvent, type CategoryForm, type EventCategory, type EventForm, type WaveState } from '../../lib/adminEventsApi.ts'
+import { waveStates, type AdminEvent, type CategoryForm, type EventCategory, type EventForm, type Wave, type WaveState } from '../../lib/adminEventsApi.ts'
 import type { EventsStrings } from './eventsStrings'
 
 /** Colour of a status badge; reuses the order palette from Orders.css. */
@@ -20,11 +20,31 @@ export const EVENT_TONE: Record<EventDisplayStatus, Tone> = {
   cancelled: 'cancelled',
 }
 
-/** A sold-out wave reads like a checked-in ticket, the live one green, the next one amber. */
-export const WAVE_TONE: Record<WaveState, Tone> = { 'sold-out': 'checked', 'on-sale': 'paid', upcoming: 'pending' }
+/** A wave as the admin sees it: nothing is on sale before publishing or after the event ends or is cancelled. */
+export type WaveShown = WaveState | 'not-yet' | 'closed'
 
-export function waveLabel(t: EventsStrings, state: WaveState) {
-  return state === 'sold-out' ? t.soldOut : state === 'on-sale' ? t.onSale : t.upcoming
+export function shownWaveStates(waves: Pick<Wave, 'capacity' | 'sold'>[], shown: EventDisplayStatus): WaveShown[] {
+  const states = waveStates(waves)
+  if (shown === 'published') return states
+  return states.map((s) => (s === 'sold-out' ? s : shown === 'draft' ? 'not-yet' : 'closed'))
+}
+
+/** A sold-out wave reads like a checked-in ticket, the live one green, the next one amber. */
+export const WAVE_TONE: Record<WaveShown, Tone> = { 'sold-out': 'checked', 'on-sale': 'paid', upcoming: 'pending', 'not-yet': 'pending', closed: 'checked' }
+
+export function waveLabel(t: EventsStrings, state: WaveShown) {
+  switch (state) {
+    case 'sold-out':
+      return t.soldOut
+    case 'on-sale':
+      return t.onSale
+    case 'upcoming':
+      return t.upcoming
+    case 'not-yet':
+      return t.notOnSaleYet
+    case 'closed':
+      return t.salesClosed
+  }
 }
 
 export function initials(name: string) {

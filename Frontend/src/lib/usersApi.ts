@@ -106,7 +106,9 @@ async function withCounts(seeds: Seed[]): Promise<AdminUser[]> {
   const [orders, tickets] = await Promise.all([ordersApi.list(), ticketsApi.list()])
   return seeds.map((u) => {
     const own = orders.filter((o) => o.customer.userId === u.id)
-    return { ...u, orders: own.length, tickets: tickets.filter((t) => own.some((o) => o.id === t.orderId)).length }
+    // Refunded tickets don't count; the ones that still work or were used do.
+    const held = tickets.filter((t) => t.status !== 'cancelled' && own.some((o) => o.id === t.orderId))
+    return { ...u, orders: own.length, tickets: held.length }
   })
 }
 

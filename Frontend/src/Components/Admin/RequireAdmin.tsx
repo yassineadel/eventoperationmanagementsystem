@@ -58,7 +58,8 @@ export default function RequireAdmin() {
 
   if (!ADMIN_PREVIEW) {
     if (status === 'loading') return <Gate title={t.checkingAccess} />
-    if (status === 'guest') return <Navigate to={`/login?returnTo=${encodeURIComponent(location.pathname)}`} replace />
+    // Keep the list filters too, so the admin comes back to the same view.
+    if (status === 'guest') return <Navigate to={`/login?returnTo=${encodeURIComponent(location.pathname + location.search)}`} replace />
     if (status === 'unavailable') {
       return (
         <Gate

@@ -1,12 +1,13 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { adminEventsApi, EventNotFoundError, waveStates, type CategoryForm, type EventDetail } from '../../lib/adminEventsApi'
+import { adminEventsApi, EventNotFoundError, type CategoryForm, type EventDetail } from '../../lib/adminEventsApi'
 import { ConfirmDialog, ModalDialog, PlusIcon, TrashIcon } from './AdminFeedback'
-import { AdminHero, AdminLayout, BackArrowIcon, Icon, LockIcon, ResourceStatus } from './AdminLayout'
+import { AdminHero, AdminLayout, BackArrowIcon, CalendarIcon, Icon, LockIcon, ResourceStatus } from './AdminLayout'
 import { useAdminStrings } from './adminStrings'
 import { parseWhole, plural } from './adminText'
 import { useErrorText } from './errorStrings'
-import { canMoveWave, hasTicketProblems, ticketProblems, WAVE_TONE, waveChanges, waveLabel, type WaveChange } from './eventRules'
+import { useAnnounce } from './adminAnnounce'
+import { canMoveWave, displayStatus, hasTicketProblems, shownWaveStates, ticketProblems, WAVE_TONE, waveChanges, waveLabel, type WaveChange } from './eventRules'
 import { ArrowDownIcon, ArrowUpIcon, Badge } from './EventsParts'
 import { useEventsStrings, type EventsStrings, type EventToast } from './eventsStrings'
 import { AlertIcon } from './OrdersParts'
@@ -56,6 +57,7 @@ export default function EventTicketsPage() {
         retryLabel={t.tryAgain}
         onRetry={retry}
         notFoundTitle={t.notFoundTitle}
+        notFoundIcon={<CalendarIcon size={34} />}
         notFoundText={t.notFoundText}
       />
     </AdminLayout>
@@ -80,7 +82,10 @@ function TicketsEditor({ detail }: { detail: EventDetail }) {
   const [saving, setSaving] = useState(false)
   const [failure, setFailure] = useState<string | null>(null)
   const [review, setReview] = useState<WaveChange[] | null>(null)
-  const focusAfter = useRef<string | null>(null)
+  /** Where focus goes after the next render: the first of these ids that exists. */
+  const focusAfter = useRef<string[]>([])
+  const announce = useAnnounce()
+  const shown = displayStatus(event)
 
   const readOnly = event.status === 'cancelled' || event.isPast
   const forms = toForms(rows)
@@ -93,9 +98,15 @@ function TicketsEditor({ detail }: { detail: EventDetail }) {
 
   // Move focus once the DOM shows the change: a new row, the row after a removal, or the first problem.
   useEffect(() => {
-    if (!focusAfter.current) return
-    document.getElementById(focusAfter.current)?.focus()
-    focusAfter.current = null
+    if (!focusAfter.current.length) return
+    for (const id of focusAfter.current) {
+      const el = document.getElementById(id)
+      if (el) {
+        el.focus()
+        break
+      }
+    }
+    focusAfter.current = []
   })
 
   const setCategory = (ci: number, changes: Partial<CategoryRow>) => setRows((list) => list.map((c, j) => (j === ci ? { ...c, ...changes } : c)))
@@ -107,14 +118,14 @@ function TicketsEditor({ detail }: { detail: EventDetail }) {
     const last = c.waves[c.waves.length - 1]
     const row: WaveRow = { rowId: rowId(), name: fillIn(t.newWave, { n: f.num(c.waves.length + 1) }), price: last?.price ?? 0, capacity: last?.capacity ?? 100, sold: 0 }
     setCategory(ci, { waves: [...c.waves, row] })
-    focusAfter.current = `${row.rowId}-name`
+    focusAfter.current = [`${row.rowId}-name`]
   }
 
   function removeWave(ci: number, wi: number) {
     const c = rows[ci]
     const neighbour = c.waves[wi - 1] ?? c.waves[wi + 1]
     setCategory(ci, { waves: c.waves.filter((_, k) => k !== wi) })
-    focusAfter.current = neighbour ? `${neighbour.rowId}-name` : `${c.rowId}-add`
+    focusAfter.current = neighbour ? [`${neighbour.rowId}-name`] : [`${c.rowId}-add`]
   }
 
   function moveWave(ci: number, wi: number, to: number) {
@@ -122,19 +133,22 @@ function TicketsEditor({ detail }: { detail: EventDetail }) {
     const [moved] = waves.splice(wi, 1)
     waves.splice(to, 0, moved)
     setCategory(ci, { waves })
-    focusAfter.current = `${moved.rowId}-${to < wi ? 'up' : 'down'}`
+    // The same button again, or the other one when the wave reached the top or bottom.
+    const [same, other] = to < wi ? ['up', 'down'] : ['down', 'up']
+    focusAfter.current = [`${moved.rowId}-${same}`, `${moved.rowId}-${other}`, `${moved.rowId}-name`]
+    announce(fillIn(t.movedTo, { wave: moved.name || t.waveCol, n: f.num(to + 1), total: f.num(waves.length) }))
   }
 
   function addCategory() {
     const row: CategoryRow = { rowId: rowId(), key: '', name: '', waves: [{ rowId: rowId(), name: fillIn(t.newWave, { n: f.num(1) }), price: 0, capacity: 100, sold: 0 }] }
     setRows((list) => [...list, row])
-    focusAfter.current = `${row.rowId}-name`
+    focusAfter.current = [`${row.rowId}-name`]
   }
 
   function removeCategory(ci: number) {
     const neighbour = rows[ci - 1] ?? rows[ci + 1]
     setRows((list) => list.filter((_, j) => j !== ci))
-    focusAfter.current = neighbour ? `${neighbour.rowId}-name` : 'add-category'
+    focusAfter.current = [neighbour ? `${neighbour.rowId}-name` : 'add-category']
   }
 
   function firstProblemId() {
@@ -155,7 +169,8 @@ function TicketsEditor({ detail }: { detail: EventDetail }) {
     if (saving || readOnly) return
     if (invalid) {
       setTried((n) => n + 1)
-      focusAfter.current = firstProblemId()
+      const first = firstProblemId()
+      focusAfter.current = first ? [first] : []
       return
     }
     // Customers may be buying a published event's tickets right now: show what changes first.
@@ -215,7 +230,7 @@ function TicketsEditor({ detail }: { detail: EventDetail }) {
           )}
 
           {rows.map((c, ci) => {
-            const states = waveStates(c.waves)
+            const states = shownWaveStates(c.waves, shown)
             const p = problems[ci]
             const hasSales = soldKeys.has(c.key)
             const label = c.name || `${t.categoryWord} ${f.num(ci + 1)}`
@@ -377,11 +392,21 @@ function TicketsEditor({ detail }: { detail: EventDetail }) {
                         <LockIcon /> {t.priceLocked}
                       </p>
                     )}
-                    <button id={`${c.rowId}-add`} type="button" className="ad-add-row" onClick={() => addWave(ci)}>
+                    <button
+                      id={`${c.rowId}-add`}
+                      type="button"
+                      className="ad-add-row"
+                      aria-describedby={showProblems && p.noWave ? `${c.rowId}-nowave` : undefined}
+                      onClick={() => addWave(ci)}
+                    >
                       <PlusIcon size={16} />
                       {t.addWave}
                     </button>
-                    {showProblems && p.noWave && <p className="ad-field-error">{t.errNoWave}</p>}
+                    {showProblems && p.noWave && (
+                      <p id={`${c.rowId}-nowave`} className="ad-field-error">
+                        {t.errNoWave}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -426,7 +451,8 @@ function TicketsEditor({ detail }: { detail: EventDetail }) {
             </dl>
             <div className="ad-summary-actions">
               {showProblems && invalid && (
-                <p className="ad-error-summary" role="alert">
+                // Keyed by the attempt, so every failed save is announced again.
+                <p key={tried} className="ad-error-summary" role="alert">
                   {t.errSummary}
                 </p>
               )}

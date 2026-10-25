@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
-import { adminEventsApi, waveStates, type AdminEvent, type EventCategory } from '../../lib/adminEventsApi'
+import { adminEventsApi, isOnSale, waveStates, type AdminEvent, type EventCategory } from '../../lib/adminEventsApi'
 import { minutesAfter, now } from '../../lib/adminTime'
-import { loadOrdersBook } from '../../lib/ordersApi'
+import { isOverdue, loadOrdersBook } from '../../lib/ordersApi'
 import { AdminHero, AdminLayout, ForwardArrowIcon, ResourceStatus } from './AdminLayout'
 import { useAdminStrings } from './adminStrings'
 import { CheckIcon, ProgressBar } from './EventsParts'
@@ -13,12 +13,12 @@ const DAY = 24 * 60
 
 async function load() {
   const at = now()
-  const [events, book] = await Promise.all([adminEventsApi.list(), loadOrdersBook()])
+  const [details, book] = await Promise.all([adminEventsApi.listWithCategories(), loadOrdersBook()])
+  const events = details.map((d) => d.event)
   const upcoming = events
     .filter((e) => e.status === 'published' && e.startAt > at && e.startAt <= minutesAfter(at, 14 * DAY))
     .sort((a, b) => a.startAt.localeCompare(b.startAt))
-  const live = events.filter((e) => e.status === 'published' && e.startAt > at)
-  const details = await Promise.all(live.map((e) => adminEventsApi.get(e.id)))
+  const live = events.filter((e) => isOnSale(e, at))
   const categories = Object.fromEntries(details.map((d) => [d.event.id, d.categories])) as Record<string, EventCategory[]>
   return { at, events, upcoming, live, categories, ...book }
 }
@@ -43,7 +43,7 @@ export default function AdminHomePage() {
 
   const { at, events, upcoming, live, categories, orders, requests } = state.data
   const waiting = requests.filter((r) => r.status === 'submitted')
-  const overdue = orders.filter((o) => o.status === 'pending' && o.payment.dueBy && o.payment.dueBy < at)
+  const overdue = orders.filter((o) => isOverdue(o, at))
   const draftsSoon = events.filter((e) => e.status === 'draft' && e.startAt > at && e.startAt <= minutesAfter(at, 30 * DAY))
   const cancelled = events.filter((e) => e.status === 'cancelled')
   const sellingOut: SellingOut[] = live.flatMap((event) =>
@@ -55,8 +55,10 @@ export default function AdminHomePage() {
       return left <= Math.max(1, Math.round(wave.capacity * 0.1)) ? [{ event, category: c.name, wave: wave.name, left, capacity: wave.capacity }] : []
     }),
   )
-  const revenue = orders.filter((o) => o.status === 'paid').reduce((n, o) => n + o.total, 0)
-  const sold = events.filter((e) => e.status !== 'cancelled').reduce((n, e) => n + e.sold, 0)
+  // Both from the events' waves, so they match the event pages; cancelled events were refunded.
+  const counted = events.filter((e) => e.status !== 'cancelled')
+  const revenue = counted.reduce((n, e) => n + (categories[e.id] ?? []).reduce((m, c) => m + c.waves.reduce((k, w) => k + w.price * w.sold, 0), 0), 0)
+  const sold = counted.reduce((n, e) => n + e.sold, 0)
   const nothingToDo = !waiting.length && !overdue.length && !sellingOut.length && !draftsSoon.length
 
   const cheapestOnSale = (eventId: string) => {
@@ -102,7 +104,7 @@ export default function AdminHomePage() {
             )}
             {overdue.length > 0 && (
               <li>
-                <AttentionRow label={t.aOverdue} count={f.num(overdue.length)} to="/admin/orders?status=pending" action={t.review} />
+                <AttentionRow label={t.aOverdue} count={f.num(overdue.length)} to="/admin/orders?status=overdue" action={t.review} />
               </li>
             )}
             {draftsSoon.map((e) => (
@@ -135,7 +137,7 @@ export default function AdminHomePage() {
         </div>
         {upcoming.length ? (
           <div className="ad-table-wrap">
-            <table className="ad-table">
+            <table aria-labelledby="upcoming-title" className="ad-table">
               <thead>
                 <tr>
                   <th scope="col">{t.cEvent}</th>

@@ -66,6 +66,7 @@ function TicketDetailView({ code }: { code: string }) {
           retryLabel={t.tryAgain}
           onRetry={retry}
           notFoundTitle={t.ticketNotFound}
+          notFoundIcon={<TicketIcon size={34} />}
           notFoundText={t.notFoundText}
         />
       </AdminLayout>
@@ -78,7 +79,7 @@ function TicketDetailView({ code }: { code: string }) {
   const checkRows =
     ticket.status === 'checked'
       ? [
-          { label: t.checkin, value: `${f.date(ticket.scans[0])} · ${t.gate} ${f.digits('2')}` },
+          { label: t.checkin, value: f.date(ticket.scans[0]) },
           { label: t.scans, value: f.num(ticket.scans.length) },
           { label: t.lastScan, value: f.time(lastScan) },
         ]
@@ -115,8 +116,9 @@ function TicketDetailView({ code }: { code: string }) {
 
       <div className="ad-detail-grid od-detail-grid">
         <div className="od-main">
-          <div className={`od-ticket${ticket.status === 'cancelled' ? ' is-void' : ''}`} role="img" aria-label={`${t.admitOne} · ${event.name} · ${ticket.seat}`} data-scroll-reveal="">
+          <section className={`od-ticket${ticket.status === 'cancelled' ? ' is-void' : ''}`} aria-label={t.ticketCard} data-scroll-reveal="">
             <div className="od-ticket-main">
+              {ticket.status === 'cancelled' && <span className="ad-sr-only">{t.refundedTicket}</span>}
               <span className="od-ticket-kicker">Hafletna · {t.admitOne}</span>
               <strong className="od-ticket-event">{event.name}</strong>
               <div className="od-ticket-facts">
@@ -146,7 +148,7 @@ function TicketDetailView({ code }: { code: string }) {
               </span>
               <span className="od-ticket-hint">{t.scanAt}</span>
             </div>
-          </div>
+          </section>
           <div className="od-actions">
             {ticket.status === 'valid' && !past && (
               <button type="button" className="ad-secondary" onClick={() => !busy && resend()} aria-disabled={busy || undefined}>

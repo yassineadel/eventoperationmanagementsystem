@@ -30,8 +30,8 @@ export function Icon({ children, size = 18 }: { children: ReactNode; size?: numb
   )
 }
 
-export const LockIcon = () => (
-  <Icon size={16}>
+export const LockIcon = ({ size = 16 }: { size?: number }) => (
+  <Icon size={size}>
     <rect x="4" y="11" width="16" height="10" rx="2" />
     <path d="M8 11V7a4 4 0 0 1 8 0v4" />
   </Icon>
@@ -146,9 +146,8 @@ function PreferenceControls() {
   )
 }
 
-function Account() {
+function SignOutButton({ className }: { className: string }) {
   const t = useAdminStrings()
-  const actor = useAdminActor()
   const { signOut } = useSession()
   const navigate = useNavigate()
   const [busy, setBusy] = useState(false)
@@ -163,6 +162,21 @@ function Account() {
   }
 
   return (
+    <button type="button" className={className} aria-label={t.signOut} title={t.signOut} disabled={busy} onClick={leave}>
+      <Icon size={18}>
+        <path d="M15 4h4v16h-4" />
+        <path d="M10 8l-4 4 4 4" />
+        <path d="M6 12h10" />
+      </Icon>
+    </button>
+  )
+}
+
+function Account() {
+  const t = useAdminStrings()
+  const actor = useAdminActor()
+
+  return (
     <div className="ad-account">
       <span className="ad-avatar" aria-hidden="true">
         {actor.name.charAt(0).toUpperCase()}
@@ -171,15 +185,7 @@ function Account() {
         <strong>{actor.name}</strong>
         <span>{actor.preview ? t.previewRole : t.accountRole}</span>
       </span>
-      {!actor.preview && (
-        <button type="button" className="ad-signout" aria-label={t.signOut} title={t.signOut} disabled={busy} onClick={leave}>
-          <Icon size={18}>
-            <path d="M15 4h4v16h-4" />
-            <path d="M10 8l-4 4 4 4" />
-            <path d="M6 12h10" />
-          </Icon>
-        </button>
-      )}
+      {!actor.preview && <SignOutButton className="ad-signout" />}
     </div>
   )
 }
@@ -206,13 +212,18 @@ export function AdminLayout({ title, crumbs, children, revealCount = 0 }: AdminL
   const mainRef = useScrollReveal<HTMLElement>(revealCount)
   const [polite, setPolite] = useState('')
   const [assertive, setAssertive] = useState('')
-  const timers = useRef<number[]>([])
+  const timers = useRef(new Set<number>())
+  const actor = useAdminActor()
 
   // Live regions stay mounted; clearing first makes a repeated message speak again.
   const announce = useCallback<Announce>((text, urgency = 'polite') => {
     const set = urgency === 'assertive' ? setAssertive : setPolite
     set('')
-    timers.current.push(window.setTimeout(() => set(text), 80))
+    const id = window.setTimeout(() => {
+      timers.current.delete(id)
+      set(text)
+    }, 80)
+    timers.current.add(id)
   }, [])
 
   useEffect(() => {
@@ -295,7 +306,11 @@ export function AdminLayout({ title, crumbs, children, revealCount = 0 }: AdminL
                 })}
               </ol>
             </nav>
-            <PreferenceControls />
+            <div className="ad-topbar-end">
+              <PreferenceControls />
+              {/* The sidebar account is hidden on narrow screens, so sign-out moves up here. */}
+              {!actor.preview && <SignOutButton className="ad-icon-btn ad-topbar-signout" />}
+            </div>
           </header>
           <main className="ad-main" id="ad-main" ref={mainRef} tabIndex={-1}>
             {children}
@@ -420,12 +435,14 @@ type StatusProps = {
   onRetry: () => void
   notFoundTitle?: string
   notFoundText?: string
+  /** Icon of the kind of thing that wasn't found; defaults to the venue icon. */
+  notFoundIcon?: ReactNode
 }
 
 /** The loading, error and not-found panels every admin page shows before its data is ready. */
-export function ResourceStatus({ state, loading, rows, errorTitle, errorText, retryLabel, onRetry, notFoundTitle, notFoundText }: StatusProps) {
+export function ResourceStatus({ state, loading, rows, errorTitle, errorText, retryLabel, onRetry, notFoundTitle, notFoundText, notFoundIcon }: StatusProps) {
   if (state.status === 'loading') return <LoadingPanel label={loading} rows={rows} />
   if (state.status === 'error') return <MessagePanel tone="error" title={errorTitle} text={errorText} action={<RetryButton label={retryLabel} onClick={onRetry} />} />
-  if (state.status === 'not-found') return <MessagePanel tone="empty" title={notFoundTitle ?? errorTitle} text={notFoundText ?? errorText} />
+  if (state.status === 'not-found') return <MessagePanel tone="empty" title={notFoundTitle ?? errorTitle} text={notFoundText ?? errorText} icon={notFoundIcon} />
   return null
 }

@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { EVENTS } from '../../lib/ordersApi'
 import { isSelf, UserNotFoundError, usersApi, type UserDetail, type UserRole } from '../../lib/usersApi'
 import { ConfirmDialog, ModalDialog, Toast } from './AdminFeedback'
-import { AdminHero, AdminLayout, BackArrowIcon, ForwardArrowIcon, ResourceStatus, TicketIcon } from './AdminLayout'
+import { AdminHero, AdminLayout, BackArrowIcon, ForwardArrowIcon, ResourceStatus, TicketIcon, UsersIcon } from './AdminLayout'
 import { useAdminActor } from './adminIdentity'
 import { useErrorText } from './errorStrings'
 import { BlockIcon, HeroBadge, ReasonDialog, ShieldIcon } from './EventsParts'
@@ -47,6 +47,7 @@ export default function UserDetailPage() {
           retryLabel={t.tryAgain}
           onRetry={retry}
           notFoundTitle={t.notFoundTitle}
+          notFoundIcon={<UsersIcon size={34} />}
           notFoundText={t.notFoundText}
         />
       </AdminLayout>
@@ -150,7 +151,7 @@ export default function UserDetailPage() {
             </div>
             {orders.length > 0 ? (
               <div className="ad-table-wrap">
-                <table className="ad-table">
+                <table aria-labelledby="orders-title" className="ad-table">
                   <thead>
                     <tr>
                       <th scope="col">{t.cOrder}</th>

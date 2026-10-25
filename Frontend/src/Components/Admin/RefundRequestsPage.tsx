@@ -4,11 +4,11 @@ import { loadOrdersBook, refundRequestsApi, type RefundRequestRow, type RefundRe
 import { ConfirmDialog, Toast } from './AdminFeedback'
 import { AdminHero, AdminLayout, Icon, MessagePanel, ResourceStatus, TicketIcon } from './AdminLayout'
 import { useAdminActor } from './adminIdentity'
-import { plural } from './adminText'
+import { plural, shownOf } from './adminText'
 import { useErrorText } from './errorStrings'
 import type { Tone } from './eventRules'
 import { Badge, BlockIcon, CheckIcon, ReasonDialog } from './EventsParts'
-import { AlertIcon, OrdersTabs, SearchBox, StatusPills } from './OrdersParts'
+import { AlertIcon, ListCount, OrdersTabs, SearchBox, StatusPills } from './OrdersParts'
 import { fillIn, useOrdersFormat, useOrdersStrings } from './ordersStrings'
 import { useAdminResource } from './useAdminResource'
 import { oneOf, useListParams } from './useListParams'
@@ -46,18 +46,23 @@ export default function RefundRequestsPage() {
 
   async function decide(run: () => Promise<RefundRequestRow>, message: (r: RefundRequestRow) => string) {
     setBusy(true)
+    let row: RefundRequestRow
     try {
-      const row = await run()
-      setData(await loadOrdersBook())
-      setAction(null)
-      say('success', message(row))
+      row = await run()
     } catch (error) {
       say('error', errorText(error, t.failed))
-    } finally {
       setBusy(false)
+      return
     }
+    setBusy(false)
+    setAction(null)
+    say('success', message(row))
+    // The decision is saved; a failed reload only means the list is out of date.
+    loadOrdersBook().then(setData, retry)
   }
 
+  // Late requests, and tickets refunded or used since the request, can only be rejected.
+  const approvable = (r: RefundRequestRow) => r.eligible && r.ticket.status === 'valid' && r.order.status === 'paid'
   const days = (n: number) => plural(f.lang, Math.floor(n), t.days, f.num(Math.floor(n)))
 
   return (
@@ -150,18 +155,26 @@ export default function RefundRequestsPage() {
                         <dd className="ad-muted">{t.refundFeeKept}</dd>
                       </dl>
                       {r.status === 'submitted' && (
-                        <div className="ad-row-actions">
-                          {r.eligible && (
-                            <button type="button" className="ad-primary ad-primary--small" onClick={() => setAction({ kind: 'approve', id: r.id })}>
-                              <CheckIcon />
-                              {t.approve}
+                        <>
+                          <div className="ad-row-actions">
+                            {approvable(r) && (
+                              <button
+                                type="button"
+                                className="ad-primary ad-primary--small"
+                                aria-label={`${t.approve} ${r.id}`}
+                                onClick={() => setAction({ kind: 'approve', id: r.id })}
+                              >
+                                <CheckIcon />
+                                {t.approve}
+                              </button>
+                            )}
+                            <button type="button" className="ad-danger-outline" aria-label={`${t.reject} ${r.id}`} onClick={() => setAction({ kind: 'reject', id: r.id })}>
+                              <BlockIcon />
+                              {t.reject}
                             </button>
-                          )}
-                          <button type="button" className="ad-danger-outline" onClick={() => setAction({ kind: 'reject', id: r.id })}>
-                            <BlockIcon />
-                            {t.reject}
-                          </button>
-                        </div>
+                          </div>
+                          {!approvable(r) && <p className="rr-why">{r.eligible ? t.ticketGone : t.lateNoApprove}</p>}
+                        </>
                       )}
                     </div>
                   </li>
@@ -177,8 +190,8 @@ export default function RefundRequestsPage() {
                 </div>
               )}
 
-              <div className="ad-card-foot" role="status">
-                {t.showing} {f.num(rows.length)} {t.of} {f.num(requests.length)} {t.requestsWord}
+              <div className="ad-card-foot">
+                <ListCount text={shownOf(f.lang, rows.length, requests.length, t.requestsShowing, f.num)} />
               </div>
             </section>
           )}
@@ -220,6 +233,7 @@ export default function RefundRequestsPage() {
           busyLabel={t.rejecting}
           cancelLabel={t.cancel}
           busy={busy}
+          returnFocus={heading}
           onCancel={() => setAction(null)}
           onConfirm={(reason) => decide(() => refundRequestsApi.reject(target.id, reason, actor.name), (r) => fillIn(t.toastRejected, { id: r.id }))}
         />

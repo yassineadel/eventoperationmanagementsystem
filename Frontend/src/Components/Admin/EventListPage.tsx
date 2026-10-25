@@ -4,12 +4,12 @@ import { adminEventsApi, EVENT_CATEGORIES, isOnSale, type AdminEvent } from '../
 import { categoryNames } from '../Homepage/strings'
 import { ConfirmDialog, PencilIcon, PlusIcon, Toast, TrashIcon } from './AdminFeedback'
 import { AdminHero, AdminLayout, CalendarIcon, ForwardArrowIcon, Icon, MessagePanel, ResourceStatus } from './AdminLayout'
-import { plural } from './adminText'
+import { plural, shownOf } from './adminText'
 import { useErrorText } from './errorStrings'
 import { displayStatus, EVENT_TONE, type EventDisplayStatus } from './eventRules'
 import { Badge, ProgressBar } from './EventsParts'
 import { eventToastText, useEventsStrings, type EventToast } from './eventsStrings'
-import { EventChips, Metric, SearchBox, StatusPills, type Choice } from './OrdersParts'
+import { EventChips, ListCount, Metric, SearchBox, StatusPills, type Choice } from './OrdersParts'
 import { fillIn, useOrdersFormat } from './ordersStrings'
 import { useAdminResource } from './useAdminResource'
 import { useFlashToast } from './useFlashToast'
@@ -66,14 +66,17 @@ export default function EventListPage() {
     setBusy(true)
     try {
       await adminEventsApi.remove(target.id)
-      setData(await adminEventsApi.list())
-      setToast({ kind: 'deleted', name: target.name, id: target.id })
     } catch (error) {
       setFailure(errorText(error, t.failed))
-    } finally {
       setBusy(false)
       setConfirmId(null)
+      return
     }
+    setBusy(false)
+    setConfirmId(null)
+    setToast({ kind: 'deleted', name: target.name, id: target.id })
+    // The draft is gone either way; a failed reload only means the list is out of date.
+    adminEventsApi.list().then(setData, retry)
   }
 
   async function undoDelete(id: string) {
@@ -153,7 +156,7 @@ export default function EventListPage() {
             </div>
 
             <div className="ad-table-wrap">
-              <table className="ad-table ev-table">
+              <table aria-labelledby="events-table-title" className="ad-table ev-table">
                 <thead>
                   <tr>
                     <th scope="col">{t.cEvent}</th>
@@ -178,9 +181,15 @@ export default function EventListPage() {
                       <tr key={e.id} data-event-row={e.id}>
                         <td>
                           <span className="ad-block">
-                            <strong>{e.name}</strong>
+                            <Link className="ad-strong" to={`/admin/events/${e.id}`}>
+                              {e.name}
+                            </Link>
                           </span>
                           <span className="ad-block ad-muted">{catName(e.category)}</span>
+                          {/* The venue and sales columns are hidden on phones; their gist moves here. */}
+                          <span className="ad-block ad-muted ad-show-sm">
+                            {e.venue} · {e.capacity > 0 ? `${f.num(e.sold)} / ${f.num(e.capacity)}` : t.noCategories}
+                          </span>
                         </td>
                         <td className="od-nowrap">{f.date(e.startAt)}</td>
                         <td className="ad-hide-sm">
@@ -210,7 +219,7 @@ export default function EventListPage() {
                               {t.view}
                               <ForwardArrowIcon />
                             </Link>
-                            {e.status !== 'cancelled' && (
+                            {(shown === 'draft' || shown === 'published') && (
                               <Link className="ad-icon-action" to={`/admin/events/${e.id}/edit`} aria-label={`${t.editFor} ${e.name}`} title={t.edit}>
                                 <PencilIcon />
                               </Link>
@@ -245,9 +254,7 @@ export default function EventListPage() {
             )}
 
             <div className="ad-card-foot">
-              <span role="status">
-                {t.showing} {f.num(rows.length)} {t.of} {f.num(events.length)} {t.eventsWord}
-              </span>
+              <ListCount text={shownOf(f.lang, rows.length, events.length, t.showingCount, f.num)} />
               <span className="ad-foot-note">{t.deleteDraftsOnly}</span>
             </div>
           </section>

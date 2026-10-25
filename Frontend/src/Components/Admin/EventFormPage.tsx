@@ -5,11 +5,11 @@ import { minutesAfter, now } from '../../lib/adminTime'
 import { venuesApi, type Venue } from '../../lib/venuesApi'
 import { categoryNames } from '../Homepage/strings'
 import { ConfirmDialog } from './AdminFeedback'
-import { AdminHero, AdminLayout, BackArrowIcon, Icon, ResourceStatus } from './AdminLayout'
+import { AdminHero, AdminLayout, BackArrowIcon, CalendarIcon, Icon, LockIcon, MessagePanel, ResourceStatus } from './AdminLayout'
 import { useAdminStrings } from './adminStrings'
 import { parseWhole } from './adminText'
 import { useErrorText } from './errorStrings'
-import { EVENT_TONE, eventFormProblems, PROBLEM_FIELD, type EventProblem } from './eventRules'
+import { displayStatus, EVENT_TONE, eventFormProblems, PROBLEM_FIELD, type EventProblem } from './eventRules'
 import { Badge } from './EventsParts'
 import { useEventsStrings, type EventToast } from './eventsStrings'
 import { fillIn, useOrdersFormat } from './ordersStrings'
@@ -30,7 +30,7 @@ const EMPTY: EventForm = {
   salesCloseAt: '',
 }
 
-type Loaded = { form: EventForm; status: EventStatus; name: string; venues: Venue[] }
+type Loaded = { form: EventForm; status: EventStatus; isPast: boolean; name: string; venues: Venue[] }
 
 /* ------------------------------------------------------------------ pages */
 
@@ -50,7 +50,7 @@ function EventLoader({ mode, eventId }: { mode: 'add' | 'edit'; eventId: string 
     `${mode}:${eventId}`,
     async (): Promise<Loaded> => {
       const [event, venues] = await Promise.all([
-        mode === 'edit' ? adminEventsApi.getForm(eventId) : Promise.resolve({ form: EMPTY, status: 'draft' as const, name: '' }),
+        mode === 'edit' ? adminEventsApi.getForm(eventId) : Promise.resolve({ form: EMPTY, status: 'draft' as const, isPast: false, name: '' }),
         venuesApi.list(),
       ])
       return { ...event, venues }
@@ -58,9 +58,22 @@ function EventLoader({ mode, eventId }: { mode: 'add' | 'edit'; eventId: string 
     (e) => e instanceof EventNotFoundError,
   )
 
-  if (state.status === 'ready') return <EventEditor mode={mode} eventId={eventId} {...state.data} />
-
   const title = mode === 'add' ? t.addTitle : t.editTitle
+  if (state.status === 'ready') {
+    const shown = displayStatus(state.data)
+    if (shown === 'draft' || shown === 'published') return <EventEditor mode={mode} eventId={eventId} {...state.data} />
+    // Cancelled events and events that have started are kept as they were.
+    return (
+      <AdminLayout title={title} crumbs={[{ label: t.listTitle, to: '/admin/events' }, { label: state.data.name, to: `/admin/events/${eventId}` }, { label: title }]}>
+        <Link className="ad-back" to={`/admin/events/${eventId}`}>
+          <BackArrowIcon />
+          {fillIn(t.backToEvent, { name: state.data.name })}
+        </Link>
+        <MessagePanel tone="empty" title={t.lockedTitle} text={t.lockedText} icon={<LockIcon size={34} />} />
+      </AdminLayout>
+    )
+  }
+
   return (
     <AdminLayout title={title} crumbs={[{ label: t.listTitle, to: '/admin/events' }, { label: title }]}>
       <Link className="ad-back" to={mode === 'add' ? '/admin/events' : `/admin/events/${eventId}`}>
@@ -76,6 +89,7 @@ function EventLoader({ mode, eventId }: { mode: 'add' | 'edit'; eventId: string 
         retryLabel={t.tryAgain}
         onRetry={retry}
         notFoundTitle={t.notFoundTitle}
+        notFoundIcon={<CalendarIcon size={34} />}
         notFoundText={t.notFoundText}
       />
     </AdminLayout>
@@ -86,7 +100,7 @@ function EventLoader({ mode, eventId }: { mode: 'add' | 'edit'; eventId: string 
 
 type EditorProps = { mode: 'add' | 'edit'; eventId: string } & Loaded
 
-function EventEditor({ mode, eventId, form: initial, status, name: originalName, venues }: EditorProps) {
+function EventEditor({ mode, eventId, form: initial, status, isPast, name: originalName, venues }: EditorProps) {
   const t = useEventsStrings()
   const a = useAdminStrings()
   const f = useOrdersFormat()
@@ -346,7 +360,7 @@ function EventEditor({ mode, eventId, form: initial, status, name: originalName,
               <div>
                 <dt>{t.sStatus}</dt>
                 <dd>
-                  <Badge tone={EVENT_TONE[status]} label={t[status]} />
+                  <Badge tone={EVENT_TONE[displayStatus({ status, isPast })]} label={t[displayStatus({ status, isPast })]} />
                 </dd>
               </div>
               <div>
@@ -360,7 +374,8 @@ function EventEditor({ mode, eventId, form: initial, status, name: originalName,
             </dl>
             <div className="ad-summary-actions">
               {tried > 0 && problems.length > 0 && (
-                <p className="ad-error-summary" role="alert">
+                // Keyed by the attempt, so every failed save is announced again.
+                <p key={tried} className="ad-error-summary" role="alert">
                   {t.errSummary}
                 </p>
               )}

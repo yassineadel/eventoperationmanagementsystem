@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { adminEventsApi, EventNotFoundError, waveStates, type EventDetail } from '../../lib/adminEventsApi'
+import { adminEventsApi, EventNotFoundError, type EventDetail } from '../../lib/adminEventsApi'
 import { now } from '../../lib/adminTime'
 import { eventKeyFor, ticketsApi, type Ticket } from '../../lib/ordersApi'
 import { categoryNames } from '../Homepage/strings'
@@ -9,7 +9,7 @@ import { AdminHero, AdminLayout, BackArrowIcon, CalendarIcon, ForwardArrowIcon, 
 import { useAdminActor } from './adminIdentity'
 import { plural } from './adminText'
 import { useErrorText } from './errorStrings'
-import { displayStatus, EVENT_TONE, WAVE_TONE, waveLabel } from './eventRules'
+import { displayStatus, EVENT_TONE, shownWaveStates, WAVE_TONE, waveLabel } from './eventRules'
 import { Badge, BlockIcon, HeroBadge, ProgressBar, ReasonDialog, SendIcon } from './EventsParts'
 import { eventToastText, useEventsStrings, type EventToast } from './eventsStrings'
 import { AlertIcon, InfoList } from './OrdersParts'
@@ -57,6 +57,7 @@ export default function EventDetailPage() {
           retryLabel={t.tryAgain}
           onRetry={retry}
           notFoundTitle={t.notFoundTitle}
+          notFoundIcon={<CalendarIcon size={34} />}
           notFoundText={t.notFoundText}
         />
       </AdminLayout>
@@ -66,7 +67,8 @@ export default function EventDetailPage() {
   const { event, categories, tickets } = state.data
   const shown = displayStatus(event)
   const catName = categoryNames[event.category]?.[f.lang] ?? event.category
-  const canEdit = event.status !== 'cancelled'
+  const canEdit = shown === 'draft' || shown === 'published'
+  const draftPast = shown === 'draft' && event.isPast
   const ticketsLocked = event.status === 'cancelled' || event.isPast
   const issued = tickets.filter((k) => k.status !== 'cancelled')
   const checkedIn = issued.filter((k) => k.status === 'checked').length
@@ -77,13 +79,19 @@ export default function EventDetailPage() {
     setBusy(true)
     try {
       await action()
-      setData(await load(event.id))
-      setToast({ kind, name: event.name, id: event.id })
-      setDialog(null)
     } catch (error) {
       setFailure(errorText(error, t.failed))
-    } finally {
       setBusy(false)
+      return
+    }
+    // The action is done; a failed reload afterwards only means the page is out of date.
+    setBusy(false)
+    setDialog(null)
+    setToast({ kind, name: event.name, id: event.id })
+    try {
+      setData(await load(event.id))
+    } catch {
+      retry()
     }
   }
 
@@ -102,7 +110,7 @@ export default function EventDetailPage() {
                 {t.edit}
               </Link>
             )}
-            {event.status === 'draft' && (
+            {event.status === 'draft' && !draftPast && (
               <button type="button" className="ad-primary" onClick={() => setDialog('publish')}>
                 <SendIcon />
                 {t.publish}
@@ -146,7 +154,7 @@ export default function EventDetailPage() {
           {shown === 'draft' && (
             <p className="ev-note" role="note">
               <AlertIcon />
-              {t.draftNote}
+              {draftPast ? t.draftPastNote : t.draftNote}
             </p>
           )}
           {shown === 'past' && (
@@ -187,7 +195,7 @@ export default function EventDetailPage() {
             </div>
             {categories.length > 0 ? (
               <div className="ad-table-wrap">
-                <table className="ad-table ev-waves-table">
+                <table aria-labelledby="cats-title" className="ad-table ev-waves-table">
                   <thead>
                     <tr>
                       <th scope="col">{t.cCategory}</th>
@@ -204,7 +212,7 @@ export default function EventDetailPage() {
                     </tr>
                   </thead>
                   {categories.map((c) => {
-                    const states = waveStates(c.waves)
+                    const states = shownWaveStates(c.waves, shown)
                     return (
                       <tbody key={c.key} className="ev-cat-group">
                         <tr className="ev-cat-row">
@@ -212,7 +220,7 @@ export default function EventDetailPage() {
                             <strong>{c.name}</strong>
                             <span className="ad-mono ad-muted ev-cat-code">{c.key}</span>
                           </th>
-                          <td className="ad-num ad-muted">{fillIn(t.nowAt, { price: f.money(c.price) })}</td>
+                          <td className="ad-num ad-muted">{shown === 'published' ? fillIn(t.nowAt, { price: f.money(c.price) }) : null}</td>
                           <td className="ad-num">
                             <span className="ev-cat-sold">
                               <span className="ad-strong">

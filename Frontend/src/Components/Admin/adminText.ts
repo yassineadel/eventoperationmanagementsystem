@@ -29,3 +29,8 @@ export function plural(lang: 'en' | 'ar', n: number, forms: PluralForms, formatt
   const form = forms[rules[lang].select(n)] ?? forms.other
   return form.replace('{n}', formatted)
 }
+
+/** "Showing 3 of 12 events" under a list; the noun agrees with the total. */
+export function shownOf(lang: 'en' | 'ar', shown: number, total: number, forms: PluralForms, num: (n: number) => string) {
+  return plural(lang, total, forms, num(total)).replace('{shown}', num(shown))
+}

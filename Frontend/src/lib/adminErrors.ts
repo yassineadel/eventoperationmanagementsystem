@@ -17,7 +17,12 @@ export type AdminErrorCode =
   | 'self-block'
   | 'self-role'
   | 'paid-only-refund'
+  | 'nothing-to-refund'
   | 'request-decided'
+  | 'ticket-not-refundable'
+  | 'event-locked'
+  | 'start-past'
+  | 'venue-layout-locked'
 
 export class AdminApiError extends Error {
   code: AdminErrorCode

@@ -1,11 +1,11 @@
 import { useId, useRef, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { minutesAfter, now } from '../../lib/adminTime'
+import { now } from '../../lib/adminTime'
 import { OrderNotFoundError, ordersApi, refundQuote, type OrderDetail, type RefundReason } from '../../lib/ordersApi'
 import { ModalDialog, Toast } from './AdminFeedback'
 import { AdminHero, AdminLayout, BackArrowIcon, ForwardArrowIcon, Icon, ResourceStatus, TicketIcon } from './AdminLayout'
 import { useAdminActor } from './adminIdentity'
-import { isolate } from './adminText'
+import { isolate, plural } from './adminText'
 import { useErrorText } from './errorStrings'
 import { AlertIcon, HeroStatus, InfoList, MailIcon, RefundIcon, StatusBadge } from './OrdersParts'
 import { fillIn, useOrdersFormat, useOrdersStrings, type OrdersStrings } from './ordersStrings'
@@ -46,6 +46,7 @@ export default function OrderDetailPage() {
           retryLabel={t.tryAgain}
           onRetry={retry}
           notFoundTitle={t.orderNotFound}
+          notFoundIcon={<TicketIcon size={34} />}
           notFoundText={t.notFoundText}
         />
       </AdminLayout>
@@ -54,6 +55,7 @@ export default function OrderDetailPage() {
 
   const { order, event, tickets } = state.data
   const pay = order.payment
+  const refundable = tickets.some((k) => k.status === 'valid')
 
   async function run(action: () => Promise<void>, success: string) {
     setBusy(true)
@@ -113,10 +115,12 @@ export default function OrderDetailPage() {
                   <MailIcon />
                   {t.resend}
                 </button>
-                <button type="button" className="ad-glass-btn ad-glass-btn--danger" aria-disabled={busy || undefined} onClick={() => !busy && setRefunding(true)}>
-                  <RefundIcon />
-                  {t.refund}
-                </button>
+                {refundable && (
+                  <button type="button" className="ad-glass-btn ad-glass-btn--danger" aria-disabled={busy || undefined} onClick={() => !busy && setRefunding(true)}>
+                    <RefundIcon />
+                    {t.refund}
+                  </button>
+                )}
               </>
             )}
             {order.status === 'pending' && (
@@ -174,7 +178,7 @@ export default function OrderDetailPage() {
               {t.items}
             </h2>
             <div className="ad-table-wrap">
-              <table className="ad-table">
+              <table aria-labelledby="items-title" className="ad-table">
                 <thead>
                   <tr>
                     <th scope="col">{t.cCategory}</th>
@@ -225,12 +229,12 @@ export default function OrderDetailPage() {
                 {t.orderTickets}
               </h2>
               <span className="ad-muted">
-                {f.num(tickets.length)} {tickets.length === 1 ? t.ticketWord : t.ticketsWord}
+                {plural(f.lang, tickets.length, t.ticketsCount, f.num(tickets.length))}
               </span>
             </div>
             {tickets.length > 0 ? (
               <div className="ad-table-wrap">
-                <table className="ad-table od-table">
+                <table aria-labelledby="tickets-title" className="ad-table od-table">
                   <thead>
                     <tr>
                       <th scope="col">{t.cCode}</th>
@@ -353,7 +357,7 @@ export default function OrderDetailPage() {
           t={t}
           detail={state.data}
           money={f.money}
-          count={f.num(tickets.length)}
+          scope={(n) => (n < tickets.length ? plural(f.lang, n, t.refundSome, f.num(n)) : n === 1 ? t.refundOne : fillIn(t.refundAll, { n: f.num(n) }))}
           busy={busy}
           onCancel={() => setRefunding(false)}
           onConfirm={refund}
@@ -386,11 +390,7 @@ function timeline({ order, event }: OrderDetail, t: OrdersStrings, date: (iso: s
         { label: t.tRefunded, at: date(pay.refundedAt!), kind: 'done' },
       ]
     case 'cancelled':
-      return [
-        placed,
-        { label: t.tNotPaid, at: date(minutesAfter(order.placedAt, 2)), kind: 'fail' },
-        { label: t.tCancelled, at: date(pay.cancelledAt!), kind: 'fail' },
-      ]
+      return [placed, { label: t.tCancelled, at: date(pay.cancelledAt!), kind: 'fail' }]
   }
 }
 
@@ -399,7 +399,8 @@ function timeline({ order, event }: OrderDetail, t: OrdersStrings, date: (iso: s
 type RefundProps = {
   t: OrdersStrings
   detail: OrderDetail
-  count: string
+  /** What the refund covers, for the number of tickets that still work. */
+  scope: (n: number) => string
   money: (n: number) => string
   busy: boolean
   onCancel: () => void
@@ -407,13 +408,13 @@ type RefundProps = {
 }
 
 /** The refund amount follows the reason: on a customer request Hafletna keeps the service fee. */
-function RefundDialog({ t, detail, count, money, busy, onCancel, onConfirm }: RefundProps) {
+function RefundDialog({ t, detail, scope, money, busy, onCancel, onConfirm }: RefundProps) {
   const id = useId()
   const firstRef = useRef<HTMLSelectElement>(null)
   const [reason, setReason] = useState<RefundReason>('customer')
   const [note, setNote] = useState('')
   const { order, tickets } = detail
-  const quote = refundQuote(order, reason)
+  const quote = refundQuote(order, tickets, reason)
 
   function submit(e: FormEvent) {
     e.preventDefault()
@@ -438,7 +439,9 @@ function RefundDialog({ t, detail, count, money, busy, onCancel, onConfirm }: Re
         </div>
       </div>
       <div className="od-refund-body">
-        <p className="od-refund-scope">{tickets.length === 1 ? t.refundOne : fillIn(t.refundAll, { n: count })}</p>
+        <p className="od-refund-scope">
+          {scope(quote.count)}
+        </p>
         <div className="ad-field">
           <label htmlFor={`${id}-reason`}>{t.reasonLabel}</label>
           <div className="ad-select">

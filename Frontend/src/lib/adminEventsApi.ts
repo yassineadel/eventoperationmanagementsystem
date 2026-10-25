@@ -335,11 +335,16 @@ export const adminEventsApi = {
     const event = find(id)
     return { event: present(event, venues), categories: CATEGORIES[id] ?? [] }
   },
+  /** Every event with its ticket categories, in one request (the overview needs both). */
+  async listWithCategories(): Promise<EventDetail[]> {
+    const venues = await venuesApi.list()
+    return EVENTS.map((e) => ({ event: present(e, venues), categories: CATEGORIES[e.id] ?? [] }))
+  },
   /** How many events use a venue; a venue with events can't be deleted. */
   async countAtVenue(venueId: string): Promise<number> {
     return EVENTS.filter((e) => e.venueId === venueId).length
   },
-  async getForm(id: string): Promise<{ form: EventForm; status: EventStatus; name: string }> {
+  async getForm(id: string): Promise<{ form: EventForm; status: EventStatus; isPast: boolean; name: string }> {
     await delay(250)
     const e = find(id)
     const form: EventForm = {
@@ -354,7 +359,7 @@ export const adminEventsApi = {
       salesOpenAt: toWall(e.salesOpenAt) ?? '',
       salesCloseAt: toWall(e.salesCloseAt) ?? '',
     }
-    return { form, status: e.status, name: e.name }
+    return { form, status: e.status, isPast: e.startAt <= now(), name: e.name }
   },
   /** New events always start as drafts, like POST /api/events. */
   async create(form: EventForm): Promise<AdminEvent> {
@@ -371,10 +376,14 @@ export const adminEventsApi = {
     EVENTS = [event, ...EVENTS]
     return event
   },
-  /** Descriptive fields stay editable after publishing; the venue does not (FR-ADM-09). */
+  /**
+   * Descriptive fields stay editable after publishing; the venue does not (FR-ADM-09).
+   * Cancelled events and events that have started are kept as they were.
+   */
   async update(id: string, form: EventForm): Promise<AdminEvent> {
     await delay(400)
     const event = find(id)
+    if (event.status === 'cancelled' || (event.status === 'published' && event.startAt <= now())) throw new AdminApiError('event-locked')
     if (event.status !== 'draft' && form.venueId !== event.venueId) throw new AdminApiError('venue-locked')
     return replace({ ...event, ...fromForm(form), ...(await venueFields(form.venueId)) })
   },
@@ -382,6 +391,7 @@ export const adminEventsApi = {
     await delay(400)
     const event = find(id)
     if (event.status !== 'draft') throw new AdminApiError('draft-only-publish')
+    if (event.startAt <= now()) throw new AdminApiError('start-past')
     return { event: replace({ ...event, status: 'published', publishedAt: now() }), categories: CATEGORIES[id] ?? [] }
   },
   /**

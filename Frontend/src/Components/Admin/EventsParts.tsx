@@ -94,12 +94,14 @@ type ReasonProps = {
   busyLabel: string
   cancelLabel: string
   busy: boolean
+  /** Where focus goes when the dialog closes and the control that opened it is gone. */
+  returnFocus?: () => HTMLElement | null
   onCancel: () => void
   onConfirm: (reason: string) => void
 }
 
 /** Destructive action that needs a written reason: cancelling an event, blocking a user, rejecting a refund. */
-export function ReasonDialog({ title, lead, label, errorText, warning, icon, confirmLabel, busyLabel, cancelLabel, busy, onCancel, onConfirm }: ReasonProps) {
+export function ReasonDialog({ title, lead, label, errorText, warning, icon, confirmLabel, busyLabel, cancelLabel, busy, returnFocus, onCancel, onConfirm }: ReasonProps) {
   const id = useId()
   const fieldRef = useRef<HTMLTextAreaElement>(null)
   const [reason, setReason] = useState('')
@@ -123,7 +125,7 @@ export function ReasonDialog({ title, lead, label, errorText, warning, icon, con
   }
 
   return (
-    <ModalDialog labelledBy={`${id}-title`} describedBy={`${id}-lead`} className="od-refund" busy={busy} onCancel={onCancel} onSubmit={submit} initialFocus={fieldRef}>
+    <ModalDialog labelledBy={`${id}-title`} describedBy={`${id}-lead`} className="od-refund" busy={busy} onCancel={onCancel} onSubmit={submit} initialFocus={fieldRef} returnFocus={returnFocus}>
       <div className="ad-dialog-head">
         <span className="ad-dialog-icon" aria-hidden="true">
           {icon}

@@ -13,7 +13,7 @@
   --ad-muted: #59586c;
   --ad-faint: #6b6f82;
   --ad-line: #e7e0e8;
-  --ad-control-line: #e7e0e8;
+  --ad-control-line: #cbc1cf;
   --ad-row-line: #f1ece4;
   --ad-input-line: #8a8478;
   --ad-head: #faf7f2;
@@ -56,7 +56,7 @@
   --ad-muted: #c1bdd3;
   --ad-faint: #7d83ad;
   --ad-line: #2d3154;
-  --ad-control-line: #2d3154;
+  --ad-control-line: #434874;
   --ad-row-line: #1f2350;
   --ad-input-line: #6b72a8;
   --ad-head: #10132e;
@@ -1170,7 +1170,8 @@
   cursor: pointer;
 }
 
-.ad-zoom button:disabled {
+.ad-zoom button:disabled,
+.ad-zoom button[aria-disabled='true'] {
   opacity: 0.45;
   cursor: not-allowed;
 }
@@ -2485,6 +2486,14 @@ dialog.ad-dialog::backdrop {
   background: #7200f5;
 }
 
+/* A message raised while a dialog is open sits inside the dialog, above nothing else. */
+.ad-root .ad-toast--inline {
+  position: static;
+  max-width: none;
+  margin: 0 24px 20px;
+  box-shadow: none;
+}
+
 /* invalid text areas and selects get the same red border as inputs */
 
 .ad-root textarea[aria-invalid='true'],
@@ -2761,5 +2770,82 @@ dialog.ad-dialog::backdrop {
 
   .rr-side {
     align-items: flex-start;
+  }
+}
+
+/* ------------------------------------------------- review round 3 fixes */
+
+.ad-topbar-end {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Sign-out lives in the sidebar account; the top bar copy shows only once that is hidden. */
+.ad-topbar-signout {
+  display: none;
+}
+
+/* Text fields keep a solid focus ring; the soft glow alone is too faint, mostly in dark mode. */
+.ad-root .ad-search input:focus-visible,
+.ad-root .ad-field input:focus-visible,
+.ad-root .ad-field textarea:focus-visible,
+.ad-root .ad-field select:focus-visible,
+.ad-root .ad-editor-row input:focus-visible,
+.ad-root .ad-editor-row select:focus-visible {
+  outline: 2px solid var(--ad-focus);
+  outline-offset: 1px;
+  box-shadow: none;
+}
+
+/* Large totals shrink with the card instead of breaking onto two lines. */
+.ad-metric strong {
+  font-size: clamp(20px, 1.9vw, 30px);
+}
+
+/* Shown only where a hidden column's data moves under the main cell. */
+.ad-root .ad-show-sm {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .ad-topbar-signout {
+    display: grid;
+  }
+
+  .ad-root[lang='ar'] .ad-hero-title {
+    font-size: 30px;
+  }
+
+  .ad-metric strong {
+    font-size: 26px;
+  }
+}
+
+@media (max-width: 760px) {
+  .ad-root .od-main .ad-table,
+  .ad-root .od-main .od-table {
+    min-width: 0;
+  }
+
+  .ad-root .ad-show-sm {
+    display: block;
+  }
+}
+
+/* Why a refund request has no Approve button. */
+.rr-why {
+  max-width: 220px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ad-muted);
+  text-align: end;
+}
+
+@media (max-width: 760px) {
+  .rr-why {
+    max-width: none;
+    text-align: start;
   }
 }

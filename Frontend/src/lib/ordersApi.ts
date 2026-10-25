@@ -7,6 +7,7 @@
 // other. Refunds, reminders and decisions change the sample data in memory until the page
 // reloads. When the API exists, replace the bodies of the `*Api` objects with calls from './api'.
 
+import { adminEventsApi } from './adminEventsApi.ts'
 import { AdminApiError } from './adminErrors.ts'
 import { daysBetween, now } from './adminTime.ts'
 
@@ -109,6 +110,7 @@ export const SERVICE_FEE = 0.03
 
 /* ----------------------------------------------------------- sample data */
 
+/** The events that have orders. Name, venue and start are refreshed from the admin events on every read. */
 export const EVENTS: Record<string, EventInfo> = {
   jazz: { key: 'jazz', eventId: '4f2a9c1e-7b3d-4e8a-9c21-5d6e7f8a9b01', name: 'Cairo Jazz Night', venue: 'Nile Arena', venueId: '7c1e4b2a-91d3-4f0e-a6b5-2d8f3c9e1a07', startsAt: '2026-10-24T20:00' },
   sunset: { key: 'sunset', eventId: '8b3c0d2f-1a4e-4b9c-8d32-6e7f8a9b0c12', name: 'Sunset Beats', venue: 'Riverfront Stage', venueId: 'b84f0c6d-3e2a-47b9-8d15-6a0e9f4c2b31', startsAt: '2026-10-31T17:00' },
@@ -294,6 +296,18 @@ let REQUESTS: RefundRequest[] = [
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
+/** Reads each event's current name, venue and start, so a moved or renamed event shows the same everywhere. */
+async function syncEvents() {
+  const events = await adminEventsApi.list()
+  for (const info of Object.values(EVENTS)) {
+    const e = events.find((x) => x.id === info.eventId)
+    if (e) Object.assign(info, { name: e.name, venue: e.venue, venueId: e.venueId, startsAt: e.startAt })
+  }
+}
+
+/** Waits like the network would, and refreshes the event details meanwhile. */
+const fetched = (ms: number) => Promise.all([delay(ms), syncEvents()])
+
 export class OrderNotFoundError extends Error {
   constructor() {
     super('Not found')
@@ -316,42 +330,59 @@ export function eventKeyFor(eventId: string) {
   return Object.values(EVENTS).find((e) => e.eventId === eventId)?.key
 }
 
+const priceOf = (order: Pick<Order, 'items'>, category: string) => order.items.find((i) => i.category === category)?.unitPrice ?? 0
+
 /**
- * What a refund returns. When the customer asks, Hafletna keeps the service fee and returns
- * the ticket price (BR-04 to BR-06); when the event changed or it was our mistake, the fee
- * goes back too.
+ * What a refund returns. It covers the tickets that still work: ones already refunded or
+ * used at the gate are left out. When the customer asks, Hafletna keeps the service fee and
+ * returns the ticket price (BR-04 to BR-06); when the event changed or it was our mistake,
+ * the fee goes back too.
  */
-export function refundQuote(order: Pick<Order, 'subtotal' | 'fee' | 'total'>, reason: RefundReason) {
+export function refundQuote(order: Pick<Order, 'items' | 'fee'>, tickets: Pick<Ticket, 'category' | 'status'>[], reason: RefundReason) {
+  const open = tickets.filter((t) => t.status === 'valid')
+  const price = open.reduce((n, t) => n + priceOf(order, t.category), 0)
+  const fee = open.length === tickets.length ? order.fee : Math.round(price * SERVICE_FEE)
   const feeKept = reason === 'customer'
-  return { tickets: order.subtotal, fee: order.fee, feeKept, amount: feeKept ? order.subtotal : order.total }
+  return { count: open.length, tickets: price, fee, feeKept, amount: feeKept ? price : price + fee }
 }
+
+/** A pending order whose payment time ran out. */
+export const isOverdue = (o: Order, at = now()) => o.status === 'pending' && Boolean(o.payment.dueBy && o.payment.dueBy < at)
 
 const ADMIN_BY = (name: string): Localized => ({ en: name, ar: name })
 
 export const ordersApi = {
   async list(): Promise<Order[]> {
-    await delay(350)
+    await fetched(350)
     return ORDERS
   },
   async get(id: string): Promise<OrderDetail> {
-    await delay(300)
+    await fetched(300)
     return detail(findOrder(id))
   },
-  /** Refund every ticket on a paid order; the tickets stop working at the gate. */
+  /**
+   * Refund the tickets on a paid order that still work; they stop working at the gate.
+   * Open refund requests for those tickets are settled by this refund.
+   */
   async refund(id: string, input: { reason: RefundReason; note: string }, actor = 'Admin'): Promise<OrderDetail> {
-    await delay(500)
+    await fetched(500)
     const order = findOrder(id)
     if (order.status !== 'paid') throw new AdminApiError('paid-only-refund')
+    const own = TICKETS.filter((t) => t.orderId === id)
+    const quote = refundQuote(order, own, input.reason)
+    if (quote.count === 0) throw new AdminApiError('nothing-to-refund')
     const at = now()
     const note = input.note.trim()
     const refunded: Order = {
       ...order,
       status: 'refunded',
-      payment: { ...order.payment, refundedAt: at, refundAmount: refundQuote(order, input.reason).amount },
+      payment: { ...order.payment, refundedAt: at, refundAmount: (order.payment.refundAmount ?? 0) + quote.amount },
       reason: { key: input.reason, note: note ? { en: note, ar: note } : undefined, by: ADMIN_BY(actor), at },
     }
+    const voided = new Set(own.filter((t) => t.status === 'valid').map((t) => t.code))
     ORDERS = ORDERS.map((o) => (o.id === id ? refunded : o))
-    TICKETS = TICKETS.map((t) => (t.orderId === id ? { ...t, status: 'cancelled' } : t))
+    TICKETS = TICKETS.map((t) => (voided.has(t.code) ? { ...t, status: 'cancelled' } : t))
+    REQUESTS = REQUESTS.map((r) => (r.status === 'submitted' && voided.has(r.ticketCode) ? { ...r, status: 'approved', decidedAt: at, decidedBy: actor } : r))
     return detail(refunded)
   },
   /**
@@ -393,11 +424,11 @@ export const ordersApi = {
 
 export const ticketsApi = {
   async list(): Promise<Ticket[]> {
-    await delay(350)
+    await fetched(350)
     return TICKETS
   },
   async get(code: string): Promise<TicketDetail> {
-    await delay(300)
+    await fetched(300)
     const t = TICKETS.find((k) => k.code === code)
     if (!t) throw new OrderNotFoundError()
     return { ticket: t, event: EVENTS[t.eventKey], order: findOrder(t.orderId) }
@@ -412,7 +443,7 @@ function requestRow(r: RefundRequest): RefundRequestRow {
   const ticket = TICKETS.find((t) => t.code === r.ticketCode)!
   const order = findOrder(ticket.orderId)
   const event = EVENTS[ticket.eventKey]
-  const price = order.items.find((i) => i.category === ticket.category)?.unitPrice ?? 0
+  const price = priceOf(order, ticket.category)
   const daysBefore = daysBetween(r.requestedAt, event.startsAt)
   return {
     ...r,
@@ -428,16 +459,18 @@ function requestRow(r: RefundRequest): RefundRequestRow {
 
 export const refundRequestsApi = {
   async list(): Promise<RefundRequestRow[]> {
-    await delay(350)
+    await fetched(350)
     return REQUESTS.map(requestRow)
   },
   /** Approve: the ticket is cancelled and its price goes back to the customer. */
   async approve(id: string, actor = 'Admin'): Promise<RefundRequestRow> {
-    await delay(400)
+    await fetched(400)
     const request = REQUESTS.find((r) => r.id === id)
     if (!request) throw new OrderNotFoundError()
     if (request.status !== 'submitted') throw new AdminApiError('request-decided')
     const row = requestRow(request)
+    // The order was refunded, or the ticket used, after the customer asked.
+    if (row.ticket.status !== 'valid' || row.order.status !== 'paid') throw new AdminApiError('ticket-not-refundable')
     const at = now()
     TICKETS = TICKETS.map((t) => (t.code === request.ticketCode ? { ...t, status: 'cancelled' } : t))
     ORDERS = ORDERS.map((o) => {

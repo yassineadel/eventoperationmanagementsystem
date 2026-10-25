@@ -1,6 +1,7 @@
 // Copy for the admin users pages, English and Arabic.
 // Numbers and dates come from useOrdersFormat() in './ordersStrings'.
 import { usePreferences } from '../Auth/preferences'
+import type { PluralForms } from './adminText'
 
 const en = {
   listTitle: 'Users',
@@ -38,9 +39,7 @@ const en = {
   you: 'You',
   view: 'View details',
   viewFor: 'View details for',
-  showing: 'Showing',
-  of: 'of',
-  usersWord: 'users',
+  showingCount: { one: 'Showing {shown} of {n} user', other: 'Showing {shown} of {n} users' } as PluralForms,
   noMatches: 'No users match these filters',
   loading: 'Loading users…',
   loadingUser: 'Loading user…',
@@ -142,9 +141,7 @@ const ar: UsersStrings = {
   you: 'أنت',
   view: 'عرض التفاصيل',
   viewFor: 'عرض تفاصيل',
-  showing: 'عرض',
-  of: 'من',
-  usersWord: 'مستخدم',
+  showingCount: { zero: 'عرض {shown} من {n} مستخدم', one: 'عرض {shown} من مستخدم واحد', two: 'عرض {shown} من مستخدمين اثنين', few: 'عرض {shown} من {n} مستخدمين', many: 'عرض {shown} من {n} مستخدمًا', other: 'عرض {shown} من {n} مستخدم' },
   noMatches: 'لا يوجد مستخدمون يطابقون عوامل التصفية',
   loading: 'جارٍ تحميل المستخدمين…',
   loadingUser: 'جارٍ تحميل المستخدم…',

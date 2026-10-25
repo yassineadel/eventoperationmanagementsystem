@@ -202,7 +202,7 @@ function SeatList({ layout, fmt, t }: { layout: VenueLayout; fmt: (n: number) =>
         {t.seatList} <span className="ad-muted">· {t.seatListHint}</span>
       </summary>
       <div className="ad-table-wrap">
-        <table className="ad-table">
+        <table aria-label={t.seatList} className="ad-table">
           <thead>
             <tr>
               <th scope="col">{t.sectionName}</th>
@@ -373,7 +373,7 @@ function VenueDetail({ venueId }: { venueId: string }) {
               <button
                 type="button"
                 aria-label={t.zoomOut}
-                disabled={zoomIndex === 0}
+                aria-disabled={zoomIndex === 0 || undefined}
                 onClick={() => setZoomIndex((z) => Math.max(0, z - 1))}
               >
                 <Icon>
@@ -384,7 +384,7 @@ function VenueDetail({ venueId }: { venueId: string }) {
               <button
                 type="button"
                 aria-label={t.zoomIn}
-                disabled={zoomIndex === ZOOMS.length - 1}
+                aria-disabled={zoomIndex === ZOOMS.length - 1 || undefined}
                 onClick={() => setZoomIndex((z) => Math.min(ZOOMS.length - 1, z + 1))}
               >
                 <Icon>

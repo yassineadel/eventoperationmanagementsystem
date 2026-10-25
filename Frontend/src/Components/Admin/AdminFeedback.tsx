@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react'
+import { createPortal } from 'react-dom'
 import { useAnnounce } from './adminAnnounce'
 import { Icon } from './AdminLayout'
 
@@ -183,21 +184,40 @@ type ToastProps = {
 /**
  * Status message in the top corner. It is announced through the console's live region,
  * waits while the pointer or focus is on it, and stays longer when it offers an action.
+ * While a dialog is open the page behind it is inert, so the message shows inside the
+ * dialog instead, as an alert. Escape or the close button dismisses it and puts focus
+ * back where it was.
  */
 export function Toast({ message, actionLabel, onAction, dismissLabel, onDismiss, tone = 'success', focusAction = false }: ToastProps) {
   const announce = useAnnounce()
   const dismissRef = useRef(onDismiss)
   const actionRef = useRef<HTMLButtonElement>(null)
+  const toastRef = useRef<HTMLDivElement>(null)
+  const returnRef = useRef<HTMLElement | null>(null)
   const [paused, setPaused] = useState(false)
+  // Where the message shows: undefined until checked, null for the page, or the open dialog.
+  const [host, setHost] = useState<HTMLDialogElement | null | undefined>(undefined)
   const hasAction = Boolean(actionLabel && onAction)
 
   useEffect(() => {
     dismissRef.current = onDismiss
   })
 
+  // Checked after the commit, so a dialog closing in the same update doesn't count.
+  useLayoutEffect(() => {
+    const active = document.activeElement
+    returnRef.current = active instanceof HTMLElement && active !== document.body ? active : null
+    let live = true
+    queueMicrotask(() => live && setHost(document.querySelector<HTMLDialogElement>('dialog[open]')))
+    return () => {
+      live = false
+    }
+  }, [])
+
+  // Inside a dialog the message is an alert of its own; on the page it goes through the live region.
   useEffect(() => {
-    announce(message, tone === 'error' ? 'assertive' : 'polite')
-  }, [announce, message, tone])
+    if (host === null) announce(message, tone === 'error' ? 'assertive' : 'polite')
+  }, [announce, message, tone, host])
 
   useEffect(() => {
     if (focusAction) actionRef.current?.focus()
@@ -209,9 +229,25 @@ export function Toast({ message, actionLabel, onAction, dismissLabel, onDismiss,
     return () => window.clearTimeout(timer)
   }, [message, paused, hasAction])
 
-  return (
+  function dismiss() {
+    const inside = document.activeElement instanceof Node && toastRef.current?.contains(document.activeElement)
+    onDismiss()
+    if (!inside) return
+    const back = returnRef.current?.isConnected ? returnRef.current : null
+    ;(back ?? host?.querySelector<HTMLElement>('input, select, textarea, button') ?? document.querySelector<HTMLElement>('.ad-main'))?.focus({ preventScroll: true })
+  }
+
+  const toast = (
     <div
-      className={`ad-toast ad-toast--${tone}`}
+      ref={toastRef}
+      className={`ad-toast ad-toast--${tone}${host ? ' ad-toast--inline' : ''}`}
+      role={host ? (tone === 'error' ? 'alert' : 'status') : undefined}
+      onKeyDown={(e) => {
+        if (e.key !== 'Escape') return
+        e.preventDefault()
+        e.stopPropagation()
+        dismiss()
+      }}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)}
@@ -240,11 +276,13 @@ export function Toast({ message, actionLabel, onAction, dismissLabel, onDismiss,
           {actionLabel}
         </button>
       )}
-      <button type="button" className="ad-toast-close" aria-label={dismissLabel} onClick={onDismiss}>
+      <button type="button" className="ad-toast-close" aria-label={dismissLabel} onClick={dismiss}>
         <Icon size={16}>
           <path d="M6 6l12 12M18 6 6 18" />
         </Icon>
       </button>
     </div>
   )
+
+  return host ? createPortal(toast, host) : toast
 }

@@ -5,8 +5,9 @@ import { AdminHero, AdminLayout, ForwardArrowIcon, Icon, MessagePanel, ResourceS
 import { useAdminActor } from './adminIdentity'
 import { initials } from './eventRules'
 import { Badge, RoleBadge } from './EventsParts'
-import { Metric, SearchBox, StatusPills, type Choice } from './OrdersParts'
+import { ListCount, Metric, SearchBox, StatusPills, type Choice } from './OrdersParts'
 import { fillIn, useOrdersFormat } from './ordersStrings'
+import { shownOf } from './adminText'
 import { useUsersStrings } from './usersStrings'
 import { useAdminResource } from './useAdminResource'
 import { oneOf, useListParams } from './useListParams'
@@ -100,7 +101,7 @@ export default function UserListPage() {
             </div>
 
             <div className="ad-table-wrap">
-              <table className="ad-table ad-table--wide">
+              <table aria-labelledby="users-table-title" className="ad-table ad-table--wide">
                 <thead>
                   <tr>
                     <th scope="col">{t.cUser}</th>
@@ -130,7 +131,9 @@ export default function UserListPage() {
                             {initials(u.fullName)}
                           </span>
                           <span>
-                            <strong>{u.fullName}</strong>
+                            <Link className="ad-strong" to={`/admin/users/${u.id}`}>
+                              {u.fullName}
+                            </Link>
                             {isSelf(u, actor) && <span className="ev-you">{t.you}</span>}
                             <span className="ad-block ad-muted" dir="ltr">
                               {u.email}
@@ -168,9 +171,9 @@ export default function UserListPage() {
               </div>
             )}
 
-            <div className="ad-card-foot" role="status">
-              {t.showing} {f.num(rows.length)} {t.of} {f.num(users.length)} {t.usersWord}
-            </div>
+            <div className="ad-card-foot">
+                  <ListCount text={shownOf(f.lang, rows.length, users.length, t.showingCount, f.num)} />
+                </div>
           </section>
         </>
       )}

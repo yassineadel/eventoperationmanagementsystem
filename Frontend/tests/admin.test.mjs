@@ -1,17 +1,19 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { toWall, minutesAfter, daysBetween, SAMPLE_NOW } from '../src/lib/adminTime.ts'
+import { toWall, minutesAfter, daysBetween, SAMPLE_NOW, setClock } from '../src/lib/adminTime.ts'
 import { AdminApiError } from '../src/lib/adminErrors.ts'
-import { toLatinDigits, parseWhole, plural } from '../src/Components/Admin/adminText.ts'
+import { toLatinDigits, parseWhole, plural, shownOf } from '../src/Components/Admin/adminText.ts'
 import { adminEventsApi, waveStates } from '../src/lib/adminEventsApi.ts'
 import { venuesApi, validateVenueForm } from '../src/lib/venuesApi.ts'
 import { ordersApi, refundQuote, refundRequestsApi } from '../src/lib/ordersApi.ts'
 import { usersApi, SAMPLE_ADMIN } from '../src/lib/usersApi.ts'
-import { eventFormProblems, ticketProblems, canMoveWave, waveChanges } from '../src/Components/Admin/eventRules.ts'
+import { eventFormProblems, ticketProblems, canMoveWave, waveChanges, shownWaveStates } from '../src/Components/Admin/eventRules.ts'
 
 const JAZZ = '4f2a9c1e-7b3d-4e8a-9c21-5d6e7f8a9b01'
 const NILE_ARENA = '7c1e4b2a-91d3-4f0e-a6b5-2d8f3c9e1a07'
 const DOWNTOWN_HALL = '3a9d7e15-c2f8-4b60-9e4a-81b5d0f6c7e2'
+const RED_SEA_RUN = 'e7f3a5c2-4d7b-4e2f-9a65-9b0c1d2e3f45'
+const POTTERY_DRAFT = '1b0c8d5f-7a0e-4b5c-8d98-2e3f4a5b6c78'
 
 const code = async (promise) => {
   try {
@@ -92,9 +94,32 @@ test('the review step lists price changes and which wave goes on sale', () => {
 })
 
 test('a refund the customer asked for keeps the service fee; other refunds return it', () => {
-  const order = { subtotal: 1000, fee: 30, total: 1030 }
-  assert.deepEqual(refundQuote(order, 'customer'), { tickets: 1000, fee: 30, feeKept: true, amount: 1000 })
-  assert.equal(refundQuote(order, 'eventChanged').amount, 1030)
+  const order = { items: [{ category: 'VIP', unitPrice: 500, qty: 2 }], fee: 30 }
+  const tickets = [{ category: 'VIP', status: 'valid' }, { category: 'VIP', status: 'valid' }]
+  assert.deepEqual(refundQuote(order, tickets, 'customer'), { count: 2, tickets: 1000, fee: 30, feeKept: true, amount: 1000 })
+  assert.equal(refundQuote(order, tickets, 'eventChanged').amount, 1030)
+})
+
+test('a refund leaves out tickets already refunded or used', () => {
+  const order = { items: [{ category: 'Standard', unitPrice: 400, qty: 3 }], fee: 36 }
+  const tickets = [{ category: 'Standard', status: 'checked' }, { category: 'Standard', status: 'cancelled' }, { category: 'Standard', status: 'valid' }]
+  assert.deepEqual(refundQuote(order, tickets, 'other'), { count: 1, tickets: 400, fee: 12, feeKept: false, amount: 412 })
+})
+
+test('waves show nothing on sale before publishing or after the event ends or is cancelled', () => {
+  const waves = [{ capacity: 10, sold: 10 }, { capacity: 10, sold: 2 }, { capacity: 10, sold: 0 }]
+  assert.deepEqual(shownWaveStates(waves, 'published'), ['sold-out', 'on-sale', 'upcoming'])
+  assert.deepEqual(shownWaveStates(waves, 'draft'), ['sold-out', 'not-yet', 'not-yet'])
+  assert.deepEqual(shownWaveStates(waves, 'cancelled'), ['sold-out', 'closed', 'closed'])
+  assert.deepEqual(shownWaveStates(waves, 'past'), ['sold-out', 'closed', 'closed'])
+})
+
+test('list footers agree with the total in both languages', () => {
+  const forms = { one: 'Showing {shown} of {n} event', other: 'Showing {shown} of {n} events' }
+  assert.equal(shownOf('en', 1, 1, forms, String), 'Showing 1 of 1 event')
+  const ar = { one: 'عرض {shown} من فعالية واحدة', two: 'عرض {shown} من فعاليتين', few: 'عرض {shown} من {n} فعاليات', many: 'عرض {shown} من {n} فعالية', other: 'عرض {shown} من {n} فعالية' }
+  assert.equal(shownOf('ar', 3, 5, ar, String), 'عرض 3 من 5 فعاليات')
+  assert.equal(shownOf('ar', 3, 12, ar, String), 'عرض 3 من 12 فعالية')
 })
 
 test('saving a venue without changes keeps every seat, its ID and its category', async () => {
@@ -145,4 +170,34 @@ test('cancelling an event refunds its paid orders in full', async () => {
   }
   const { event } = await adminEventsApi.get(JAZZ)
   assert.equal(event.status, 'cancelled')
+})
+
+test('refunding an order settles its open requests, so a ticket is never refunded twice', async () => {
+  const before = (await ordersApi.get('HF-10237')).order
+  const refunded = await ordersApi.refund('HF-10237', { reason: 'customer', note: '' }, 'Test admin')
+  assert.equal(refunded.order.payment.refundAmount, before.subtotal)
+  // RR-2042 asked to refund one of these tickets; the order refund already covered it.
+  assert.equal(await code(refundRequestsApi.approve('RR-2042')), 'request-decided')
+  const after = (await ordersApi.get('HF-10237')).order
+  assert.ok(after.payment.refundAmount <= after.total)
+  assert.equal(await code(ordersApi.refund('HF-10237', { reason: 'other', note: '' })), 'paid-only-refund')
+})
+
+test('cancelled or started events stay as they were, and drafts that should have started can’t be published', async () => {
+  const { form } = await adminEventsApi.getForm(RED_SEA_RUN)
+  assert.equal(await code(adminEventsApi.update(RED_SEA_RUN, form)), 'event-locked')
+  setClock(() => '2026-12-31T00:00')
+  try {
+    assert.equal(await code(adminEventsApi.publish(POTTERY_DRAFT)), 'start-past')
+  } finally {
+    setClock(() => SAMPLE_NOW)
+  }
+})
+
+test('a venue that events use can’t lose sections, seats or zones', async () => {
+  const form = await venuesApi.getForm(DOWNTOWN_HALL)
+  const smaller = form.kind === 'seated' ? { ...form, sections: form.sections.slice(0, -1) } : { ...form, zones: form.zones.slice(0, -1) }
+  assert.equal(await code(venuesApi.update(DOWNTOWN_HALL, smaller)), 'venue-layout-locked')
+  const other = { ...form, kind: form.kind === 'seated' ? 'standing' : 'seated' }
+  assert.equal(await code(venuesApi.update(DOWNTOWN_HALL, other)), 'venue-layout-locked')
 })

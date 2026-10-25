@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { adminEventsApi } from '../../lib/adminEventsApi'
 import {
@@ -18,7 +18,7 @@ import { AdminHero, AdminLayout, BackArrowIcon, Icon, ResourceStatus } from './A
 import { useAdminStrings, type AdminStrings } from './adminStrings'
 import { parseWhole } from './adminText'
 import { useErrorText } from './errorStrings'
-import { useOrdersFormat } from './ordersStrings'
+import { fillIn, useOrdersFormat } from './ordersStrings'
 import { useAdminResource } from './useAdminResource'
 import { useUnsavedChanges } from './useUnsavedChanges'
 import { fill, type VenueToast } from './venueMessages'
@@ -136,6 +136,33 @@ function VenueEditor({ mode, venueId, initial, events }: EditorProps) {
   const rowBad = (field: 'section' | 'zone' | 'category', index: number) => tried > 0 && problems.some((p) => p.field === field && 'index' in p && p.index === index)
   const listBad = (field: 'section' | 'zone' | 'category' | 'sections' | 'zones' | 'categories') => tried > 0 && problems.some((p) => p.field === field)
   const codes = form.categories.map((c) => c.code)
+  // A venue that events use can grow, but its type stays and nothing already there is removed.
+  const inUse = mode === 'edit' && events > 0
+  const [existing] = useState(() => new Set([...initial.sections, ...initial.zones].map((item) => item.rowKey)))
+  const locked = (item: { rowKey?: string }) => inUse && existing.has(item.rowKey)
+
+  // Which category each section and zone belongs to, by row. While a code is being retyped two
+  // categories can briefly share it; following the owner keeps their sections apart.
+  const [owners] = useState(() => {
+    const map = new Map<string, string>()
+    for (const item of [...initial.sections, ...initial.zones]) {
+      const owner = initial.categories.find((c) => c.code === item.categoryCode)
+      if (item.rowKey && owner?.rowKey) map.set(item.rowKey, owner.rowKey)
+    }
+    return map
+  })
+  const assign = (itemKey: string | undefined, code: string) => {
+    const owner = form.categories.find((c) => c.code === code)
+    if (itemKey && owner?.rowKey) owners.set(itemKey, owner.rowKey)
+  }
+
+  // Where focus goes after the next render: a new row, the row after a removal.
+  const focusAfter = useRef<string | null>(null)
+  useEffect(() => {
+    if (!focusAfter.current) return
+    document.getElementById(focusAfter.current)?.focus()
+    focusAfter.current = null
+  })
 
   // After a failed save, focus the first problem once its message is on screen.
   useEffect(() => {
@@ -150,14 +177,29 @@ function VenueEditor({ mode, venueId, initial, events }: EditorProps) {
     setForm((current) => ({ ...current, [key]: current[key].map((item, i) => (i === index ? { ...item, ...changes } : item)) }))
   }
   function removeItem(key: 'sections' | 'zones', index: number) {
+    const items = form[key]
+    const neighbour = items[index + 1] ?? items[index - 1]
+    const prefix = key === 'sections' ? 'venue-section' : 'venue-zone'
+    focusAfter.current = neighbour ? `${prefix}-${neighbour.rowKey}` : key === 'sections' ? 'venue-add-section' : 'venue-add-zone'
     setForm((current) => ({ ...current, [key]: current[key].filter((_, i) => i !== index) }))
   }
 
-  /** Renaming a category's code keeps the sections and zones that use it pointing at it. */
+  function addItem(key: 'sections' | 'zones') {
+    const fresh = rowKey()
+    const first = form.categories[0]
+    if (first?.rowKey) owners.set(fresh, first.rowKey)
+    focusAfter.current = `${key === 'sections' ? 'venue-section' : 'venue-zone'}-${fresh}`
+    if (key === 'sections') patch({ sections: [...form.sections, { rowKey: fresh, name: '', firstRow: 'A', lastRow: 'A', seatsPerRow: 10, categoryCode: codes[0] ?? '' }] })
+    else patch({ zones: [...form.zones, { rowKey: fresh, name: '', capacity: 100, categoryCode: codes[0] ?? '' }] })
+  }
+
+  /** Renaming a category's code keeps the sections and zones that belong to it pointing at it. */
   function changeCode(index: number, code: string) {
     setForm((current) => {
-      const old = current.categories[index].code
-      const follow = <T extends { categoryCode: string }>(items: T[]) => items.map((it) => (it.categoryCode === old ? { ...it, categoryCode: code } : it))
+      const category = current.categories[index]
+      const mine = (it: { rowKey?: string; categoryCode: string }) =>
+        it.rowKey && owners.has(it.rowKey) ? owners.get(it.rowKey) === category.rowKey : it.categoryCode === category.code
+      const follow = <T extends { rowKey?: string; categoryCode: string }>(items: T[]) => items.map((it) => (mine(it) ? { ...it, categoryCode: code } : it))
       return {
         ...current,
         categories: current.categories.map((c, i) => (i === index ? { ...c, code } : c)),
@@ -169,13 +211,28 @@ function VenueEditor({ mode, venueId, initial, events }: EditorProps) {
 
   /** Removing a category moves its sections and zones to the first remaining one. */
   function removeCategory(index: number) {
+    const neighbour = form.categories[index + 1] ?? form.categories[index - 1]
+    focusAfter.current = neighbour ? `venue-category-${neighbour.rowKey}` : 'venue-add-category'
     setForm((current) => {
-      const removed = current.categories[index].code
+      const removed = current.categories[index]
       const categories = current.categories.filter((_, i) => i !== index)
-      const fallback = categories[0]?.code ?? ''
-      const move = <T extends { categoryCode: string }>(items: T[]) => items.map((it) => (it.categoryCode === removed ? { ...it, categoryCode: fallback } : it))
+      const fallback = categories[0]
+      const mine = (it: { rowKey?: string; categoryCode: string }) =>
+        it.rowKey && owners.has(it.rowKey) ? owners.get(it.rowKey) === removed.rowKey : it.categoryCode === removed.code
+      const move = <T extends { rowKey?: string; categoryCode: string }>(items: T[]) =>
+        items.map((it) => {
+          if (!mine(it)) return it
+          if (it.rowKey && fallback?.rowKey) owners.set(it.rowKey, fallback.rowKey)
+          return { ...it, categoryCode: fallback?.code ?? '' }
+        })
       return { ...current, categories, sections: move(current.sections), zones: move(current.zones) }
     })
+  }
+
+  function addCategory() {
+    const fresh = rowKey()
+    focusAfter.current = `venue-category-${fresh}`
+    patch({ categories: [...form.categories, { rowKey: fresh, name: '', code: '', colour: CATEGORY_COLOURS[form.categories.length % CATEGORY_COLOURS.length] }] })
   }
 
   async function submit(e: FormEvent) {
@@ -320,7 +377,7 @@ function VenueEditor({ mode, venueId, initial, events }: EditorProps) {
                       <button
                         type="button"
                         className="ad-swatch-btn"
-                        aria-label={`${t.changeColour} ${c.name}`}
+                        aria-label={`${t.changeColour} ${c.name} · ${fillIn(t.colourOf, { n: fmt(CATEGORY_COLOURS.indexOf(c.colour) + 1), total: fmt(CATEGORY_COLOURS.length) })}`}
                         onClick={() => {
                           const next = (CATEGORY_COLOURS.indexOf(c.colour) + 1) % CATEGORY_COLOURS.length
                           patchItem('categories', i, { colour: CATEGORY_COLOURS[next] })
@@ -359,14 +416,7 @@ function VenueEditor({ mode, venueId, initial, events }: EditorProps) {
                   id="venue-add-category"
                   type="button"
                   className="ad-add-row"
-                  onClick={() =>
-                    patch({
-                      categories: [
-                        ...form.categories,
-                        { rowKey: rowKey(), name: '', code: '', colour: CATEGORY_COLOURS[form.categories.length % CATEGORY_COLOURS.length] },
-                      ],
-                    })
-                  }
+                  onClick={addCategory}
                 >
                   <PlusIcon size={16} />
                   {t.addCategory}
@@ -392,11 +442,23 @@ function VenueEditor({ mode, venueId, initial, events }: EditorProps) {
               </div>
             </div>
             <div className="ad-form-body">
-              <fieldset className="ad-kind-cards">
+              {inUse && (
+                <p id="venue-layout-locked" className="ev-hint">
+                  {t.layoutLocked}
+                </p>
+              )}
+              <fieldset className="ad-kind-cards" aria-describedby={inUse ? 'venue-layout-locked' : undefined}>
                 <legend className="ad-sr-only">{t.stepLayout}</legend>
                 {kinds.map((k) => (
                   <label key={k.value} className="ad-kind-card">
-                    <input type="radio" name="venue-kind" value={k.value} checked={form.kind === k.value} onChange={() => patch({ kind: k.value })} />
+                    <input
+                      type="radio"
+                      name="venue-kind"
+                      value={k.value}
+                      checked={form.kind === k.value}
+                      disabled={inUse && k.value !== initial.kind}
+                      onChange={() => patch({ kind: k.value })}
+                    />
                     <span>
                       <strong>{k.label}</strong>
                       <span>{k.hint}</span>
@@ -461,9 +523,12 @@ function VenueEditor({ mode, venueId, initial, events }: EditorProps) {
                           aria-describedby={describe}
                           onChange={(e) => patchItem('sections', i, { seatsPerRow: parseWhole(e.target.value, 999) })}
                         />
-                        {categorySelect(`venue-section-cat-${s.rowKey}`, `${t.sectionCategory} · ${label}`, s.categoryCode, (code) => patchItem('sections', i, { categoryCode: code }))}
+                        {categorySelect(`venue-section-cat-${s.rowKey}`, `${t.sectionCategory} · ${label}`, s.categoryCode, (code) => {
+                          assign(s.rowKey, code)
+                          patchItem('sections', i, { categoryCode: code })
+                        })}
                         <strong className="ad-end">{fmt(rowRange(s.firstRow, s.lastRow).length * s.seatsPerRow)}</strong>
-                        <RemoveButton label={`${t.remove} ${label}`} onClick={() => removeItem('sections', i)} />
+                        {locked(s) ? <span /> : <RemoveButton label={`${t.remove} ${label}`} onClick={() => removeItem('sections', i)} />}
                       </div>
                     )
                   })}
@@ -471,9 +536,7 @@ function VenueEditor({ mode, venueId, initial, events }: EditorProps) {
                     id="venue-add-section"
                     type="button"
                     className="ad-add-row"
-                    onClick={() =>
-                      patch({ sections: [...form.sections, { rowKey: rowKey(), name: '', firstRow: 'A', lastRow: 'A', seatsPerRow: 10, categoryCode: codes[0] ?? '' }] })
-                    }
+                    onClick={() => addItem('sections')}
                   >
                     <PlusIcon size={16} />
                     {t.addSection}
@@ -517,8 +580,11 @@ function VenueEditor({ mode, venueId, initial, events }: EditorProps) {
                           aria-describedby={describe}
                           onChange={(e) => patchItem('zones', i, { capacity: parseWhole(e.target.value, 100_000) })}
                         />
-                        {categorySelect(`venue-zone-cat-${z.rowKey}`, `${t.sectionCategory} · ${label}`, z.categoryCode, (code) => patchItem('zones', i, { categoryCode: code }))}
-                        <RemoveButton label={`${t.remove} ${label}`} onClick={() => removeItem('zones', i)} />
+                        {categorySelect(`venue-zone-cat-${z.rowKey}`, `${t.sectionCategory} · ${label}`, z.categoryCode, (code) => {
+                          assign(z.rowKey, code)
+                          patchItem('zones', i, { categoryCode: code })
+                        })}
+                        {locked(z) ? <span /> : <RemoveButton label={`${t.remove} ${label}`} onClick={() => removeItem('zones', i)} />}
                       </div>
                     )
                   })}
@@ -526,7 +592,7 @@ function VenueEditor({ mode, venueId, initial, events }: EditorProps) {
                     id="venue-add-zone"
                     type="button"
                     className="ad-add-row"
-                    onClick={() => patch({ zones: [...form.zones, { rowKey: rowKey(), name: '', capacity: 100, categoryCode: codes[0] ?? '' }] })}
+                    onClick={() => addItem('zones')}
                   >
                     <PlusIcon size={16} />
                     {t.addZone}
@@ -569,7 +635,8 @@ function VenueEditor({ mode, venueId, initial, events }: EditorProps) {
             </dl>
             <div className="ad-summary-actions">
               {tried > 0 && problems.length > 0 && (
-                <p className="ad-error-summary" role="alert">
+                // Keyed by the attempt, so every failed save is announced again.
+                <p key={tried} className="ad-error-summary" role="alert">
                   {t.errFix}
                 </p>
               )}

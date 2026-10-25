@@ -1,5 +1,6 @@
 // Copy for the admin console, English and Arabic.
 import { usePreferences } from '../Auth/preferences'
+import type { PluralForms } from './adminText'
 
 const en = {
   brandName: 'Hafletna',
@@ -46,9 +47,7 @@ const en = {
   colActions: 'Actions',
   viewDetails: 'View details',
   viewDetailsFor: 'View details for',
-  showing: 'Showing',
-  of: 'of',
-  venuesWord: 'venues',
+  showingCount: { one: 'Showing {shown} of {n} venue', other: 'Showing {shown} of {n} venues' } as PluralForms,
   noMatches: 'No venues match these filters',
   loadingVenues: 'Loading venues…',
   emptyTitle: 'No venues available',
@@ -177,6 +176,8 @@ const en = {
   inUseNote: 'Venues that events use can’t be deleted; their layout can still be edited.',
   inUseTitle: 'Used by events',
   inUseText: 'Events use this venue, so it can’t be deleted.',
+  layoutLocked: 'Events use this venue: you can add sections, rows, seats and zones, but not remove them or change the venue type.',
+  colourOf: 'colour {n} of {total}',
   eventsHere: 'Events here',
   sectionCategory: 'Category',
   errSections: 'Add at least one section.',
@@ -214,17 +215,17 @@ const en = {
   leftInWave: '{left} of {cap} left',
   recentCancelled: 'Cancelled events',
   allEvents: 'All events',
-  mRevenue: 'Revenue',
-  mRevenueSub: 'Paid orders',
+  mRevenue: 'Ticket sales',
+  mRevenueSub: 'Live and past events',
   mTickets: 'Tickets sold',
-  mTicketsSub: 'Across all events',
+  mTicketsSub: 'Live and past events',
   mUpcoming: 'Coming up',
   mUpcomingSub: 'Published, next 14 days',
   mRequests: 'Refund requests',
   mRequestsSub: 'Waiting for a decision',
 }
 
-export type AdminStrings = Record<keyof typeof en, string>
+export type AdminStrings = { [K in keyof typeof en]: (typeof en)[K] extends PluralForms ? PluralForms : string }
 
 const ar: AdminStrings = {
   brandName: 'حفلتنا',
@@ -250,7 +251,7 @@ const ar: AdminStrings = {
   metricVenues: 'الأماكن',
   metricVenuesSub: 'في جميع المدن',
   metricCapacity: 'السعة الإجمالية',
-  metricCapacitySub: 'مجموع الأماكن',
+  metricCapacitySub: 'إجمالي السعة في كل الأماكن',
   metricCities: 'المدن',
   metricLargest: 'أكبر مكان',
   allVenues: 'كل الأماكن',
@@ -271,9 +272,7 @@ const ar: AdminStrings = {
   colActions: 'الإجراءات',
   viewDetails: 'عرض التفاصيل',
   viewDetailsFor: 'عرض تفاصيل',
-  showing: 'عرض',
-  of: 'من',
-  venuesWord: 'أماكن',
+  showingCount: { zero: 'عرض {shown} من {n} مكان', one: 'عرض {shown} من مكان واحد', two: 'عرض {shown} من مكانين', few: 'عرض {shown} من {n} أماكن', many: 'عرض {shown} من {n} مكانًا', other: 'عرض {shown} من {n} مكان' },
   noMatches: 'لا توجد أماكن تطابق عوامل التصفية',
   loadingVenues: 'جارٍ تحميل الأماكن…',
   emptyTitle: 'لا توجد أماكن متاحة',
@@ -289,7 +288,7 @@ const ar: AdminStrings = {
   zoneLayout: 'مخطط مناطق · وقوف',
   layoutTitle: 'مخطط المكان',
   seatsWord: 'مقعد',
-  placesWord: 'مكان',
+  placesWord: 'شخص',
   sectionsWord: 'أقسام',
   zonesWord: 'مناطق',
   hoverHint: 'مرّر على أي مقعد لعرض رقمه التعريفي',
@@ -402,6 +401,8 @@ const ar: AdminStrings = {
   inUseNote: 'لا يمكن حذف الأماكن التي تستخدمها فعاليات، لكن يمكن تعديل مخططها.',
   inUseTitle: 'مستخدَم في فعاليات',
   inUseText: 'تستخدم فعاليات هذا المكان، لذلك لا يمكن حذفه.',
+  layoutLocked: 'تستخدم فعاليات هذا المكان: يمكنك إضافة أقسام وصفوف ومقاعد ومناطق، لكن لا يمكنك حذفها أو تغيير نوع المكان.',
+  colourOf: 'اللون {n} من {total}',
   eventsHere: 'الفعاليات هنا',
   sectionCategory: 'الفئة',
   errSections: 'أضف قسمًا واحدًا على الأقل.',
@@ -439,10 +440,10 @@ const ar: AdminStrings = {
   leftInWave: 'المتبقي {left} من {cap}',
   recentCancelled: 'فعاليات ملغاة',
   allEvents: 'كل الفعاليات',
-  mRevenue: 'الإيرادات',
-  mRevenueSub: 'الطلبات المدفوعة',
+  mRevenue: 'مبيعات التذاكر',
+  mRevenueSub: 'الفعاليات الجارية والمنتهية',
   mTickets: 'التذاكر المباعة',
-  mTicketsSub: 'في كل الفعاليات',
+  mTicketsSub: 'الفعاليات الجارية والمنتهية',
   mUpcoming: 'القادمة',
   mUpcomingSub: 'منشورة، خلال ١٤ يومًا',
   mRequests: 'طلبات الاسترداد',

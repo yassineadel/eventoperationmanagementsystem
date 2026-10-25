@@ -7,8 +7,9 @@ import { AdminHero, AdminLayout, ForwardArrowIcon, Icon, MessagePanel, ResourceS
 import { useAdminStrings, type AdminStrings } from './adminStrings'
 import { useErrorText } from './errorStrings'
 import { initials } from './eventRules'
-import { EventChips, Metric, SearchBox, StatusPills, type Choice } from './OrdersParts'
+import { EventChips, ListCount, Metric, SearchBox, StatusPills, type Choice } from './OrdersParts'
 import { useOrdersFormat } from './ordersStrings'
+import { shownOf } from './adminText'
 import { useAdminResource } from './useAdminResource'
 import { useFlashToast } from './useFlashToast'
 import { oneOf, useListParams } from './useListParams'
@@ -79,14 +80,17 @@ export default function VenueListPage() {
     setBusy(true)
     try {
       await venuesApi.remove(target.id)
-      setData(await load())
-      setToast({ kind: 'deleted', name: target.name, id: target.id })
     } catch (error) {
       setFailure(errorText(error, t.actionFailed))
-    } finally {
       setBusy(false)
       setConfirmId(null)
+      return
     }
+    setBusy(false)
+    setConfirmId(null)
+    setToast({ kind: 'deleted', name: target.name, id: target.id })
+    // The venue is gone either way; a failed reload only means the list is out of date.
+    load().then(setData, retry)
   }
 
   async function undoDelete(id: string) {
@@ -171,7 +175,7 @@ export default function VenueListPage() {
             </div>
 
             <div className="ad-table-wrap">
-              <table className="ad-table">
+              <table aria-labelledby="venues-table-title" className="ad-table">
                 <thead>
                   <tr>
                     <th scope="col">{t.colName}</th>
@@ -202,7 +206,9 @@ export default function VenueListPage() {
                               {initials(v.name)}
                             </span>
                             <span>
-                              <strong>{v.name}</strong>
+                              <Link className="ad-strong" to={`/admin/venues/${v.id}`}>
+                                {v.name}
+                              </Link>
                               <span className="ad-mono" dir="ltr">
                                 {v.id.slice(0, 8)}
                               </span>
@@ -259,9 +265,7 @@ export default function VenueListPage() {
             )}
 
             <div className="ad-card-foot">
-              <span role="status">
-                {t.showing} {f.num(rows.length)} {t.of} {f.num(venues.length)} {t.venuesWord}
-              </span>
+              <ListCount text={shownOf(f.lang, rows.length, venues.length, t.showingCount, f.num)} />
               <span className="ad-foot-note">{t.inUseNote}</span>
             </div>
           </section>

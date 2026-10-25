@@ -1,13 +1,14 @@
 import { Link } from 'react-router-dom'
-import { EVENTS, loadOrdersBook, type Order, type OrderStatus } from '../../lib/ordersApi'
+import { EVENTS, isOverdue, loadOrdersBook, type Order, type OrderStatus } from '../../lib/ordersApi'
 import { AdminHero, AdminLayout, ForwardArrowIcon, Icon, MessagePanel, ResourceStatus, TicketIcon } from './AdminLayout'
-import { EventChips, Metric, OrdersTabs, SearchBox, StatusBadge, StatusPills } from './OrdersParts'
+import { EventChips, ListCount, Metric, OrdersTabs, SearchBox, StatusBadge, StatusPills } from './OrdersParts'
 import { useOrdersFormat, useOrdersStrings } from './ordersStrings'
+import { plural, shownOf } from './adminText'
 import { useAdminResource } from './useAdminResource'
 import { oneOf, useListParams } from './useListParams'
 
-type StatusFilter = 'all' | OrderStatus
-const STATUSES: StatusFilter[] = ['all', 'paid', 'pending', 'refunded', 'cancelled']
+type StatusFilter = 'all' | OrderStatus | 'overdue'
+const STATUSES: StatusFilter[] = ['all', 'paid', 'pending', 'overdue', 'refunded', 'cancelled']
 const FILTERS = { q: '', status: 'all', event: 'all' }
 
 export default function OrderListPage() {
@@ -23,9 +24,11 @@ export default function OrderListPage() {
   const q = values.q.trim().toLowerCase()
   const matchesText = (o: Order) => !q || `${o.id} ${o.customer.name} ${o.customer.email}`.toLowerCase().includes(q)
   const matchesEvent = (o: Order, e = event) => e === 'all' || eventIdOf(o) === e
-  const matchesStatus = (o: Order, s = status) => s === 'all' || o.status === s
+  const matchesStatus = (o: Order, s = status) => s === 'all' || (s === 'overdue' ? isOverdue(o) : o.status === s)
   const rows = orders.filter((o) => matchesText(o) && matchesEvent(o) && matchesStatus(o))
-  const paid = orders.filter((o) => o.status === 'paid')
+  // Money kept: what was paid less what was refunded. Tickets: the ones still valid or used.
+  const revenue = orders.reduce((n, o) => n + (o.payment.paidAt ? o.total - (o.payment.refundAmount ?? 0) : 0), 0)
+  const issued = state.status === 'ready' ? state.data.tickets.filter((k) => k.status !== 'cancelled').length : 0
   const hasFilters = q !== '' || status !== 'all' || event !== 'all'
   const events = Object.values(EVENTS).filter((e) => orders.some((o) => o.eventKey === e.key))
 
@@ -62,8 +65,8 @@ export default function OrderListPage() {
             <>
               <div className="ad-metrics">
                 <Metric label={t.mOrders} value={f.num(orders.length)} sub={t.mOrdersSub} dot="var(--ad-dot-1)" />
-                <Metric label={t.mTickets} value={f.num(paid.reduce((n, o) => n + o.qty, 0))} sub={t.mTicketsSub} dot="var(--ad-dot-2)" />
-                <Metric label={t.mRevenue} value={f.money(paid.reduce((n, o) => n + o.total, 0))} sub={t.mRevenueSub} dot="var(--ad-dot-3)" />
+                <Metric label={t.mTickets} value={f.num(issued)} sub={t.mTicketsSub} dot="var(--ad-dot-2)" />
+                <Metric label={t.mRevenue} value={f.money(revenue)} sub={t.mRevenueSub} dot="var(--ad-dot-3)" />
                 <Metric label={t.mPending} value={f.num(orders.filter((o) => o.status === 'pending').length)} sub={t.mPendingSub} dot="var(--ad-dot-4)" />
               </div>
 
@@ -95,7 +98,7 @@ export default function OrderListPage() {
                 </div>
 
                 <div className="ad-table-wrap">
-                  <table className="ad-table od-table">
+                  <table aria-labelledby="orders-title" className="ad-table od-table">
                     <thead>
                       <tr>
                         <th scope="col">{t.cOrder}</th>
@@ -133,6 +136,10 @@ export default function OrderListPage() {
                             <span className="ad-block ad-muted" dir="ltr">
                               {o.customer.email}
                             </span>
+                            {/* The event and tickets columns are hidden on phones; their gist moves here. */}
+                            <span className="ad-block ad-muted ad-show-sm">
+                              {EVENTS[o.eventKey].name} · {plural(f.lang, o.qty, t.ticketsCount, f.num(o.qty))}
+                            </span>
                           </td>
                           <td className="ad-hide-sm">
                             <Link to={`/admin/events/${eventIdOf(o)}`}>{EVENTS[o.eventKey].name}</Link>
@@ -164,8 +171,8 @@ export default function OrderListPage() {
                   </div>
                 )}
 
-                <div className="ad-card-foot" role="status">
-                  {t.showing} {f.num(rows.length)} {t.of} {f.num(orders.length)} {t.ordersWord}
+                <div className="ad-card-foot">
+                  <ListCount text={shownOf(f.lang, rows.length, orders.length, t.ordersShowing, f.num)} />
                 </div>
               </section>
             </>

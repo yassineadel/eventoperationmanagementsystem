@@ -390,6 +390,19 @@ export function formFromLayout(venue: Venue, layout: VenueLayout): VenueForm {
   }
 }
 
+/** Every seat or zone of the old layout is still there, so tickets already sold keep their place. */
+function keepsEveryPlace(before: VenueLayout, after: VenueLayout) {
+  if (before.kind !== after.kind) return false
+  if (before.kind === 'seated' && after.kind === 'seated') {
+    const seats = new Set(after.sections.flatMap((s) => s.rows.flatMap((r) => r.seats.map((seat) => seat.id))))
+    return before.sections.every((s) => s.rows.every((r) => r.seats.every((seat) => seats.has(seat.id))))
+  }
+  if (before.kind === 'standing' && after.kind === 'standing') {
+    return before.zones.every((z) => after.zones.some((n) => n.id === z.id))
+  }
+  return false
+}
+
 function save(id: string, form: VenueForm): Venue {
   const layout = layoutFromForm(id, form, LAYOUTS[id])
   const venue: Venue = {
@@ -425,9 +438,13 @@ export const venuesApi = {
     await delay(400)
     return save(sampleId(`${form.name}:${Date.now()}`), form)
   },
+  /** A venue that events use can grow, but its type stays and no section, row, seat or zone goes. */
   async update(id: string, form: VenueForm): Promise<Venue> {
     await delay(400)
     if (!VENUES.some((v) => v.id === id)) throw new VenueNotFoundError()
+    if ((await adminEventsApi.countAtVenue(id)) > 0 && !keepsEveryPlace(LAYOUTS[id], layoutFromForm(id, form, LAYOUTS[id]))) {
+      throw new AdminApiError('venue-layout-locked')
+    }
     return save(id, form)
   },
   /** Venues that events use can't be deleted. */
