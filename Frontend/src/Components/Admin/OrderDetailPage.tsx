@@ -357,7 +357,7 @@ export default function OrderDetailPage() {
           t={t}
           detail={state.data}
           money={f.money}
-          scope={(n) => (n < tickets.length ? plural(f.lang, n, t.refundSome, f.num(n)) : n === 1 ? t.refundOne : fillIn(t.refundAll, { n: f.num(n) }))}
+          scope={(n) => (n < tickets.length ? plural(f.lang, n, t.refundSome, f.num(n)) : n === 1 ? t.refundOne : n === 2 ? t.refundBoth : fillIn(t.refundAll, { n: f.num(n) }))}
           busy={busy}
           onCancel={() => setRefunding(false)}
           onConfirm={refund}
@@ -468,7 +468,7 @@ function RefundDialog({ t, detail, scope, money, busy, onCancel, onConfirm }: Re
           </div>
           <div className={quote.feeKept ? 'is-kept' : undefined}>
             <dt>{quote.feeKept ? t.refundFeeKept : t.refundFeeBack}</dt>
-            <dd>{quote.feeKept ? `− ${money(quote.fee)}` : money(quote.fee)}</dd>
+            <dd>{money(quote.fee)}</dd>
           </div>
           <div className="od-refund-amount">
             <dt>{t.refundAmount}</dt>

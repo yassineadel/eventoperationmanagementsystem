@@ -2849,3 +2849,17 @@ dialog.ad-dialog::backdrop {
     text-align: start;
   }
 }
+
+/* The "You" tag sits under the name in a column cell; keep it its own width. */
+.ad-venue-cell .ev-you {
+  align-self: flex-start;
+  margin-inline-start: 0;
+}
+
+/* Wide tables (users, orders) fit a laptop screen without scrolling sideways. */
+@media (max-width: 1600px) {
+  .ad-table th,
+  .ad-table td {
+    padding-inline: 18px;
+  }
+}
