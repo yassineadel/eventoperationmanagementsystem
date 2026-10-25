@@ -106,9 +106,6 @@ export const listEvents = async ({ q, categories, city, from, to, price, sort = 
     })
   }
 
-  // Category: one or several, e.g. ?category=concerts&category=arts (FR-LST-04)
-  if (categories?.length) and.push({ category: { in: categories } })
-
   // City: "cairo" matches "Cairo" (FR-LST-05)
   if (city) and.push({ venue: { city: { equals: city, mode: 'insensitive' } } })
 
@@ -120,12 +117,20 @@ export const listEvents = async ({ q, categories, city, from, to, price, sort = 
   if (price === 'free') and.push({ ticketCategories: { some: {}, every: { price: 0 } } })
   if (price === 'paid') and.push({ ticketCategories: { some: { price: { gt: 0 } } } })
 
-  const where: Prisma.EventWhereInput = {
+  // Every filter except the category choice. The category counts below use this.
+  const base: Prisma.EventWhereInput = {
     status: 'PUBLISHED',
     startAt: { gte: new Date() }, // past events never listed (FR-LST-02)
     AND: and,
   }
 
+  // Category: one or several, e.g. ?category=concerts&category=arts (FR-LST-04)
+  const where: Prisma.EventWhereInput = categories?.length ? { ...base, category: { in: categories } } : base
+
+  // Events per category across ALL matching results, not just this page. The category filter
+  // itself is left out, so ticking "Concerts" still shows how many arts or sports events exist.
+  const grouped = await prisma.event.groupBy({ by: ['category'], where: base, _count: { _all: true } })
+  const categoryCounts: Record<string, number> = Object.fromEntries(grouped.map((g) => [g.category, g._count._all]))
   const total = await prisma.event.count({ where })
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const current = Math.min(Math.max(1, page), pageCount)
@@ -158,7 +163,7 @@ export const listEvents = async ({ q, categories, city, from, to, price, sort = 
     events = all.slice(skip, skip + PAGE_SIZE)
   }
 
-  return { events, total, page: current, pageCount, pageSize: PAGE_SIZE, sort }
+    return { events, total, page: current, pageCount, pageSize: PAGE_SIZE, sort, categoryCounts }
 }
 
 /**

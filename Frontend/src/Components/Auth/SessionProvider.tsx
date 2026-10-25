@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { authApi } from '../../lib/authApi'
 import { ApiError } from '../../lib/api'
-import { normaliseSessionUser } from '../../lib/sessionUser'
+import { normaliseSessionUser, type SessionUser } from '../../lib/sessionUser'
 import { SessionContext, type SessionState } from './sessionContext'
 
 export default function SessionProvider({ children }: { children: ReactNode }) {
@@ -14,6 +14,14 @@ export default function SessionProvider({ children }: { children: ReactNode }) {
     request.current += 1
     controller.current?.abort()
     setState({ status: 'authenticated', user })
+  }, [])
+
+  const updateUser = useCallback((userId: string, patch: Partial<SessionUser>) => {
+    request.current += 1
+    controller.current?.abort()
+    setState((current) => current.status === 'authenticated' && current.user?.id === userId
+      ? { status: 'authenticated', user: normaliseSessionUser({ ...current.user, ...patch, id: userId }) }
+      : current)
   }, [])
 
   const loadSession = useCallback(async (): Promise<{ id: number; state: SessionState }> => {
@@ -51,6 +59,6 @@ export default function SessionProvider({ children }: { children: ReactNode }) {
     return () => { request.current += 1; controller.current?.abort() }
   }, [loadSession])
 
-  const value = useMemo(() => ({ ...state, acceptUser, refresh, signOut }), [state, acceptUser, refresh, signOut])
+  const value = useMemo(() => ({ ...state, acceptUser, updateUser, refresh, signOut }), [state, acceptUser, updateUser, refresh, signOut])
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
 }

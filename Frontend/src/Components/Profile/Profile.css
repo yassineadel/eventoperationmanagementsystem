@@ -113,6 +113,9 @@
 .account-settings-card.account-card--danger { border-color: var(--home-line); }
 .account-settings-card .account-danger-button { background: transparent; }
 .account-deletion-confirmation { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--home-line); }
+.account-deletion-dates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 0 0 20px; }
+.account-deletion-dates dt { margin-bottom: 5px; color: var(--home-muted); font-size: 11px; }
+.account-deletion-dates dd { margin: 0; font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
 
 /* Native modal dialogs retain the page's language, theme and form styling. */
 .account-dialog { width: min(540px, calc(100% - 32px)); max-height: calc(100dvh - 40px); margin: auto; padding: 28px; overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--home-line); border-radius: 16px; background: var(--home-surface); color: var(--home-ink); text-align: start; box-shadow: 0 24px 90px #0005; }
@@ -170,6 +173,7 @@
   .account-setting-row > button { align-self: flex-start; }
   .account-preferences-fields .account-toggle { gap: 16px; }
   .account-preferences-footer { flex-direction: column; align-items: stretch; gap: 14px; }
+  .account-deletion-dates { grid-template-columns: 1fr; gap: 12px; }
   .account-dialog { width: calc(100% - 24px); max-height: calc(100dvh - 24px); padding: 24px 18px 18px; border-radius: 12px; }
   .account-dialog .account-card-heading { gap: 10px; padding-inline-end: 26px; }
   .account-dialog .account-card-heading > span { display: none; }

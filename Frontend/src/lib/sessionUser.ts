@@ -5,6 +5,8 @@ export type SessionUser = {
   role: string
   phone: string
   emailVerified: boolean | null
+  marketingOptIn: boolean | null
+  deletionRequestedAt: string | null
 }
 
 export function normaliseSessionUser(value: unknown): SessionUser {
@@ -19,6 +21,8 @@ export function normaliseSessionUser(value: unknown): SessionUser {
     role: typeof raw.role === 'string' ? raw.role : 'customer',
     phone: typeof raw.phone === 'string' ? raw.phone : '',
     emailVerified: typeof verified === 'boolean' ? verified : null,
+    marketingOptIn: typeof raw.marketingOptIn === 'boolean' ? raw.marketingOptIn : null,
+    deletionRequestedAt: typeof raw.deletionRequestedAt === 'string' && Number.isFinite(Date.parse(raw.deletionRequestedAt)) ? raw.deletionRequestedAt : null,
   }
 }
 

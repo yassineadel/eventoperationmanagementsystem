@@ -41,3 +41,27 @@ export const resetPasswordSchema = z.object({
   code: z.string().trim().length(6, 'Verification code must be 6 digits'),
   newPassword: password,
 })
+
+// Profile edit. phone can be '' to remove it.
+export const updateProfileSchema = z.object({
+  fullName: z.string().trim().min(2, 'Full name must be at least 2 characters').max(200),
+  phone: z.string().trim().regex(/^(01[0125][0-9]{8})?$/, 'Please provide a valid Egyptian phone number').optional(),
+})
+
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+  newPassword: password, // same strength rules as sign-up
+})
+
+export const requestEmailChangeSchema = z.object({ newEmail: email })
+
+export const verifyEmailChangeSchema = z.object({
+  code: z.string().trim().length(6, 'Verification code must be 6 digits'),
+})
+
+export const updatePreferencesSchema = z.object({
+  marketingOptIn: z.boolean({ error: 'marketingOptIn must be true or false' }),
+})
+
+// The user types their email to confirm, like the page asks
+export const requestDeletionSchema = z.object({ confirmEmail: email })

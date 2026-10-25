@@ -2,6 +2,8 @@ import { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 import redis from '../config/redis'
 import { env } from '../config/env'
+import prisma from '../config/db'
+import { DELETED_EMAIL_DOMAIN } from '../modules/auth/account-deletion.worker'
 
 const JWT_SECRET = env.JWT_SECRET
 
@@ -42,6 +44,14 @@ export const protect = async (req: Request, res: Response, next: NextFunction): 
 
     // Verify token and attach user to request
     const decoded = jwt.verify(token, JWT_SECRET) as AuthUser
+
+    // The account may have been deleted (anonymised) after this token was made
+    const account = await prisma.user.findUnique({ where: { id: decoded.id }, select: { email: true } })
+    if (!account || account.email.endsWith(DELETED_EMAIL_DOMAIN)) {
+      res.status(401).json({ message: 'This account no longer exists.' })
+      return
+    }
+
     req.user = decoded
 
     // Continue to the next function

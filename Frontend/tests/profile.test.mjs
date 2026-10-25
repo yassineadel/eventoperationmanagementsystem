@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  beginEmailChange, canRequestDeletion, defaultPreviewProfile, previewPassword, previewStorageKey,
+  beginEmailChange, canRequestDeletion, defaultPreviewProfile, deletionGraceEnds, previewPassword, previewStorageKey,
   readPreviewProfile, validateDetails, validatePasswordChange, verifySampleEmail, writePreviewProfile,
 } from '../src/Components/Profile/profileModel.ts'
 import { accountReturnPath, normaliseSessionUser } from '../src/lib/sessionUser.ts'
@@ -11,6 +11,12 @@ function storage(initial) {
   return { getItem: () => value, setItem: (_key, next) => { value = next } }
 }
 
+test('a pending deletion displays fourteen elapsed days across the Cairo daylight-saving change', () => {
+  assert.equal(deletionGraceEnds('2026-10-24T23:30:00.000Z'), '2026-11-07T23:30:00.000Z')
+  assert.equal(deletionGraceEnds(null), null)
+  assert.equal(deletionGraceEnds('invalid'), null)
+})
+
 test('personal details accept Arabic names, an optional phone, and Egyptian mobile numbers', () => {
   assert.deepEqual(validateDetails('يوسف أحمد', ''), { fullName: false, phone: false })
   assert.deepEqual(validateDetails('  Youssef Hassan  ', ' 01012345678 '), { fullName: false, phone: false })
@@ -18,9 +24,10 @@ test('personal details accept Arabic names, an optional phone, and Egyptian mobi
   assert.equal(validateDetails('x'.repeat(201), '').fullName, true)
 })
 
-test('password preview requires the sample current password, strong distinct credentials and confirmation', () => {
+test('password changes validate presence and strength; the server checks the actual current password', () => {
   assert.deepEqual(validatePasswordChange(previewPassword, 'NewSample123', 'NewSample123'), { current: false, password: false, confirm: false })
-  assert.equal(validatePasswordChange('wrong', 'NewSample123', 'NewSample123').current, true)
+  assert.equal(validatePasswordChange('not-the-demo-password', 'NewSample123', 'NewSample123').current, false)
+  assert.equal(validatePasswordChange('', 'NewSample123', 'NewSample123').current, true)
   assert.equal(validatePasswordChange(previewPassword, previewPassword, previewPassword).password, true)
   assert.equal(validatePasswordChange(previewPassword, 'weak', 'weak').password, true)
   assert.equal(validatePasswordChange(previewPassword, 'NewSample123', 'Other123').confirm, true)

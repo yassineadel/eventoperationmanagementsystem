@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
 import prisma from '../../config/db'
 import redis from '../../config/redis'
-import { sendVerificationEmail } from '../../config/mailer'
+import { sendVerificationEmail, sendPasswordResetEmail, sendEmailChangeCode, sendDeletionRequestedEmail } from '../../config/mailer'
 import { env } from '../../config/env'
 
 const JWT_SECRET = env.JWT_SECRET
@@ -155,7 +155,7 @@ export const forgotPassword = async (email: string) => {
   await redis.set(`reset:${email}`, code, 'EX', 600)
 
   // Send the code to the user's email
-  await sendVerificationEmail(email, code)
+  await sendPasswordResetEmail(email, code)
 
   return { message: 'Password reset code sent to your email' }
 }
@@ -219,9 +219,160 @@ export const getCurrentUser = async (userId: string) => {
       email: true,
       phone: true,
       role: true,
+      marketingOptIn: true,
+      deletionRequestedAt: true,
     },
   })
 
   if (!user) throw new Error('User not found')
   return user
+}
+
+/**
+ * Updates the logged-in user's name and phone
+ */
+export const updateProfile = async (userId: string, data: { fullName: string; phone?: string }) => {
+  return prisma.user.update({
+    where: { id: userId },
+    data: {
+      fullName: data.fullName,
+      // phone not sent → leave it; '' → remove it
+      phone: data.phone === undefined ? undefined : data.phone || null,
+    },
+    select: { id: true, fullName: true, email: true, phone: true, role: true },
+  })
+}
+
+/**
+ * Changes the password of a logged-in user after checking the current one
+ */
+export const changePassword = async (userId: string, currentPassword: string, newPassword: string) => {
+  const user = await prisma.user.findUnique({ where: { id: userId } })
+  if (!user) throw new Error('User not found')
+
+  // Google-only accounts have no password to check
+  if (!user.passwordHash) {
+    throw new Error('This account signs in with Google and has no password. Use "Forgot password" to create one.')
+  }
+
+  // Check the current password
+  const isMatch = await bcrypt.compare(currentPassword, user.passwordHash)
+  if (!isMatch) throw new Error('Current password is incorrect')
+
+  if (currentPassword === newPassword) throw new Error('New password must be different from the current one')
+
+  // Save the new password, hashed (never store the plain text)
+  const passwordHash = await bcrypt.hash(newPassword, 10)
+  await prisma.user.update({ where: { id: userId }, data: { passwordHash } })
+
+  return { message: 'Password changed successfully' }
+}
+
+/**
+ * Step 1 of changing email: send a code to the new address
+ */
+export const requestEmailChange = async (userId: string, newEmail: string) => {
+  const user = await prisma.user.findUnique({ where: { id: userId } })
+  if (!user) throw new Error('User not found')
+  if (user.email === newEmail) throw new Error('This is already your email')
+
+  const taken = await prisma.user.findUnique({ where: { email: newEmail } })
+  if (taken) throw new Error('Email already in use')
+
+  // Save the new email and its code together for 10 minutes
+  const code = generateVerificationCode()
+  await redis.set(`email-change:${userId}`, JSON.stringify({ newEmail, code }), 'EX', 600)
+
+  await sendEmailChangeCode(newEmail, code)
+  return { message: 'Verification code sent to your new email' }
+}
+
+/**
+ * Step 2 of changing email: check the code and save the new address
+ */
+export const verifyEmailChange = async (userId: string, code: string) => {
+  const saved = await redis.get(`email-change:${userId}`)
+  if (!saved) throw new Error('Code expired or not requested. Please request a new one.')
+
+  const { newEmail, code: savedCode } = JSON.parse(saved) as { newEmail: string; code: string }
+  if (code !== savedCode) throw new Error('Invalid verification code')
+
+  // Check again: someone may have signed up with this email in the last 10 minutes
+  const taken = await prisma.user.findUnique({ where: { email: newEmail } })
+  if (taken) throw new Error('Email already in use')
+
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: { email: newEmail },
+    select: { id: true, fullName: true, email: true, phone: true, role: true },
+  })
+
+  // The code is used up
+  await redis.del(`email-change:${userId}`)
+  return { user: { ...user, emailVerified: true } }
+}
+
+/**
+ * Turns marketing emails on or off for the logged-in user
+ */
+export const updatePreferences = async (userId: string, marketingOptIn: boolean) => {
+  return prisma.user.update({
+    where: { id: userId },
+    data: { marketingOptIn },
+    select: { marketingOptIn: true },
+  })
+}
+
+const DELETION_GRACE_DAYS = 14
+
+// When the account will actually be removed
+const deletionDate = (requestedAt: Date) =>
+  new Date(requestedAt.getTime() + DELETION_GRACE_DAYS * 24 * 60 * 60 * 1000)
+
+/**
+ * Asks to delete the account. Nothing is removed for 14 days, and the user can cancel.
+ */
+export const requestAccountDeletion = async (userId: string, confirmEmail: string) => {
+  const user = await prisma.user.findUnique({ where: { id: userId } })
+  if (!user) throw new Error('User not found')
+  if (user.email !== confirmEmail) throw new Error('The email you typed does not match your account')
+  if (user.deletionRequestedAt) throw new Error('Deletion has already been requested')
+    // no deletion while the user holds tickets for upcoming events
+  const lastTicket = await prisma.ticket.findFirst({
+    where: {
+      holderId: userId,                      // tickets this user holds now (after transfers too)
+      status: 'VALID',                       // not used, refunded or cancelled
+      event: { startAt: { gt: new Date() } }, // event hasn't started yet
+    },
+    orderBy: { event: { startAt: 'desc' } }, // the latest one first
+    select: { event: { select: { startAt: true } } },
+  })
+
+  if (lastTicket) {
+    const date = lastTicket.event.startAt.toLocaleDateString('en-GB', {
+      timeZone: 'Africa/Cairo', day: 'numeric', month: 'short', year: 'numeric',
+    })
+    throw new Error(`You have tickets for upcoming events. You can delete your account after your last event on ${date}.`)
+  }
+
+  const { deletionRequestedAt } = await prisma.user.update({
+    where: { id: userId },
+    data: { deletionRequestedAt: new Date() },
+    select: { deletionRequestedAt: true },
+  })
+  const deletesAt = deletionDate(deletionRequestedAt!)
+  await sendDeletionRequestedEmail(user.email, deletesAt)
+  return { deletionRequestedAt, deletesAt }
+}
+
+/**
+ * Cancels a deletion request during the grace period
+ */
+export const cancelAccountDeletion = async (userId: string) => {
+  const user = await prisma.user.findUnique({ where: { id: userId } })
+  if (!user) throw new Error('User not found')
+  if (!user.deletionRequestedAt) throw new Error('There is no deletion request to cancel')
+
+  await prisma.user.update({ where: { id: userId }, data: { deletionRequestedAt: null } })
+  return { message: 'Deletion request cancelled' }
 }

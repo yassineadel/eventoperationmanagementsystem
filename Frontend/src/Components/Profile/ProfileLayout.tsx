@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { usePreferences } from '../Auth/preferences'
 import { useSession } from '../Auth/sessionContext'
@@ -7,12 +7,26 @@ import Icon from '../Homepage/components/Icon'
 import { profileStrings, type ProfileStrings } from './strings'
 import type { Profile } from './profileModel'
 import type { ProfileContext } from './profileContext'
+import { authApi } from '../../lib/authApi'
 import './Profile.css'
 
 function ProfileAccount({ user, t, settings }: { user: SessionUser; t: ProfileStrings; settings: boolean }) {
+  const { updateUser } = useSession()
+  const initialRead = useRef<AbortController | null>(null)
+  useEffect(() => {
+    const controller = new AbortController()
+    initialRead.current = controller
+    const timeout = window.setTimeout(() => controller.abort(), 8000)
+    void authApi.me(controller.signal).then(({ user: current }) => {
+      if (!controller.signal.aborted && current.id === user.id) updateUser(user.id, current)
+    }).catch(() => { /* Keep current details visible; mutation errors remain retryable. */ })
+      .finally(() => window.clearTimeout(timeout))
+    return () => controller.abort()
+  }, [user.id, updateUser])
   const profile: Profile = {
     fullName: user.fullName, email: user.email, phone: user.phone, emailVerified: user.emailVerified,
-    communications: { eventNews: false, personalisedOffers: false }, deletionRequestedAt: null,
+    communications: { eventNews: false, personalisedOffers: false }, deletionRequestedAt: user.deletionRequestedAt ?? null,
+    marketingOptIn: user.marketingOptIn ?? null,
   }
   const initials = profile.fullName.trim().split(/\s+/).slice(0, 2).map((part) => Array.from(part)[0]).join('').toLocaleUpperCase()
   const heading = <header className="account-heading">
@@ -28,7 +42,7 @@ function ProfileAccount({ user, t, settings }: { user: SessionUser; t: ProfileSt
         <nav aria-label={t.account}><NavLink end to="/profile"><Icon name="user" size={19} />{t.profile}</NavLink><NavLink to="/profile/settings"><Icon name="settings" size={19} />{t.settings}</NavLink></nav>
         <Link className="account-saved-link" to="/events?saved=1"><Icon name="bookmark" size={18} />{t.savedEvents}<Icon name="arrow" size={16} /></Link>
       </aside>
-      <div className="account-content">{settings && heading}<Outlet context={{ profile, preview: false, updatePreview: () => false } satisfies ProfileContext} /></div>
+      <div className="account-content">{settings && heading}<Outlet context={{ profile, updateAccount: (patch) => { initialRead.current?.abort(); updateUser(user.id, patch) } } satisfies ProfileContext} /></div>
     </div>
   </div>
 }

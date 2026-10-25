@@ -7,12 +7,13 @@ import Icon from '../Homepage/components/Icon'
 import { useBooking } from './bookingContext'
 import { HOLD_MS, selectionTotals, type BookingError, type Selection } from './bookingModel'
 import { getBookingCatalogue, selectionPath } from './catalogue'
-import { bookingMoney, bookingNumber, bookingStrings } from './strings'
+import { bookingMoney, bookingNumber } from './strings'
+import { useBookingStrings } from './liveStrings'
 import './Booking.css'
 
 export function BookingShell({ step, event, title, lead, children }: { step: number; event?: Event; title: string; lead: string; children: ReactNode }) {
   const { lang } = usePreferences()
-  const t = bookingStrings[lang]
+  const t = useBookingStrings(event?.id)
   const { state, storageAvailable } = useBooking()
   useEffect(() => { document.title = `${title} | ${lang === 'ar' ? 'حفلتنا' : 'Hafletna'}` }, [title, lang])
   const steps = [t.stepSelection, t.stepCart, t.stepCheckout]
@@ -29,7 +30,7 @@ export function BookingShell({ step, event, title, lead, children }: { step: num
 export function ReservationTimer() {
   const { state, now } = useBooking()
   const { lang } = usePreferences()
-  const t = bookingStrings[lang]
+  const t = useBookingStrings()
   if (state.expiresAt === null || !state.items.length) return null
   const remaining = Math.max(0, state.expiresAt - now)
   const seconds = Math.ceil(remaining / 1000)
@@ -41,7 +42,7 @@ export function ReservationTimer() {
 
 export function TicketDescription({ item, eventId }: { item: Selection; eventId: string }) {
   const { lang } = usePreferences()
-  const t = bookingStrings[lang]
+  const t = useBookingStrings(eventId)
   const catalogue = getBookingCatalogue(eventId)!
   const category = catalogue.categories.find((category) => category.id === item.categoryId)!
   const seat = catalogue.seats.find((seat) => seat.id === item.seatId)
@@ -50,7 +51,7 @@ export function TicketDescription({ item, eventId }: { item: Selection; eventId:
 
 export function OrderSummary({ event, children, showItems = false }: { event: Event; children?: ReactNode; showItems?: boolean }) {
   const { lang } = usePreferences()
-  const t = bookingStrings[lang]
+  const t = useBookingStrings(event.id)
   const { state } = useBooking()
   const totals = selectionTotals(event.id, state.eventId === event.id ? state.items : [])
   return <aside className="booking-summary" aria-labelledby="booking-summary-title">
@@ -65,15 +66,13 @@ export function OrderSummary({ event, children, showItems = false }: { event: Ev
 }
 
 export function BookingErrorMessage({ error }: { error: BookingError | '' | undefined }) {
-  const { lang } = usePreferences()
-  const t = bookingStrings[lang]
+  const t = useBookingStrings()
   const message = error === 'limit' ? t.errorLimit : error === 'expired' ? t.errorExpired : error === 'unavailable' ? t.errorUnavailable : error ? t.errorInvalid : ''
   return message ? <p className="booking-error" role="alert">{message}</p> : null
 }
 
 export function BookingEmpty({ step = 2, event, blocked = false }: { step?: number; event?: Event; blocked?: boolean }) {
-  const { lang } = usePreferences()
-  const t = bookingStrings[lang]
+  const t = useBookingStrings(event?.id)
   const { state, act } = useBooking()
   const expired = !blocked && state.expired
   return <BookingShell step={step} event={event} title={blocked ? t.blockedTitle : expired ? t.expiredTitle : t.emptyTitle} lead={blocked ? t.blockedLead : expired ? t.expiredLead : t.emptyLead}>

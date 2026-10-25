@@ -11,6 +11,12 @@ import {
   verifyEmailSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  updateProfileSchema,
+  changePasswordSchema,
+  requestEmailChangeSchema,
+  verifyEmailChangeSchema,
+  updatePreferencesSchema,
+  requestDeletionSchema,
 } from './auth.schemas'
 import {
   register,
@@ -19,7 +25,14 @@ import {
   forgotPasswordHandler,
   resetPasswordHandler,
   logout,
-  me
+  me,
+  updateMe,
+  changePasswordHandler,
+  requestEmailChangeHandler,
+  verifyEmailChangeHandler,
+  updatePreferencesHandler,
+  requestDeletionHandler,
+  cancelDeletionHandler,
 } from './auth.controller'
 import { protect } from '../../middleware/auth.middleware'
 
@@ -34,6 +47,13 @@ router.post('/logout', logout)
 
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }))
 router.get('/me', protect, me)
+router.patch('/me', protect, validate(updateProfileSchema), updateMe)
+router.post('/change-password', protect, authLimiter, validate(changePasswordSchema), changePasswordHandler)
+router.post('/change-email/request', protect, emailLimiter, validate(requestEmailChangeSchema), requestEmailChangeHandler)
+router.post('/change-email/verify', protect, authLimiter, validate(verifyEmailChangeSchema), verifyEmailChangeHandler)
+router.patch('/me/preferences', protect, validate(updatePreferencesSchema), updatePreferencesHandler)
+router.post('/me/deletion', protect, authLimiter, validate(requestDeletionSchema), requestDeletionHandler)
+router.delete('/me/deletion', protect, cancelDeletionHandler)
 router.get(
   '/google/callback',
   passport.authenticate('google', {

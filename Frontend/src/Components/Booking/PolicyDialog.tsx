@@ -3,12 +3,16 @@ import { usePreferences } from '../Auth/preferences'
 import type { Event } from '../Homepage/types'
 import Icon from '../Homepage/components/Icon'
 import { getEventDetails } from '../Discovery/eventDetails'
-import { bookingStrings } from './strings'
+import { useBookingStrings } from './liveStrings'
+import { getLivePolicies, isLiveEvent } from './catalogue'
+import { apiStrings } from '../Discovery/apiStrings'
 
 export default function PolicyDialog({ event, onClose, onAccept }: { event: Event; onClose: () => void; onAccept: () => void }) {
   const { lang } = usePreferences()
-  const t = bookingStrings[lang]
+  const t = useBookingStrings(event.id)
   const dialog = useRef<HTMLDialogElement>(null)
+    // Real events use the policies from the backend; sample events use the sample ones
+  const policies = isLiveEvent(event.id) ? getLivePolicies(event.id) : getEventDetails(event).policies
   useEffect(() => {
     const element = dialog.current!
     const focus = document.activeElement instanceof HTMLElement ? document.activeElement : null
@@ -20,7 +24,7 @@ export default function PolicyDialog({ event, onClose, onAccept }: { event: Even
   }, [])
   return <dialog ref={dialog} id="booking-policy-dialog" className="booking-policy-dialog" aria-modal="true" aria-labelledby="booking-policy-title" aria-describedby="booking-policy-lead" onCancel={(event) => { event.preventDefault(); onClose() }}>
     <button type="button" className="booking-dialog-close" aria-label={t.close} onClick={onClose}><Icon name="close" size={22} /></button><p className="discovery-eyebrow">{event.title[lang]}</p><h2 id="booking-policy-title" tabIndex={-1}>{t.policies}</h2><p id="booking-policy-lead">{t.policyLead}</p>
-    <div className="booking-policy-copy">{getEventDetails(event).policies.map((policy) => <section key={policy.title.en}><h3>{policy.title[lang]}</h3><p>{policy.body[lang]}</p></section>)}</div>
+    <div className="booking-policy-copy">{policies.length === 0 && <p>{apiStrings[lang].noPolicies}</p>}{policies.map((policy) => <section key={policy.title.en}><h3>{policy.title[lang]}</h3><p>{policy.body[lang]}</p></section>)}</div>
     <p className="booking-subtle-note">{t.demoLead}</p><div className="booking-actions"><button className="home-outline-button" type="button" onClick={onClose}>{t.close}</button><button className="home-button" type="button" onClick={onAccept}>{t.agree}</button></div>
   </dialog>
 }
