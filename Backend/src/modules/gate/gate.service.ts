@@ -35,3 +35,15 @@ export const login = async (username: string, password: string) => {
     staff: { id: staff.id, fullName: staff.fullName, role: staff.role },
   }
 }
+
+/**
+ * The staff member's details, for GET /api/gate/me
+ */
+export const getStaff = async (staffId: string) => {
+  const staff = await prisma.staffAccount.findUnique({
+    where: { id: staffId },
+    select: { id: true, fullName: true, username: true, role: true },
+  })
+  if (!staff) throw new GateError('Staff account not found', 404)
+  return staff
+}
