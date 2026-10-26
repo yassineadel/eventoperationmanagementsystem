@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { loginHandler, meHandler } from './gate.controller'
+import { loginHandler, meHandler, eventsHandler } from './gate.controller'
 import { protectGate } from './gate.middleware'
 
 const router = Router()
@@ -14,5 +14,8 @@ router.post('/login', loginHandler)
 
 // GET /api/gate/me — the logged-in staff member (the app checks its saved token with this)
 router.get('/me', protectGate, meHandler)
+
+// GET /api/gate/events — the events this staff member can scan
+router.get('/events', protectGate, eventsHandler)
 
 export default router

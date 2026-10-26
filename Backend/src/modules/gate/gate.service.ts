@@ -2,6 +2,7 @@ import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
 import prisma from '../../config/db'
 import { env } from '../../config/env'
+import type { StaffRole } from '@prisma/client'
 
 // An error that carries the HTTP status to send back (401, 403…)
 export class GateError extends Error {
@@ -46,4 +47,43 @@ export const getStaff = async (staffId: string) => {
   })
   if (!staff) throw new GateError('Staff account not found', 404)
   return staff
+}
+
+/**
+ * The events this staff member can scan: assigned ones for scanners, all for app admins.
+ * Only events that haven't ended yet. No prices (FR-APP-08).
+ */
+export const getAssignedEvents = async (staffId: string, role: StaffRole) => {
+  const now = new Date()
+  // An event that started up to a day ago may still be running; the exact end is checked below
+  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+
+  const events = await prisma.event.findMany({
+    where: {
+      status: 'PUBLISHED',
+      startAt: { gte: oneDayAgo },
+      // App admins see every event; scanners only those they are assigned to, while the assignment is active
+      ...(role === 'APP_ADMIN'
+        ? {}
+        : {
+            staffAssignments: {
+              some: {
+                staffId,
+                revokedAt: null,
+                AND: [
+                  { OR: [{ validFrom: null }, { validFrom: { lte: now } }] },
+                  { OR: [{ validUntil: null }, { validUntil: { gte: now } }] },
+                ],
+              },
+            },
+          }),
+    },
+    select: { id: true, name: true, startAt: true, durationMinutes: true, venue: { select: { name: true, type: true } } },
+    orderBy: { startAt: 'asc' },
+  })
+
+  return events
+    // ends = start + duration; drop the ones already over
+    .filter((e) => e.startAt.getTime() + e.durationMinutes * 60_000 >= now.getTime())
+    .map((e) => ({ id: e.id, name: e.name, venueName: e.venue.name, startAt: e.startAt, seated: e.venue.type === 'SEATED' }))
 }

@@ -1,5 +1,5 @@
 import { Request, Response } from 'express'
-import { GateError, getStaff, login } from './gate.service'
+import { GateError, getStaff, login, getAssignedEvents } from './gate.service'
 
 // POST /api/gate/login  body: { username, password }
 export const loginHandler = async (req: Request, res: Response) => {
@@ -31,6 +31,17 @@ export const meHandler = async (req: Request, res: Response) => {
       res.status(error.status).json({ message: error.message })
       return
     }
+    console.error(error)
+    res.status(500).json({ message: 'Something went wrong' })
+  }
+}
+
+// GET /api/gate/events  (needs protectGate): the events this staff member can scan
+export const eventsHandler = async (req: Request, res: Response) => {
+  try {
+    const events = await getAssignedEvents(req.gate!.staffId, req.gate!.role)
+    res.json({ events })
+  } catch (error) {
     console.error(error)
     res.status(500).json({ message: 'Something went wrong' })
   }
