@@ -8,7 +8,7 @@ import { getDeviceId, useSession } from '@/lib/session';
 import { colors } from '@/lib/theme';
 
 export default function LoginScreen() {
-  const { signIn } = useSession();
+  const { signIn, signOutReason } = useSession();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +54,8 @@ export default function LoginScreen() {
           onSubmitEditing={onLogin}
         />
 
-        {error && <Text style={styles.error}>{error}</Text>}
+        {/* A failed sign-in shows its own error; otherwise say why the app signed out (expired, blocked) */}
+        {(error ?? signOutReason) && <Text style={styles.error}>{error ?? signOutReason}</Text>}
 
         <Pressable style={[styles.button, loading && { opacity: 0.6 }]} onPress={onLogin} disabled={loading}>
           {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign in</Text>}

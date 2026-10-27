@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { api, GateEvent } from '@/api';
+import { api, GateEvent, SignedOutError } from '@/api';
 import { useSession } from '@/lib/session';
 import { colors } from '@/lib/theme';
 
@@ -11,23 +11,33 @@ export default function EventsScreen() {
   const { token, staff, selectEvent, signOut } = useSession();
   const [events, setEvents] = useState<GateEvent[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0); // bumped by "Try again" to load the list again
 
   useEffect(() => {
-    if (!token) {
-      router.replace('/');
-      return;
-    }
-    api.getAssignedEvents(token).then(setEvents).catch((e) => setError(String(e?.message ?? e)));
-  }, [token]);
+    if (!token) return; // signed out: the router is already going back to the login screen
+    api
+      .getAssignedEvents(token)
+      .then(setEvents)
+      .catch((e) => {
+        // A sign-out has its own message on the login screen, so don't show it here too
+        if (!(e instanceof SignedOutError)) setError(e instanceof Error ? e.message : String(e));
+      });
+  }, [token, attempt]);
+
+  // Hide the old error and load the list again
+  function retry() {
+    setError(null);
+    setAttempt((n) => n + 1);
+  }
 
   function open(event: GateEvent) {
     selectEvent(event);
     router.push('/scan');
   }
 
+  // After sign-out the protected screens close and the login screen shows (see _layout.tsx)
   async function logout() {
     await signOut();
-    router.replace('/');
   }
 
   return (
@@ -35,7 +45,14 @@ export default function EventsScreen() {
       <Text style={styles.hello}>Signed in as {staff?.fullName}</Text>
 
       {!events && !error && <ActivityIndicator color={colors.text} style={{ marginTop: 40 }} />}
-      {error && <Text style={styles.error}>{error}</Text>}
+      {error && (
+        <View>
+          <Text style={styles.error}>{error}</Text>
+          <Pressable style={styles.retry} onPress={retry}>
+            <Text style={styles.retryText}>Try again</Text>
+          </Pressable>
+        </View>
+      )}
       {events?.length === 0 && <Text style={styles.empty}>You are not assigned to any events.</Text>}
 
       <FlatList
@@ -62,6 +79,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg, padding: 16 },
   hello: { color: colors.muted, fontSize: 15, marginBottom: 16 },
   error: { color: colors.reject, fontSize: 16 },
+  retry: { backgroundColor: colors.primary, borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 12, marginBottom: 12 },
+  retryText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   empty: { color: colors.muted, fontSize: 16, textAlign: 'center', marginTop: 40 },
   card: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 14, padding: 18 },
   name: { color: colors.text, fontSize: 20, fontWeight: '700', marginBottom: 6 },
