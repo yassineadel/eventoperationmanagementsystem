@@ -7,11 +7,11 @@ import Icon from '../Homepage/components/Icon'
 import NotFound from '../Discovery/NotFound'
 import { useBooking } from './bookingContext'
 import { categoryRemaining, MAX_TICKETS, type BookingError, type Selection } from './bookingModel'
-import { getBookingCatalogue, getBookingEvent, registerLiveCatalogue, registerLiveSeatedCatalogue, seatSectionOf, type Seat, isLiveEvent } from './catalogue'
+import { getBookingCatalogue, getBookingEvent, seatSectionOf, type Seat, isLiveEvent } from './catalogue'
 import { useApiEvent } from '../../lib/useEventsApi'
 import { eventIdPattern } from '../../lib/eventsModel'
-import { getAvailability, getVenueLayout, parseSeatedLayout, type Availability, type SeatedLayout } from '../../lib/bookingApi'
-import { heldSeatLabels, SeatTakenError, syncHolds } from './liveHolds'
+import { SeatTakenError, syncHolds } from './liveHolds'
+import { loadLiveBooking } from './liveBooking'
 import { ApiError } from '../../lib/api'
 import { bookingMoney, bookingNumber} from './strings'
 import { useBookingStrings } from './liveStrings'
@@ -121,61 +121,35 @@ function SelectionContent({ event, onSeatsTaken }: { event: Event; onSeatsTaken?
   </BookingShell>
 }
 
-// A real event from the backend: load it and its live availability, then show the same page.
-// Seated venues also load the venue's seat layout and the seats this user already holds.
+// A real event from the backend: load it, its live availability and the user's holds
+// (and the seat layout for seated venues), then show the same page.
 function LiveSelection({ eventId }: { eventId: string }) {
   const t = useBookingStrings(eventId)
   const api = useApiEvent(eventId)
-  const [availability, setAvailability] = useState<Availability | null>(null)
-  const [layout, setLayout] = useState<SeatedLayout | null>(null)
-  const [ownSeats, setOwnSeats] = useState<string[]>([])
+  // Goes up by one each time the catalogue was (re)loaded, so the page redraws with the new data
+  const [loaded, setLoaded] = useState(0)
   const [failed, setFailed] = useState(false)
-  const seated = api.data?.details.venueType === 'SEATED'
-  const slug = api.data?.details.venueSlug
+  const data = api.data
 
   useEffect(() => {
+    if (!data) return
     const controller = new AbortController()
-    getAvailability(eventId, controller.signal)
-      .then(setAvailability)
+    loadLiveBooking(data, controller.signal)
+      .then(() => setLoaded((n) => n + 1))
       .catch(() => { if (!controller.signal.aborted) setFailed(true) })
     return () => controller.abort()
-  }, [eventId])
+  }, [data])
 
-  // Seated venues: the seat map's layout, and the seats already in this user's cart
-  useEffect(() => {
-    if (!seated || !slug) return
-    const controller = new AbortController()
-    Promise.all([getVenueLayout(slug, controller.signal).then(parseSeatedLayout), heldSeatLabels(eventId, controller.signal)])
-      .then(([venueLayout, own]) => { setLayout(venueLayout); setOwnSeats(own) })
-      .catch(() => { if (!controller.signal.aborted) setFailed(true) })
-    return () => controller.abort()
-  }, [seated, slug, eventId])
-
-  const loadError = <section className="home-container discovery-not-found" role="alert"><h1 className="discovery-title">{t.loadError}</h1><button type="button" className="home-button" onClick={() => window.location.reload()}>{t.retry}</button></section>
   if (api.status === 'not-found' || api.status === 'idle') return <NotFound event />
-  if (api.status === 'error' || failed) return loadError
-  if (!api.data || !availability) return <section className="home-container" role="status"><p>{t.loading}</p></section>
+  if (api.status === 'error' || failed) return <section className="home-container discovery-not-found" role="alert"><h1 className="discovery-title">{t.loadError}</h1><button type="button" className="home-button" onClick={() => window.location.reload()}>{t.retry}</button></section>
+  if (!data || !loaded) return <section className="home-container" role="status"><p>{t.loading}</p></section>
 
-  const { event, details } = api.data
-  const feePercents = Object.fromEntries(details.ticketCategories?.map((c) => [c.id, c.feePercent ?? 0]) ?? [])
-
-  if (seated) {
-    if (!slug) return loadError // without the venue we can't load its seats
-    if (!layout) return <section className="home-container" role="status"><p>{t.loading}</p></section>
-    registerLiveSeatedCatalogue(event, availability, layout, feePercents, details.policies, ownSeats)
-
-    // After a seat was taken: load the free seats and the user's holds again, and redraw the map
-    const refreshSeats = async () => {
-      const [fresh, own] = await Promise.all([getAvailability(eventId), heldSeatLabels(eventId)])
-      registerLiveSeatedCatalogue(event, fresh, layout, feePercents, details.policies, own)
-      setAvailability(fresh)
-      setOwnSeats(own)
-    }
-    return <SelectionContent key={eventId} event={event} onSeatsTaken={refreshSeats} />
+  // After a seat was taken: load the free seats and the user's holds again, and redraw the map
+  const refreshSeats = async () => {
+    await loadLiveBooking(data)
+    setLoaded((n) => n + 1)
   }
-
-  registerLiveCatalogue(event, availability, feePercents, details.policies)
-  return <SelectionContent key={eventId} event={event} />
+  return <SelectionContent key={eventId} event={data.event} onSeatsTaken={data.details.venueType === 'SEATED' ? refreshSeats : undefined} />
 }
 
 export default function TicketSelection() {

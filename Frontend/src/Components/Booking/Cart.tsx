@@ -11,8 +11,14 @@ import { useBookingStrings } from './liveStrings'
 import { BookingEmpty, BookingShell, OrderSummary, TicketDescription } from './BookingParts'
 import { resolveAttendeeNames } from './attendees'
 import { releaseSeatHold, syncHolds } from './liveHolds'
+import LiveBookingRestore from './LiveBookingRestore'
 
+// After a page refresh, a real event's cart is loaded again from the server first
 export default function Cart() {
+  return <LiveBookingRestore><CartContent /></LiveBookingRestore>
+}
+
+function CartContent() {
   const { lang } = usePreferences()
   const t = useBookingStrings()
   const { state, names: enteredNames, setAttendee, act, now } = useBooking()

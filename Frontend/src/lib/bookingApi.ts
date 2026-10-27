@@ -123,6 +123,10 @@ export const holdStanding = (eventId: string, ticketCategoryId: string, quantity
 export const holdSeats = (eventId: string, seatIds: string[]) =>
   postJson<{ message: string; holds: Hold[] }>('/api/inventory/holds', { eventId, seatIds })
 
+// The signed-in user's active holds for one event (seat holds have a seatId; standing holds a quantity)
+export const getMyHolds = (eventId: string, signal?: AbortSignal) =>
+  getJson<Hold[]>(`/api/inventory/holds?eventId=${encodeURIComponent(eventId)}`, { signal })
+
 // Give places back (the user removed them from the cart)
 export const releaseHold = (holdId: string) =>
   deleteJson<{ message: string }>(`/api/inventory/holds/${encodeURIComponent(holdId)}`)

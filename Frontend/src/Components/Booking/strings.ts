@@ -46,7 +46,7 @@ const en = {
   blockedTitle: 'This event is unavailable for booking.', blockedLead: 'Sold-out, cancelled, and past events cannot be selected. Explore another experience.',
   back: 'Back', price: 'Price', seatingNote: 'Illustrative layout with 240 seats. Positions and prices are sample data.', free: 'Free',
   missingNamesTitle: 'Every ticket needs a name.', missingNamesLead: 'Some attendee names are missing. Return to your cart to add or review them before continuing.', returnCart: 'Return to cart',
-  notOnSale: 'Not on sale',
+  notOnSale: 'Not on sale', restoring: 'Restoring your reservation…',
   seatTaken: 'Sorry, one or more of your seats was just taken by someone else. The map is updated, so please choose again.',
   seatMismatch: 'Your reserved seats no longer match your selection. Go back and choose your seats again.',
 }
@@ -96,7 +96,7 @@ const ar: Record<keyof typeof en, string> = {
   blockedTitle: 'هذه الفعالية غير متاحة للحجز.', blockedLead: 'لا يمكن اختيار تذاكر لفعالية مباعة بالكامل أو ملغاة أو انتهى موعدها. استكشف تجربة أخرى.',
   back: 'رجوع', price: 'السعر', seatingNote: 'خريطة توضيحية تضم ٢٤٠ مقعدًا. الأماكن والأسعار بيانات تجريبية.', free: 'مجاني',
   missingNamesTitle: 'لكل تذكرة اسم.', missingNamesLead: 'بعض أسماء الحاضرين غير مكتملة. عُد إلى السلة لإضافتها أو مراجعتها قبل المتابعة.', returnCart: 'العودة إلى السلة',
-  notOnSale: 'غير معروض للبيع',
+  notOnSale: 'غير معروض للبيع', restoring: 'جارٍ استعادة حجزك…',
   seatTaken: 'عذرًا، حجز شخص آخر مقعدًا أو أكثر من مقاعدك للتو. حدّثنا الخريطة، فاختر مرة أخرى من فضلك.',
   seatMismatch: 'لم تعد مقاعدك المحجوزة مطابقة لاختيارك. عُد واختر مقاعدك مرة أخرى.',
 }
