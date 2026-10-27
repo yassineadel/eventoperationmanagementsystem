@@ -12,6 +12,8 @@ export type CatalogDetails = {
   faqs: { question: LocalizedText; answer: LocalizedText }[];
   ticketCategories?: { id: string; name: LocalizedText; price: number | null; feePercent: number | null; capacity: number; held: number; sold: number; remaining: number }[];
   venueType?: 'SEATED' | 'STANDING'; synthetic?: boolean;
+  // The venue's id in URLs, used to load the seat map (GET /api/venues/:slug/layout)
+  venueSlug?: string;
 }
 export type CatalogEvent = { event: Event; details: CatalogDetails }
 export type EventsPage = {
@@ -136,6 +138,7 @@ export function mapEventDetail(value: unknown): CatalogEvent {
     capacity: typeof venue.capacity === 'number' ? integer(venue.capacity) : ticketCategories.reduce((sum, c) => sum + c.capacity, 0),
     organiser: null, policies: policyRows(row.policies), faqs, ticketCategories,
     venueType: venue.type === 'SEATED' || venue.type === 'STANDING' ? venue.type : undefined, synthetic: row.isSynthetic === true,
+    venueSlug: text(venue.slug) || undefined,
   } }
 }
 function decimalCoordinate(value: unknown, max: number): number | null {

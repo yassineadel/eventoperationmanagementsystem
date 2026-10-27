@@ -1,10 +1,13 @@
 import { events } from '../Homepage/data/events.ts'
 import type { Event, LocalizedText } from '../Homepage/types.ts'
-import type { Availability } from '../../lib/bookingApi.ts'
+import type { Availability, SeatedLayout } from '../../lib/bookingApi.ts'
 
 export type TicketCategory = { id: string; name: LocalizedText; description: LocalizedText; price: number; feePercent: number; color: string; capacity: number; remaining: number }
+// categoryId is '' for a real seat whose category is not on sale for this event (it is shown as unavailable)
 export type Seat = { id: string; section: string; row: string; number: number; categoryId: string; status: 'available' | 'held' | 'sold' }
-export type BookingCatalogue = { mode: 'seated' | 'standing'; categories: TicketCategory[]; seats: Seat[] }
+// How the seat map is drawn: sections, each with rows of seats, in venue order
+export type SeatSection = { key: string; label: LocalizedText; color: string; price?: number; rows: { label: string; seats: Seat[] }[] }
+export type BookingCatalogue = { mode: 'seated' | 'standing'; categories: TicketCategory[]; seats: Seat[]; sections?: SeatSection[] }
 const catalogues = new Map<string, BookingCatalogue>()
 
 // Sample identifiers are deliberately separate from any real venue or inventory IDs.
@@ -78,6 +81,88 @@ export function registerLiveCatalogue(event: Event, availability: Availability, 
     remaining: category.available,
   }))
   const catalogue: BookingCatalogue = { mode: 'standing', categories, seats: [] }
+  liveEvents.set(event.id, event)
+  livePolicies.set(event.id, policies)
+  catalogues.set(event.id, catalogue)
+  return catalogue
+}
+
+/**
+ * A seat's label as the server writes it in the cart: section-row-number, e.g. "ORC-A-5".
+ * Used to match the server's holds to the seats the user chose.
+ */
+export function seatLabel(seat: Pick<Seat, 'section' | 'row' | 'number'>) {
+  return `${seat.section}-${seat.row}-${seat.number}`
+}
+
+/**
+ * The sections of the seat map. Real events bring their own (from the venue layout).
+ * Sample events have one section per category, made of their rows, so they look exactly as before.
+ */
+export function seatSections(catalogue: BookingCatalogue): SeatSection[] {
+  if (catalogue.sections) return catalogue.sections
+  return catalogue.categories.map((category) => {
+    const rows: SeatSection['rows'] = []
+    for (const seat of catalogue.seats.filter((seat) => seat.section === category.id)) {
+      const row = rows.find((row) => row.label === seat.row)
+      if (row) row.seats.push(seat)
+      else rows.push({ label: seat.row, seats: [seat] })
+    }
+    return { key: category.id, label: category.name, color: category.color, price: category.price, rows }
+  })
+}
+
+// The section a seat is in (for the seat details and ticket descriptions)
+export function seatSectionOf(catalogue: BookingCatalogue, seat: Seat) {
+  return seatSections(catalogue).find((section) => section.key === seat.section)
+}
+
+/**
+ * Seated venues: turns the venue layout and the backend's availability into the shape the booking pages use.
+ * - Each seat gets the event's ticket category with the same categoryKey.
+ * - Sold seats are 'sold'; seats held by someone else are 'held'.
+ * - ownSeatLabels: seats the user already holds (from their cart). They count as available for this user,
+ *   so going back from the cart to the map keeps them selectable.
+ */
+export function registerLiveSeatedCatalogue(event: Event, availability: Availability, layout: SeatedLayout, feePercents: Record<string, number>, policies: Policy[], ownSeatLabels: string[]) {
+  const categories: TicketCategory[] = availability.categories.map((category, index) => ({
+    id: category.id,
+    name: { en: category.name, ar: category.name },
+    description: { en: '', ar: '' },
+    price: Number(category.price),
+    feePercent: feePercents[category.id] ?? 0,
+    color: tones[index % tones.length],
+    capacity: category.capacity,
+    remaining: category.available,
+  }))
+  const categoryByKey = new Map(availability.categories.map((category) => [category.categoryKey, category.id]))
+  const held = new Set(availability.heldSeatIds)
+  const sold = new Set(availability.soldSeatIds)
+  const own = new Set(ownSeatLabels)
+
+  const seats: Seat[] = []
+  // Rows without seats (and sections without rows) are left out, so every drawn row has at least one seat
+  const sections: SeatSection[] = layout.sections.filter((section) => section.rows.some((row) => row.seats.length)).map((section) => ({
+    key: section.key,
+    label: { en: section.label, ar: section.label },
+    // Real sections mix categories, so each seat has its own colour; the section frame uses the brand colour
+    color: 'violet',
+    rows: section.rows.filter((row) => row.seats.length).map((row) => ({
+      label: row.label,
+      seats: row.seats.map((layoutSeat) => {
+        const base = { id: layoutSeat.id, section: section.key, row: row.label, number: layoutSeat.number }
+        const categoryId = categoryByKey.get(layoutSeat.categoryKey) ?? ''
+        const status: Seat['status'] = !categoryId || sold.has(layoutSeat.id) ? 'sold'
+          : held.has(layoutSeat.id) && !own.has(seatLabel(base)) ? 'held'
+          : 'available'
+        const seat: Seat = { ...base, categoryId, status }
+        seats.push(seat)
+        return seat
+      }),
+    })),
+  }))
+
+  const catalogue: BookingCatalogue = { mode: 'seated', categories, seats, sections }
   liveEvents.set(event.id, event)
   livePolicies.set(event.id, policies)
   catalogues.set(event.id, catalogue)

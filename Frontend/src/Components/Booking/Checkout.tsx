@@ -7,7 +7,7 @@ import Icon from '../Homepage/components/Icon'
 import { useBooking } from './bookingContext'
 import { selectionTotals, validAttendee, type BookingError, type SampleReceipt } from './bookingModel'
 import { selectionPath, getBookingEvent, isLiveEvent } from './catalogue'
-import { payOnServer } from './liveCheckout'
+import { payOnServer, SeatMismatchError } from './liveCheckout'
 import { bookingMoney, bookingNumber } from './strings'
 import { useBookingStrings } from './liveStrings'
 import { BookingEmpty, BookingErrorMessage, BookingShell, OrderSummary, TicketDescription } from './BookingParts'
@@ -80,7 +80,7 @@ export default function Checkout() {
           else setOutcome(order.status === 'FAILED' ? 'declined' : 'timeout')
           act({ type: 'release' })
         })
-        .catch((error) => setServerError(error instanceof Error ? error.message : t.loadError))
+        .catch((error) => setServerError(error instanceof SeatMismatchError ? t.seatMismatch : error instanceof Error ? error.message : t.loadError))
         .finally(() => { inFlight.current = false; setProcessing(false) })
       return
     }

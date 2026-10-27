@@ -6,7 +6,7 @@ import { formatDate } from '../Homepage/discovery'
 import Icon from '../Homepage/components/Icon'
 import { useBooking } from './bookingContext'
 import { HOLD_MS, selectionTotals, type BookingError, type Selection } from './bookingModel'
-import { getBookingCatalogue, selectionPath } from './catalogue'
+import { getBookingCatalogue, seatSectionOf, selectionPath } from './catalogue'
 import { bookingMoney, bookingNumber } from './strings'
 import { useBookingStrings } from './liveStrings'
 import './Booking.css'
@@ -46,7 +46,10 @@ export function TicketDescription({ item, eventId }: { item: Selection; eventId:
   const catalogue = getBookingCatalogue(eventId)!
   const category = catalogue.categories.find((category) => category.id === item.categoryId)!
   const seat = catalogue.seats.find((seat) => seat.id === item.seatId)
-  return <><strong>{category.name[lang]}</strong>{seat && <span>{t.row} <bdi>{seat.row}</bdi> · {t.seat} {bookingNumber(seat.number, lang)}</span>}</>
+  // Real venues repeat row letters in each section (Orchestra A, Balcony A), so name the section when it isn't the category
+  const section = seat ? seatSectionOf(catalogue, seat)?.label[lang] : undefined
+  const where = section && section !== category.name[lang] ? <><bdi>{section}</bdi> · </> : null
+  return <><strong>{category.name[lang]}</strong>{seat && <span>{where}{t.row} <bdi>{seat.row}</bdi> · {t.seat} {bookingNumber(seat.number, lang)}</span>}</>
 }
 
 export function OrderSummary({ event, children, showItems = false }: { event: Event; children?: ReactNode; showItems?: boolean }) {
