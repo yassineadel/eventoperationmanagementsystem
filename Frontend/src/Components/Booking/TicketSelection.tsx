@@ -7,18 +7,19 @@ import Icon from '../Homepage/components/Icon'
 import NotFound from '../Discovery/NotFound'
 import { useBooking } from './bookingContext'
 import { categoryRemaining, MAX_TICKETS, type BookingError, type Selection } from './bookingModel'
-import { getBookingCatalogue, getBookingEvent, registerLiveCatalogue, type Seat, isLiveEvent } from './catalogue'
+import { getBookingCatalogue, getBookingEvent, registerLiveCatalogue, registerLiveSeatedCatalogue, seatSectionOf, type Seat, isLiveEvent } from './catalogue'
 import { useApiEvent } from '../../lib/useEventsApi'
 import { eventIdPattern } from '../../lib/eventsModel'
-import { getAvailability, type Availability } from '../../lib/bookingApi'
-import { syncHolds } from './liveHolds'
+import { getAvailability, getVenueLayout, parseSeatedLayout, type Availability, type SeatedLayout } from '../../lib/bookingApi'
+import { heldSeatLabels, SeatTakenError, syncHolds } from './liveHolds'
 import { ApiError } from '../../lib/api'
 import { bookingMoney, bookingNumber} from './strings'
 import { useBookingStrings } from './liveStrings'
 import { BookingEmpty, BookingErrorMessage, BookingShell, OrderSummary, ReservationTimer, TicketDescription } from './BookingParts'
 import SeatMap from './SeatMap'
 
-function SelectionContent({ event }: { event: Event }) {
+// onSeatsTaken (real seated events): reloads which seats are free, after a seat was taken by someone else
+function SelectionContent({ event, onSeatsTaken }: { event: Event; onSeatsTaken?: () => Promise<void> }) {
   const { lang } = usePreferences()
   const t = useBookingStrings(event.id)
   const { state, act, now } = useBooking()
@@ -60,13 +61,24 @@ function SelectionContent({ event }: { event: Event }) {
       if (expiresAt) act({ type: 'held', expiresAt })
       navigate('/cart')
     } catch (error) {
-      if (error instanceof ApiError && error.status === 401) setServerError(t.signInToReserve)
+      if (error instanceof SeatTakenError) {
+        setServerError(t.seatTaken)
+        // Show the map as it is now, and keep only the chosen seats that are still free
+        try {
+          await onSeatsTaken?.()
+          const fresh = getBookingCatalogue(event.id)!
+          select(items.filter((item) => !item.seatId || fresh.seats.find((seat) => seat.id === item.seatId)?.status === 'available'))
+        } catch { /* the message above already tells the user to choose again */ }
+      }
+      else if (error instanceof ApiError && error.status === 401) setServerError(t.signInToReserve)
       else setServerError(error instanceof Error ? error.message : t.loadError)
     } finally {
       setReserving(false)
     }
   }
   const inspectedCategory = catalogue.categories.find((category) => category.id === inspected?.categoryId)
+  // Sample events: the section is the category. Real venues: the venue's section (e.g. Orchestra).
+  const inspectedSection = inspected ? seatSectionOf(catalogue, inspected)?.label[lang] : undefined
   const inspectedSelected = Boolean(inspected && items.some((item) => item.seatId === inspected.id))
   const inspectedUnavailable = Boolean(inspected && (inspected.status !== 'available' || purchased?.seats.includes(inspected.id)))
 
@@ -74,12 +86,12 @@ function SelectionContent({ event }: { event: Event }) {
     <div className="booking-layout">
       <div className="booking-selection-main">
         {catalogue.mode === 'seated' ? <>
-          <SeatMap catalogue={catalogue} selectedIds={items.flatMap((item) => item.seatId ? [item.seatId] : [])} purchasedIds={purchased?.seats ?? []} disabled={false} inspectedId={inspected?.id} onInspect={(seat) => {
+          <SeatMap eventId={event.id} catalogue={catalogue} selectedIds={items.flatMap((item) => item.seatId ? [item.seatId] : [])} purchasedIds={purchased?.seats ?? []} disabled={false} inspectedId={inspected?.id} onInspect={(seat) => {
             setInspected(seat); setError('')
             if (window.matchMedia('(max-width: 900px)').matches) requestAnimationFrame(() => document.getElementById('booking-seat-inspector')?.scrollIntoView({ block: 'nearest' }))
           }} />
           <section id="booking-seat-inspector" className="booking-seat-inspector booking-panel" aria-live="polite" aria-atomic="true">
-            {inspected && inspectedCategory ? <><div className={`booking-seat-stamp tone-${inspectedCategory.color}`} aria-hidden="true"><small>{inspected.row}</small><strong>{bookingNumber(inspected.number, lang)}</strong></div><div><p className="discovery-eyebrow">{inspectedCategory.name[lang]}</p><h3>{t.row} <bdi>{inspected.row}</bdi> · {t.seat} {bookingNumber(inspected.number, lang)}</h3><p>{t.section}: {inspectedCategory.name[lang]}</p><p>{bookingMoney(inspectedCategory.price, lang)} · {bookingNumber(inspectedCategory.feePercent, lang)}% {t.feeRate}</p>{inspectedUnavailable && <p>{t.unavailableSeat}</p>}</div><button className={inspectedSelected ? 'home-outline-button' : 'home-button'} type="button" disabled={inspectedUnavailable || atLimit && !inspectedSelected} onClick={() => select(inspectedSelected ? items.filter((item) => item.seatId !== inspected.id) : [...items, { key: inspected.id, seatId: inspected.id, categoryId: inspected.categoryId }])}>{inspectedSelected ? t.removeSeat : t.addSeat}</button></>
+            {inspected && inspectedCategory ? <><div className={`booking-seat-stamp tone-${inspectedCategory.color}`} aria-hidden="true"><small>{inspected.row}</small><strong>{bookingNumber(inspected.number, lang)}</strong></div><div><p className="discovery-eyebrow">{inspectedCategory.name[lang]}</p><h3>{t.row} <bdi>{inspected.row}</bdi> · {t.seat} {bookingNumber(inspected.number, lang)}</h3><p>{t.section}: {inspectedSection ?? inspectedCategory.name[lang]}</p><p>{bookingMoney(inspectedCategory.price, lang)} · {bookingNumber(inspectedCategory.feePercent, lang)}% {t.feeRate}</p>{inspectedUnavailable && <p>{t.unavailableSeat}</p>}</div><button className={inspectedSelected ? 'home-outline-button' : 'home-button'} type="button" disabled={inspectedUnavailable || atLimit && !inspectedSelected} onClick={() => select(inspectedSelected ? items.filter((item) => item.seatId !== inspected.id) : [...items, { key: inspected.id, seatId: inspected.id, categoryId: inspected.categoryId }])}>{inspectedSelected ? t.removeSeat : t.addSeat}</button></>
               : <><Icon name="ticket" size={30} /><div><h3>{t.chooseSeat}</h3><p>{t.chooseSeatLead}</p></div></>}
           </section>
           <div className="booking-category-key" aria-label={t.categories}>{catalogue.categories.map((category) => <div className={`tone-${category.color}`} key={category.id}><span className="booking-category-dot" aria-hidden="true" /><div><strong>{category.name[lang]}</strong><span>{bookingMoney(category.price, lang)} + {bookingNumber(category.feePercent, lang)}% {t.feeRate}</span></div></div>)}</div>
@@ -109,12 +121,17 @@ function SelectionContent({ event }: { event: Event }) {
   </BookingShell>
 }
 
-// A real event from the backend: load it and its live availability, then show the same page
+// A real event from the backend: load it and its live availability, then show the same page.
+// Seated venues also load the venue's seat layout and the seats this user already holds.
 function LiveSelection({ eventId }: { eventId: string }) {
   const t = useBookingStrings(eventId)
   const api = useApiEvent(eventId)
   const [availability, setAvailability] = useState<Availability | null>(null)
+  const [layout, setLayout] = useState<SeatedLayout | null>(null)
+  const [ownSeats, setOwnSeats] = useState<string[]>([])
   const [failed, setFailed] = useState(false)
+  const seated = api.data?.details.venueType === 'SEATED'
+  const slug = api.data?.details.venueSlug
 
   useEffect(() => {
     const controller = new AbortController()
@@ -124,16 +141,41 @@ function LiveSelection({ eventId }: { eventId: string }) {
     return () => controller.abort()
   }, [eventId])
 
+  // Seated venues: the seat map's layout, and the seats already in this user's cart
+  useEffect(() => {
+    if (!seated || !slug) return
+    const controller = new AbortController()
+    Promise.all([getVenueLayout(slug, controller.signal).then(parseSeatedLayout), heldSeatLabels(eventId, controller.signal)])
+      .then(([venueLayout, own]) => { setLayout(venueLayout); setOwnSeats(own) })
+      .catch(() => { if (!controller.signal.aborted) setFailed(true) })
+    return () => controller.abort()
+  }, [seated, slug, eventId])
+
+  const loadError = <section className="home-container discovery-not-found" role="alert"><h1 className="discovery-title">{t.loadError}</h1><button type="button" className="home-button" onClick={() => window.location.reload()}>{t.retry}</button></section>
   if (api.status === 'not-found' || api.status === 'idle') return <NotFound event />
-  if (api.status === 'error' || failed) return <section className="home-container discovery-not-found" role="alert"><h1 className="discovery-title">{t.loadError}</h1><button type="button" className="home-button" onClick={() => window.location.reload()}>{t.retry}</button></section>
+  if (api.status === 'error' || failed) return loadError
   if (!api.data || !availability) return <section className="home-container" role="status"><p>{t.loading}</p></section>
 
-  // Seat maps for seated venues come in a later step
-  if (api.data.details.venueType === 'SEATED') return <BookingEmpty step={1} event={api.data.event} blocked />
+  const { event, details } = api.data
+  const feePercents = Object.fromEntries(details.ticketCategories?.map((c) => [c.id, c.feePercent ?? 0]) ?? [])
 
-  const feePercents = Object.fromEntries(api.data.details.ticketCategories?.map((c) => [c.id, c.feePercent ?? 0]) ?? [])
-  registerLiveCatalogue(api.data.event, availability, feePercents, api.data.details.policies)
-  return <SelectionContent key={eventId} event={api.data.event} />
+  if (seated) {
+    if (!slug) return loadError // without the venue we can't load its seats
+    if (!layout) return <section className="home-container" role="status"><p>{t.loading}</p></section>
+    registerLiveSeatedCatalogue(event, availability, layout, feePercents, details.policies, ownSeats)
+
+    // After a seat was taken: load the free seats and the user's holds again, and redraw the map
+    const refreshSeats = async () => {
+      const [fresh, own] = await Promise.all([getAvailability(eventId), heldSeatLabels(eventId)])
+      registerLiveSeatedCatalogue(event, fresh, layout, feePercents, details.policies, own)
+      setAvailability(fresh)
+      setOwnSeats(own)
+    }
+    return <SelectionContent key={eventId} event={event} onSeatsTaken={refreshSeats} />
+  }
+
+  registerLiveCatalogue(event, availability, feePercents, details.policies)
+  return <SelectionContent key={eventId} event={event} />
 }
 
 export default function TicketSelection() {

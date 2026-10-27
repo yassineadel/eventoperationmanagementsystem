@@ -38,6 +38,9 @@ const en: Partial<BookingStrings> = {
   timeoutLead: 'Nothing was charged and your tickets were released. Choose tickets again to retry.',
   receiptQuantity: 'Tickets',
   receiptTotal: 'Total paid',
+  map: 'Interactive seat map',
+  unavailableSeat: 'This seat is unavailable. Choose an available seat.',
+  seatingNote: 'Live seat map. A held seat can become free again when its reservation ends.',
 }
 
 const ar: Partial<BookingStrings> = {
@@ -72,6 +75,9 @@ const ar: Partial<BookingStrings> = {
   timeoutLead: 'لم يُخصم أي مبلغ وأُلغي حجز تذاكرك. اختر التذاكر مرة أخرى للمحاولة.',
   receiptQuantity: 'التذاكر',
   receiptTotal: 'إجمالي المدفوع',
+  map: 'خريطة مقاعد تفاعلية',
+  unavailableSeat: 'هذا المقعد غير متاح. اختر مقعدًا متاحًا.',
+  seatingNote: 'خريطة مقاعد مباشرة. قد يصبح المقعد المحجوز مؤقتًا متاحًا من جديد عند انتهاء حجزه.',
 }
 
 const liveText: Record<Language, Partial<BookingStrings>> = { en, ar }
