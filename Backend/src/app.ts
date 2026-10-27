@@ -39,7 +39,9 @@ app.use('/api/payments/stripe/webhook', express.raw({ type: 'application/json', 
 app.use(express.json({ limit: '10kb' }))
 app.use(cookieParser())
 
-app.use(generalLimiter)
+// General limit for everything except gate scans: scanners at one venue often share one IP,
+// so scans have their own per-staff limit instead (scanLimiter in gate.routes.ts)
+app.use((req, res, next) => (req.path === '/api/gate/scan' ? next() : generalLimiter(req, res, next)))
 app.use(passport.initialize())
 
 app.get('/health', (req, res) => {
