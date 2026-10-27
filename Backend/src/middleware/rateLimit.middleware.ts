@@ -22,6 +22,19 @@ export const gateLoginLimiter = rateLimit({
   message: { message: 'Too many attempts. Please try again in 15 minutes.' },
 })
 
+/**
+ * For gate scans: 1000 per minute per staff member, not per IP, because many scanners
+ * at one venue can share one IP. Counts by req.gate.staffId, so it must run after protectGate.
+ */
+export const scanLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 1000,
+  keyGenerator: (req) => req.gate!.staffId,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { message: 'Too many scans. Please wait a moment and try again.' },
+})
+
 /** For endpoints that send real emails: 3 per hour per IP */
 export const emailLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
