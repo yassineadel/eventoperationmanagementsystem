@@ -5,7 +5,8 @@ import { GateError, getStaff, login, getAssignedEvents } from './gate.service'
 export const loginHandler = async (req: Request, res: Response) => {
   try {
     const { username, password } = req.body ?? {}
-    if (!username || !password) {
+    // Must be non-empty strings (an object here would reach the Prisma query)
+    if (typeof username !== 'string' || typeof password !== 'string' || !username || !password) {
       res.status(400).json({ message: 'Username and password are required' })
       return
     }

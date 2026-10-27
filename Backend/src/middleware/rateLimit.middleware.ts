@@ -9,6 +9,19 @@ export const authLimiter = rateLimit({
   message: { message: 'Too many attempts. Please try again in 15 minutes.' },
 })
 
+/**
+ * For the gate app login: 10 failed tries per 15 min per IP.
+ * Successful logins don't count, so scanners sharing one venue IP don't lock each other out.
+ */
+export const gateLoginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  skipSuccessfulRequests: true,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { message: 'Too many attempts. Please try again in 15 minutes.' },
+})
+
 /** For endpoints that send real emails: 3 per hour per IP */
 export const emailLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
