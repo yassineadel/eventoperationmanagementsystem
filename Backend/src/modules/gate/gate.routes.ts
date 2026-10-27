@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { loginHandler, meHandler, eventsHandler } from './gate.controller'
+import { loginHandler, meHandler, eventsHandler, scanHandler } from './gate.controller'
 import { protectGate } from './gate.middleware'
 import { gateLoginLimiter } from '../../middleware/rateLimit.middleware'
 
@@ -18,5 +18,8 @@ router.get('/me', protectGate, meHandler)
 
 // GET /api/gate/events — the events this staff member can scan
 router.get('/events', protectGate, eventsHandler)
+
+// POST /api/gate/scan — check a QR code at the gate and admit the ticket
+router.post('/scan', protectGate, scanHandler)
 
 export default router
