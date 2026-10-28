@@ -8,6 +8,8 @@ import { events as sampleEvents } from '../src/Components/Homepage/data/events.t
 import { emptyBooking, transitionBooking } from '../src/Components/Booking/bookingModel.ts'
 import { createSampleWallet, requestSampleRefund, transferSampleTicket } from '../src/Components/Tickets/ticketsModel.ts'
 import { mapEventDetail } from '../src/lib/eventsModel.ts'
+import { parsePublicVenues } from '../src/lib/homepageApi.ts'
+import { homeStrings } from '../src/Components/Homepage/strings.ts'
 import { detail as apiDetail, eventId as apiEventId } from './fixtures/events-api.mjs'
 
 let server
@@ -39,14 +41,18 @@ let RefundRequest
 let PaymentMethods
 let EventsClientContext
 let DetailContent
+let HeroSection, EventHub, VenueDiscovery
 
 before(async () => {
-  server = await createServer({ server: { middlewareMode: true, hmr: false, watch: null }, appType: 'custom' })
+  server = await createServer({ cacheDir: 'node_modules/.vite-tests/discovery-render', server: { middlewareMode: true, hmr: false, watch: null }, appType: 'custom' })
   Layout = (await server.ssrLoadModule('/src/Components/Discovery/DiscoveryLayout.tsx')).default
   Listing = (await server.ssrLoadModule('/src/Components/Discovery/EventsListing.tsx')).default
   Detail = (await server.ssrLoadModule('/src/Components/Discovery/EventDetail.tsx')).default
   DetailContent = (await server.ssrLoadModule('/src/Components/Discovery/EventDetail.tsx')).EventDetailContent
   Homepage = (await server.ssrLoadModule('/src/Components/Homepage/Homepage.tsx')).default
+  HeroSection = (await server.ssrLoadModule('/src/Components/Homepage/components/HeroSection.tsx')).default
+  EventHub = (await server.ssrLoadModule('/src/Components/Homepage/components/EventHub.tsx')).default
+  VenueDiscovery = (await server.ssrLoadModule('/src/Components/Homepage/components/VenueDiscovery.tsx')).default
   NotFound = (await server.ssrLoadModule('/src/Components/Discovery/NotFound.tsx')).default
   PreferencesContext = (await server.ssrLoadModule('/src/Components/Auth/preferences.ts')).PreferencesContext
   SavedEventsProvider = (await server.ssrLoadModule('/src/Components/Discovery/SavedEventsProvider.tsx')).default
@@ -401,7 +407,7 @@ test('detail back links preserve the original listing filters and page', () => {
   assert.doesNotMatch(invalid, /href="https:\/\/example\.com"/)
 })
 
-test('homepage retains one filter bar and links into full event screens', () => {
+test('homepage retains its controls and themes without rendering fictional content before the API loads', () => {
   for (const lang of ['en', 'ar']) for (const theme of ['light', 'dark']) {
     const html = render('/', lang, theme)
     assert.equal((html.match(/class="home-search"/g) ?? []).length, 1)
@@ -409,11 +415,43 @@ test('homepage retains one filter bar and links into full event screens', () => 
     assert.doesNotMatch(html, /home-category-filters|home-recommendation-strip|id="recommendations"/)
     assert.match(html, /id="event-tab-for-you"/)
     assert.match(html, /id="venues"/)
-    assert.equal((html.match(/class="home-venue-card"/g) ?? []).length, 3)
-    assert.match(html, /href="\/events\/cairo-after-dark"/)
+    assert.equal((html.match(/class="home-venue-card"/g) ?? []).length, 0)
+    assert.doesNotMatch(html, /href="\/events\/cairo-after-dark"|The Garden Stage|Riverside Park/)
     assert.match(html, /href="\/events"/)
     assert.match(html, /href="\/login"/)
     assert.match(html, /href="\/register"/)
+  }
+})
+
+test('database homepage content keeps API order, bilingual venue fallbacks and valid detail links', () => {
+  const event = mapEventDetail(apiDetail()).event
+  const venues = parsePublicVenues([{ id: apiEventId, name: 'Database venue', nameAr: 'مكان من قاعدة البيانات', city: 'Cairo', type: 'SEATED' }])
+  for (const lang of ['en', 'ar']) for (const theme of ['light', 'dark']) {
+    const t = homeStrings[lang]
+    const resource = { key: 'loaded', events: [event], total: 1, loading: false, failed: false, hasMore: false, loadingMore: false, moreFailed: false, loadMore() {}, retry() {} }
+    const hubProps = { t, lang, draft: { query: '', city: '', category: '', date: '' }, setDraft() {}, resource, onSearch() {}, onClear() {}, active: false, view: 'trending', onViewChange() {}, preferences: { interests: [], city: '' }, onPreferencesChange() {}, onPersonalise() {} }
+    const html = renderToStaticMarkup(h(PreferencesContext.Provider, { value: { lang, theme, setLang() {}, setTheme() {} } }, h(SavedEventsProvider, { storage: { getItem() { return null }, setItem() {} } }, h(MemoryRouter, null, h('div', { 'data-theme': theme, dir: lang === 'ar' ? 'rtl' : 'ltr' },
+      h(HeroSection, { t, lang, event }), h(EventHub, hubProps), h(VenueDiscovery, { t, lang, resource: { status: 'success', data: venues, retry() {} } }),
+    )))))
+    assert.ok(html.includes(`/events/${apiEventId}`))
+    assert.match(html, /Cairo Jazz Night/)
+    assert.ok(html.includes(lang === 'ar' ? 'مكان من قاعدة البيانات' : 'Database venue'))
+    assert.ok(html.includes(t.illustrativePhoto))
+    assert.match(html, /q=Database\+venue&amp;city=cairo/)
+    assert.doesNotMatch(html, /Sample event status|Sample events for preview|حالة الفعالية التجريبية/)
+  }
+})
+
+test('empty and failed homepage resources explain the state without sample substitutes', () => {
+  for (const lang of ['en', 'ar']) for (const failed of [false, true]) {
+    const t = homeStrings[lang]
+    const html = renderToStaticMarkup(h(MemoryRouter, null, h('div', null,
+      h(HeroSection, { t, lang, event: null, failed, onRetry() {} }),
+      h(VenueDiscovery, { t, lang, resource: { status: failed ? 'error' : 'success', data: failed ? null : [], retry() {} } }),
+    )))
+    assert.ok(html.includes(failed ? t.eventsError : t.catalogueEmpty))
+    assert.ok(html.includes(failed ? t.venuesError : t.venuesEmpty))
+    assert.doesNotMatch(html, /home-venue-card|cairo-after-dark|href="\/events\/undefined"|Invalid Date/)
   }
 })
 

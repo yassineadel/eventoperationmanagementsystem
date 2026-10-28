@@ -156,6 +156,20 @@
 .home-show-more { display: flex; justify-content: center; margin-top: 2px; }
 .home-show-more .home-text-link { font-size: 11px; min-height: 30px; }
 .home-demo-note { margin-top: 6px !important; font-size: 9px; color: var(--home-muted) !important; }
+.home-api-message { display: grid; justify-items: center; gap: 16px; padding: 44px 20px; border: 1px solid var(--home-line); border-radius: 14px; background: var(--home-surface); color: var(--home-muted); text-align: center; font-size: 14px; }
+.home-api-note { margin-top: 14px !important; color: var(--home-muted) !important; font-size: 12px; text-align: center; }
+.home-show-more { gap: 24px; }
+.home-hero-placeholder { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 18px; padding: 32px; text-align: center; font-size: 14px; }
+.home-hero-placeholder > svg { color: #ad76ff; }
+.home-hero-image-fallback { display: grid; place-items: center; width: 100%; height: 100%; color: #ad76ff; }
+.home-hero-ticket--catalogue::after { box-shadow: 0 0 0 1px #5c3e7c; }
+.home-hero-ticket--catalogue .home-hero-ticket-copy { top: auto; bottom: 28px; max-width: calc(100% - 145px); padding: 10px 12px; border-radius: 8px; background: #090c20d9; }
+.home-hero-ticket--catalogue .home-hero-ticket-copy strong { font-size: clamp(18px, 2vw, 26px); overflow-wrap: anywhere; }
+.home-hero-ticket--catalogue .home-hero-ticket-copy > span { max-width: 100%; }
+.home-hero-ticket--catalogue > .event-status { top: 18px; bottom: auto; inset-inline-start: 28px; }
+.home-venue-photo { position: relative; }
+.home-venue-photo-note { position: absolute; bottom: 12px; inset-inline-start: 12px; padding: 4px 9px; border-radius: 5px; background: #090c20d9; color: #fff; font-size: 10px; }
+.home-venue-image-fallback { display: grid; place-items: center; height: 100%; color: var(--home-purple); }
 .home-personalise-link { display: block; margin-block: 6px; padding: 5px 0; color: var(--home-purple); font-size: 12px; background: none; border: 0; text-decoration: underline; text-underline-offset: 4px; }
 
 /* The event card is a real, interactive ticket rather than a flattened image. */
@@ -189,7 +203,7 @@
 .home-venues-heading { display: flex; align-items: baseline; gap: 16px; margin-bottom: 22px; }
 .home-venues-heading h2 { font-size: 36px; line-height: 1.1; }
 .home-venues-heading p { color: var(--home-muted); font-size: 13px; }
-.home-venues-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; margin: -8px; padding: 8px; }
+.home-venues-grid { display: grid; grid-template-columns: repeat(var(--venue-columns, 3), minmax(0, 1fr)); gap: 22px; margin: -8px; padding: 8px; }
 .home-venue-card { min-width: 0; scroll-snap-align: start; }
 .home-venue-link { display: flex; flex-direction: column; gap: 10px; height: 100%; border-radius: 24px; }
 .home-venue-photo { overflow: hidden; aspect-ratio: 5 / 4; border: 1px solid var(--home-line); border-radius: 24px; background: var(--home-tint); }

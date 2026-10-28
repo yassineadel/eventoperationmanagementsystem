@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { HomeStrings } from '../strings'
 import { Link } from 'react-router-dom'
 import type { Event, Language } from '../types'
@@ -7,11 +7,13 @@ import Icon from './Icon'
 import EventStatusBadge from '../../Discovery/EventStatusBadge'
 import { eventStatusLabels, eventUiStrings } from '../../Discovery/eventUiStrings'
 
-export default function HeroSection({ t, lang, event }: {
-  t: HomeStrings; lang: Language; event: Event;
+export default function HeroSection({ t, lang, event, loading, failed, onRetry }: {
+  t: HomeStrings; lang: Language; event: Event | null;
+  loading?: boolean; failed?: boolean; onRetry?: () => void;
 }) {
   const heroRef = useRef<HTMLElement>(null)
   const ticketRef = useRef<HTMLAnchorElement>(null)
+  const [imageFailure, setImageFailure] = useState<string | null>(null)
 
   useEffect(() => {
     const hero = heroRef.current
@@ -69,12 +71,12 @@ export default function HeroSection({ t, lang, event }: {
       motion.removeEventListener('change', reset)
       window.removeEventListener('blur', reset)
     }
-  }, [])
+  }, [event?.id])
 
-  const date = new Date(event.date)
+  const date = event ? new Date(event.date) : null
   const locale = lang === 'ar' ? 'ar-EG' : 'en-GB'
   function part(options: Intl.DateTimeFormatOptions) {
-    return new Intl.DateTimeFormat(locale, { timeZone: 'Africa/Cairo', ...options }).format(date)
+    return date ? new Intl.DateTimeFormat(locale, { timeZone: 'Africa/Cairo', ...options }).format(date) : ''
   }
 
   return (
@@ -86,15 +88,15 @@ export default function HeroSection({ t, lang, event }: {
         <p className="home-hero-lead">{t.heroLead}</p>
         <Link className="home-button home-hero-cta" to="/events">{t.explore}<Icon name="arrow" /></Link>
       </div>
-      <Link ref={ticketRef} className="home-hero-ticket" to={`/events/${event.id}`} state={{ from: '/' }} aria-label={`${t.details}: ${event.title[lang]}. ${eventUiStrings[lang].sampleStatus}: ${eventStatusLabels[event.status][lang]}`}>
-        <img src="/event-images/hero-ticket.png" alt={t.heroAlt} fetchPriority="high" width="1536" height="768" />
+      {event ? <Link ref={ticketRef} className="home-hero-ticket home-hero-ticket--catalogue" to={`/events/${event.id}`} state={{ from: '/' }} aria-label={`${t.details}: ${event.title[lang]}. ${eventUiStrings[lang].status}: ${eventStatusLabels[event.status][lang]}`}>
+        {imageFailure !== event.image ? <img src={event.image} alt="" fetchPriority="high" width="1536" height="768" onError={() => setImageFailure(event.image)} /> : <div className="home-hero-image-fallback"><Icon name={event.category} size={70} /></div>}
         <span className="home-ticket-sheen" aria-hidden="true" />
-        <span className="home-hero-ticket-copy"><strong>{t.heroTag}</strong><span>{t.heroCaption}</span></span>
-        <EventStatusBadge status={event.status} lang={lang} />
+        <span className="home-hero-ticket-copy"><strong>{event.title[lang]}</strong><span>{event.venue[lang]}</span></span>
+        <EventStatusBadge status={event.status} lang={lang} sample={event.source !== 'api'} />
         <time dateTime={event.date} className="home-ticket-date" aria-label={formatDate(event.date, lang)}>
           <span>{part({ weekday: 'short' })}</span><span>{part({ month: 'short' })}</span><strong>{part({ day: '2-digit' })}</strong><span>{part({ year: 'numeric' })}</span>
         </time>
-      </Link>
+      </Link> : <div className="home-hero-ticket home-hero-placeholder" role={failed ? 'alert' : 'status'}><Icon name="ticket" size={60} /><p>{loading ? t.loadingEvents : failed ? t.eventsError : t.catalogueEmpty}</p>{failed && <button className="home-outline-button" onClick={onRetry}>{t.retry}</button>}</div>}
     </section>
   )
 }

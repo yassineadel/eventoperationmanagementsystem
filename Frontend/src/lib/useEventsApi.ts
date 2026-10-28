@@ -8,7 +8,7 @@ import { parseListingFilters, type ListingFilters } from '../Components/Discover
 // null explicitly selects the local preview catalogue (also used by offline render tests).
 export const EventsClientContext = createContext<EventsClient | null>(createEventsClient(getJson, API_URL))
 export type Resource<T> = { status: 'idle' | 'loading' | 'success' | 'error' | 'not-found'; data: T | null; retry: () => void }
-function useResource<T>(key: string, load: (signal: AbortSignal) => Promise<T>, enabled: boolean): Resource<T> {
+export function useResource<T>(key: string, load: (signal: AbortSignal) => Promise<T>, enabled: boolean): Resource<T> {
   const [attempt, setAttempt] = useState(0)
   const requestKey = `${key}|${attempt}`
   const [state, setState] = useState<{ key: string; status: 'success' | 'error' | 'not-found'; data: T | null } | null>(null)
