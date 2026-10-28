@@ -11,6 +11,8 @@ const definitions = [
   ['Stand-up Comedy Night', 'arts', 250], ['Open Mic Poetry', 'arts', null],
 ]
 const summaries = definitions.map(([name, category, priceFrom], index) => summary({ id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`, name, category, priceFrom, startAt: `2030-10-${String(21 + index).padStart(2, '0')}T17:00:00.000Z`, soldOut: index === 9, popularity: index * 2 }))
+let failNextPage = process.env.FIXTURE_FAIL_NEXT_PAGE === '1'
+let failVenues = process.env.FIXTURE_FAIL_VENUES === '1'
 const server = createServer(async (req, res) => {
   const origin = req.headers.origin
   if (origin && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) res.setHeader('Access-Control-Allow-Origin', origin)
@@ -20,6 +22,7 @@ const server = createServer(async (req, res) => {
   const send = (status, data) => { res.writeHead(status); res.end(JSON.stringify(data)) }
   if (url.pathname === '/api/events') {
     const p = url.searchParams, query = (p.get('q') ?? '').toLowerCase()
+    if (p.get('page') === '2' && failNextPage) { failNextPage = false; return send(503, { message: 'Fixture page outage' }) }
     if (query === 'api-error') return send(503, { message: 'Fixture outage' })
     if (query === 'slow') await new Promise((resolve) => setTimeout(resolve, 900))
     const matches = summaries.filter((event) => (!query || `${event.name} ${event.performer} ${event.category} ${event.venue.name}`.toLowerCase().includes(query))
@@ -33,6 +36,10 @@ const server = createServer(async (req, res) => {
     matches.sort((a, b) => sort === 'name' ? a.name.localeCompare(b.name) : sort === 'popular' ? b.popularity - a.popularity : sort === 'price-low' ? (a.priceFrom ?? 0) - (b.priceFrom ?? 0) : sort === 'price-high' ? (b.priceFrom ?? 0) - (a.priceFrom ?? 0) : a.startAt.localeCompare(b.startAt))
     const pageCount = Math.max(1, Math.ceil(matches.length / 6)), page = Math.min(Math.max(Number(p.get('page')) || 1, 1), pageCount)
     return send(200, { events: matches.slice((page - 1) * 6, page * 6), total: matches.length, page, pageCount, pageSize: 6, sort })
+  }
+  if (url.pathname === '/api/venues') {
+    if (failVenues) { failVenues = false; return send(503, { message: 'Fixture venue outage' }) }
+    return send(200, process.env.FIXTURE_EMPTY_VENUES === '1' ? [] : [detail().venue])
   }
   if (url.pathname.startsWith('/api/events/')) {
     const id = url.pathname.split('/').at(-1)

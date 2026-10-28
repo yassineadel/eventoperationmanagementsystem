@@ -5,7 +5,7 @@ import { createServer } from 'vite'
 
 let server, catalogue, liveCheckout, liveHolds, liveBooking, bookingApi, model
 before(async () => {
-  server = await createServer({ server: { middlewareMode: true, hmr: false, watch: null }, appType: 'custom' })
+  server = await createServer({ cacheDir: 'node_modules/.vite-tests/seated-booking', server: { middlewareMode: true, hmr: false, watch: null }, appType: 'custom' })
   catalogue = await server.ssrLoadModule('/src/Components/Booking/catalogue.ts')
   liveCheckout = await server.ssrLoadModule('/src/Components/Booking/liveCheckout.ts')
   liveHolds = await server.ssrLoadModule('/src/Components/Booking/liveHolds.ts')

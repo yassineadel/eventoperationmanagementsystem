@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { usePreferences } from '../Auth/preferences'
-import { events } from './data/events'
-import { venues } from './data/venues'
-import { filterEvents } from './discovery'
+import { homepageQuery } from '../../lib/homepageApi'
+import { useApiListing } from '../../lib/useEventsApi'
+import { useHomepageEvents, useHomepageVenues } from './useHomepageApi'
 import { homeStrings } from './strings'
 import { emptyFilters, type EventView, type Filters } from './types'
 import { useRecommendations } from './useRecommendations'
@@ -22,16 +22,19 @@ function Homepage() {
   const [view, setView] = useState<EventView>('trending')
   const [personaliseOpen, setPersonaliseOpen] = useState(false)
   const { preferences, updatePreferences } = useRecommendations()
-  const results = useMemo(() => filterEvents(events, filters), [filters])
+  const query = homepageQuery(filters, view, preferences)
+  const results = useHomepageEvents(query.filters, query.conflict)
+  const hero = useApiListing(homepageQuery(emptyFilters, 'trending', { interests: [], city: '' }).filters, true)
+  const venues = useHomepageVenues()
   const active = Object.values(filters).some(Boolean) || Object.values(draft).some(Boolean)
   useEffect(() => { document.title = t.title }, [t.title])
 
   function clearFilters() { setDraft(emptyFilters); setFilters(emptyFilters) }
   return <div id="home" className="home-root" lang={lang} dir={lang === 'ar' ? 'rtl' : 'ltr'} data-theme={theme}>
     <a className="home-skip-link" href="#home-main">{t.skip}</a><Navbar t={t} onViewChange={setView} />
-    <main id="home-main" tabIndex={-1}><HeroSection t={t} lang={lang} event={events[0]} />
-      <EventHub t={t} lang={lang} draft={draft} setDraft={setDraft} events={results} onSearch={() => setFilters({ ...draft })} onClear={clearFilters} active={active} view={view} onViewChange={setView} preferences={preferences} onPreferencesChange={updatePreferences} onPersonalise={() => setPersonaliseOpen(true)} />
-      <VenueDiscovery venues={venues} lang={lang} t={t} />
+    <main id="home-main" tabIndex={-1}><HeroSection t={t} lang={lang} event={hero.data?.events.find((event) => event.status === 'available') ?? hero.data?.events[0] ?? null} loading={hero.status === 'loading'} failed={hero.status === 'error' || hero.status === 'not-found'} onRetry={hero.retry} />
+      <EventHub t={t} lang={lang} draft={draft} setDraft={setDraft} resource={results} onSearch={() => setFilters({ ...draft })} onClear={clearFilters} active={active} view={view} onViewChange={setView} preferences={preferences} onPreferencesChange={updatePreferences} onPersonalise={() => setPersonaliseOpen(true)} />
+      <VenueDiscovery resource={venues} lang={lang} t={t} />
     </main><Footer t={t} />
     {personaliseOpen && <RecommendationDialog lang={lang} t={t} preferences={preferences} onChange={updatePreferences} onClose={() => setPersonaliseOpen(false)} />}
   </div>

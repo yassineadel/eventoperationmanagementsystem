@@ -6,7 +6,7 @@ import { normaliseSessionUser } from '../src/lib/sessionUser.ts'
 
 let server, profileApi, ApiError
 before(async () => {
-  server = await createServer({ server: { middlewareMode: true, hmr: false, watch: null }, appType: 'custom' })
+  server = await createServer({ cacheDir: 'node_modules/.vite-tests/profile-api', server: { middlewareMode: true, hmr: false, watch: null }, appType: 'custom' })
   profileApi = (await server.ssrLoadModule('/src/lib/profileApi.ts')).profileApi
   ApiError = (await server.ssrLoadModule('/src/lib/api.ts')).ApiError
 })
