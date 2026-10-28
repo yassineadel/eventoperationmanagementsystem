@@ -68,8 +68,12 @@ export function isLiveEvent(eventId: string) {
 // The page colours the categories in this order
 const tones = ['violet', 'teal', 'amber']
 
-// Turns the backend's availability into the shape the booking pages already use (standing venues)
-export function registerLiveCatalogue(event: Event, availability: Availability, feePercents: Record<string, number>, policies: Policy[]) {
+/**
+ * Turns the backend's availability into the shape the booking pages already use (standing venues).
+ * ownQuantities: how many places the user already holds in each category. The server counts them as
+ * taken, but they are this user's, so they are added back: the user can always keep what they hold.
+ */
+export function registerLiveCatalogue(event: Event, availability: Availability, feePercents: Record<string, number>, policies: Policy[], ownQuantities: Record<string, number> = {}) {
   const categories: TicketCategory[] = availability.categories.map((category, index) => ({
     id: category.id,
     name: { en: category.name, ar: category.name },
@@ -78,7 +82,7 @@ export function registerLiveCatalogue(event: Event, availability: Availability, 
     feePercent: feePercents[category.id] ?? 0,
     color: tones[index % tones.length],
     capacity: category.capacity,
-    remaining: category.available,
+    remaining: Math.min(category.capacity, category.available + (ownQuantities[category.id] ?? 0)),
   }))
   const catalogue: BookingCatalogue = { mode: 'standing', categories, seats: [] }
   liveEvents.set(event.id, event)
@@ -121,10 +125,10 @@ export function seatSectionOf(catalogue: BookingCatalogue, seat: Seat) {
  * Seated venues: turns the venue layout and the backend's availability into the shape the booking pages use.
  * - Each seat gets the event's ticket category with the same categoryKey.
  * - Sold seats are 'sold'; seats held by someone else are 'held'.
- * - ownSeatLabels: seats the user already holds (from their cart). They count as available for this user,
+ * - ownSeatIds: seats the user already holds. They count as available for this user,
  *   so going back from the cart to the map keeps them selectable.
  */
-export function registerLiveSeatedCatalogue(event: Event, availability: Availability, layout: SeatedLayout, feePercents: Record<string, number>, policies: Policy[], ownSeatLabels: string[]) {
+export function registerLiveSeatedCatalogue(event: Event, availability: Availability, layout: SeatedLayout, feePercents: Record<string, number>, policies: Policy[], ownSeatIds: string[]) {
   const categories: TicketCategory[] = availability.categories.map((category, index) => ({
     id: category.id,
     name: { en: category.name, ar: category.name },
@@ -138,7 +142,7 @@ export function registerLiveSeatedCatalogue(event: Event, availability: Availabi
   const categoryByKey = new Map(availability.categories.map((category) => [category.categoryKey, category.id]))
   const held = new Set(availability.heldSeatIds)
   const sold = new Set(availability.soldSeatIds)
-  const own = new Set(ownSeatLabels)
+  const own = new Set(ownSeatIds)
 
   const seats: Seat[] = []
   // Rows without seats (and sections without rows) are left out, so every drawn row has at least one seat
@@ -153,7 +157,7 @@ export function registerLiveSeatedCatalogue(event: Event, availability: Availabi
         const base = { id: layoutSeat.id, section: section.key, row: row.label, number: layoutSeat.number }
         const categoryId = categoryByKey.get(layoutSeat.categoryKey) ?? ''
         const status: Seat['status'] = !categoryId || sold.has(layoutSeat.id) ? 'sold'
-          : held.has(layoutSeat.id) && !own.has(seatLabel(base)) ? 'held'
+          : held.has(layoutSeat.id) && !own.has(layoutSeat.id) ? 'held'
           : 'available'
         const seat: Seat = { ...base, categoryId, status }
         seats.push(seat)

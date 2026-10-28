@@ -12,6 +12,7 @@ import { bookingMoney, bookingNumber } from './strings'
 import { useBookingStrings } from './liveStrings'
 import { BookingEmpty, BookingErrorMessage, BookingShell, OrderSummary, TicketDescription } from './BookingParts'
 import PolicyDialog from './PolicyDialog'
+import LiveBookingRestore from './LiveBookingRestore'
 import { resolveAttendeeNames } from './attendees'
 import { useTickets } from '../Tickets/ticketsContext'
 import { completeSampleOrder, type PaymentReceipt, type TicketRule } from '../Tickets/ticketsModel'
@@ -31,7 +32,12 @@ function CheckoutResult({ event, receipt, outcome }: { event: Event; receipt?: S
   </BookingShell>
 }
 
+// After a page refresh, a real event's cart is loaded again from the server first
 export default function Checkout() {
+  return <LiveBookingRestore><CheckoutContent /></LiveBookingRestore>
+}
+
+function CheckoutContent() {
   const { lang } = usePreferences()
   const t = useBookingStrings()
   const { state, names: enteredNames, act, now } = useBooking()

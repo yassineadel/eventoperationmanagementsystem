@@ -3,12 +3,13 @@ import { after, before, test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createServer } from 'vite'
 
-let server, catalogue, liveCheckout, liveHolds, bookingApi, model
+let server, catalogue, liveCheckout, liveHolds, liveBooking, bookingApi, model
 before(async () => {
   server = await createServer({ server: { middlewareMode: true, hmr: false, watch: null }, appType: 'custom' })
   catalogue = await server.ssrLoadModule('/src/Components/Booking/catalogue.ts')
   liveCheckout = await server.ssrLoadModule('/src/Components/Booking/liveCheckout.ts')
   liveHolds = await server.ssrLoadModule('/src/Components/Booking/liveHolds.ts')
+  liveBooking = await server.ssrLoadModule('/src/Components/Booking/liveBooking.ts')
   bookingApi = await server.ssrLoadModule('/src/lib/bookingApi.ts')
   model = await server.ssrLoadModule('/src/Components/Booking/bookingModel.ts')
 })
@@ -42,8 +43,8 @@ const availability = {
   heldSeatIds: ['orc-a-2', 'orc-a-3'],
   soldSeatIds: ['bal-a-4'],
 }
-// The user already holds ORC-A-3 (it is in their cart)
-const register = () => catalogue.registerLiveSeatedCatalogue(event, availability, layout, { 'cat-vip': 10, 'cat-std': 5 }, [], ['ORC-A-3'])
+// The user already holds ORC-A-3 (one of their holds)
+const register = () => catalogue.registerLiveSeatedCatalogue(event, availability, layout, { 'cat-vip': 10, 'cat-std': 5 }, [], ['orc-a-3'])
 const seat = (c, id) => c.seats.find((s) => s.id === id)
 
 test('a seated venue layout becomes sections, rows and seats with live statuses', () => {
@@ -167,4 +168,110 @@ test('removing one seat in the cart releases only that seat', async (t) => {
   ])
   await liveHolds.releaseSeatHold(eventId, 'BAL-A-1')
   assert.deepEqual(calls.filter((call) => call.method === 'DELETE').map((call) => call.path), ['/api/inventory/holds/hold-bal'])
+})
+
+// ---------- Refreshing /cart or /checkout, and standing quantities near capacity ----------
+
+const standingId = 'e0000000-0000-4000-8000-000000000002'
+const standingEvent = { ...event, id: standingId, title: { en: 'Open air', ar: 'Open air' } }
+// Only 1 place is left in the Floor category, but this user already holds 3 of them
+const standingAvailability = {
+  eventId: standingId,
+  categories: [{ id: 'cat-floor', categoryKey: 'FLOOR', name: 'Floor', price: '150.00', capacity: 10, available: 1, soldOut: false }],
+  heldSeatIds: [], soldSeatIds: [],
+}
+const hold = (id, categoryId, quantity, expiresAt, seatId = null) => ({ id, eventId, ticketCategoryId: categoryId, seatId, quantity, status: 'ACTIVE', expiresAt })
+
+test('the selection is rebuilt from the server holds, with the earliest deadline', () => {
+  const { items, expiresAt } = liveHolds.selectionFromHolds([
+    hold('h1', 'cat-floor', 2, '2099-01-01T10:09:00Z'),
+    hold('h2', 'cat-floor', 1, '2099-01-01T10:08:00Z'),
+    hold('h3', 'cat-vip', 1, '2099-01-01T10:10:00Z', 'orc-a-1'),
+  ])
+  assert.deepEqual(items, [
+    { key: 'cat-floor-1', categoryId: 'cat-floor' },
+    { key: 'cat-floor-2', categoryId: 'cat-floor' },
+    { key: 'cat-floor-3', categoryId: 'cat-floor' }, // the second hold continues the numbering
+    { key: 'orc-a-1', seatId: 'orc-a-1', categoryId: 'cat-vip' },
+  ])
+  assert.equal(expiresAt, Date.parse('2099-01-01T10:08:00Z'))
+  assert.deepEqual(liveHolds.selectionFromHolds([]), { items: [], expiresAt: null })
+  assert.deepEqual(liveHolds.ownQuantities([hold('h1', 'cat-floor', 2, ''), hold('h2', 'cat-floor', 1, ''), hold('h3', 'cat-vip', 1, '', 'orc-a-1')]), { 'cat-floor': 3 })
+})
+
+test('standing: places the user already holds count as still theirs near capacity', () => {
+  const now = Date.parse('2026-10-28T12:00:00Z')
+  const floor = (n) => ({ key: `cat-floor-${n}`, categoryId: 'cat-floor' })
+  // Without the user's own holds, only 1 place is "remaining", so keeping 3 tickets is refused
+  catalogue.registerLiveCatalogue(standingEvent, standingAvailability, {}, [])
+  assert.equal(model.categoryRemaining(model.emptyBooking(), standingId, 'cat-floor'), 1)
+  assert.equal(model.transitionBooking(model.emptyBooking(), { type: 'select', eventId: standingId, items: [1, 2, 3].map(floor) }, now).error, 'unavailable')
+  // With their 3 held places added back: 4 remaining, so they can keep 3 or take the last free one
+  catalogue.registerLiveCatalogue(standingEvent, standingAvailability, {}, [], { 'cat-floor': 3 })
+  assert.equal(model.categoryRemaining(model.emptyBooking(), standingId, 'cat-floor'), 4)
+  assert.equal(model.transitionBooking(model.emptyBooking(), { type: 'select', eventId: standingId, items: [1, 2, 3, 4].map(floor) }, now).error, undefined)
+  assert.equal(model.transitionBooking(model.emptyBooking(), { type: 'select', eventId: standingId, items: [1, 2, 3, 4, 5].map(floor) }, now).error, 'unavailable')
+})
+
+test('after a refresh, a real event keeps only its id; its tickets come from the server', () => {
+  const now = Date.parse('2026-10-28T12:00:00Z')
+  const memory = (value) => ({ getItem: () => JSON.stringify(value), setItem() {} })
+  const unknownId = 'e0000000-0000-4000-8000-0000000000ff' // a real event not loaded in this visit
+  const saved = { eventId: unknownId.toUpperCase(), items: [{ key: 'x-1', categoryId: 'x' }], expiresAt: now + 60_000, expired: false, purchases: {}, receipt: null }
+  const restored = model.readBooking(memory(saved), now)
+  assert.equal(restored.eventId, unknownId)
+  assert.deepEqual(restored.items, []) // never trusted from storage
+  assert.equal(restored.expired, false)
+  assert.equal(model.readBooking(memory({ ...saved, expiresAt: now - 1 }), now).expired, true)
+  // Not a real event id and not a sample event: forgotten, as before
+  assert.equal(model.readBooking(memory({ ...saved, eventId: 'no-such-event' }), now).eventId, null)
+})
+
+// Runs booking actions the way BookingProvider does, on a plain variable
+function bookingStore(initial) {
+  let state = initial
+  const act = (action) => {
+    const result = model.transitionBooking(state, action, Date.now())
+    state = result.state
+    return result.error
+  }
+  return { act, get state() { return state } }
+}
+
+test('restoring after a refresh puts back the held tickets and follows the server deadline', () => {
+  catalogue.registerLiveCatalogue(standingEvent, standingAvailability, {}, [], { 'cat-floor': 2 })
+  const deadline = new Date(Date.now() + 5 * 60_000).toISOString()
+  // The browser thought the reservation had expired, but the server still holds the tickets: the server wins
+  const store = bookingStore({ ...model.emptyBooking(), eventId: standingId, expired: true })
+  assert.equal(liveBooking.restoreSelection(store.act, standingId, [hold('h1', 'cat-floor', 2, deadline)]), true)
+  assert.deepEqual(store.state.items.map((item) => item.key), ['cat-floor-1', 'cat-floor-2'])
+  assert.equal(store.state.expiresAt, Date.parse(deadline))
+  assert.equal(store.state.expired, false)
+
+  // No holds (they expired on the server): nothing changes, so the page shows its expired state
+  const empty = bookingStore({ ...model.emptyBooking(), eventId: standingId, expired: true })
+  assert.equal(liveBooking.restoreSelection(empty.act, standingId, []), false)
+  assert.equal(empty.state.expired, true)
+  assert.deepEqual(empty.state.items, [])
+})
+
+test('loading a real event registers its catalogue with the user\'s own holds; signed-out users have none', async (t) => {
+  const detail = { event: standingEvent, details: { venueType: 'STANDING', policies: [], ticketCategories: [{ id: 'cat-floor', feePercent: 8 }] } }
+  fakeServer(t, [
+    { method: 'GET', path: `/api/inventory/events/${standingId}/availability`, reply: () => [200, standingAvailability] },
+    { method: 'GET', path: '/api/inventory/holds', reply: () => [200, [hold('h1', 'cat-floor', 3, '2099-01-01T10:09:00Z')]] },
+  ])
+  const holds = await liveBooking.loadLiveBooking(detail)
+  assert.equal(holds.length, 1)
+  const loaded = catalogue.getBookingCatalogue(standingId)
+  assert.equal(loaded.categories[0].remaining, 4)
+  assert.equal(loaded.categories[0].feePercent, 8)
+
+  t.mock.restoreAll()
+  fakeServer(t, [
+    { method: 'GET', path: `/api/inventory/events/${standingId}/availability`, reply: () => [200, standingAvailability] },
+    { method: 'GET', path: '/api/inventory/holds', reply: () => [401, { message: 'Access denied. No token provided.' }] },
+  ])
+  assert.deepEqual(await liveBooking.loadLiveBooking(detail), [])
+  assert.equal(catalogue.getBookingCatalogue(standingId).categories[0].remaining, 1)
 })
