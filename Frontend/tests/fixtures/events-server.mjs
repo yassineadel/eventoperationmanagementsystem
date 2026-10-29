@@ -4,22 +4,34 @@ import { createServer } from 'node:http'
 import { detail, summary, eventId } from './events-api.mjs'
 
 const definitions = [
-  ['Cairo Jazz Night', 'concerts', 600], ['Oud & Strings Evening', 'concerts', 450],
-  ['Summer Beats Festival', 'festivals', 350], ['Modern Dance Showcase', 'arts', 300],
-  ['Esports Cup Final', 'sports', 200], ['Photography Workshop', 'workshops', 0],
-  ['Tech Founders Summit', 'conferences', 500], ['Classical Piano Recital', 'concerts', 400],
-  ['Stand-up Comedy Night', 'arts', 250], ['Open Mic Poetry', 'arts', null],
+  ['Cairo Jazz Night', 'concerts', 600, 'Cairo Jazz Band'], ['Oud & Strings Evening', 'concerts', 450, 'Naseer Shamma'],
+  ['Summer Beats Festival', 'festivals', 350, 'Various artists'], ['Modern Dance Showcase', 'arts', 300, 'Cairo Contemporary Dance'],
+  ['Esports Cup Final', 'sports', 200, null], ['Photography Workshop', 'workshops', 0, 'Lens Academy'],
+  ['Tech Founders Summit', 'conferences', 500, null], ['Classical Piano Recital', 'concerts', 400, 'Ramzi Yassa'],
+  ['Stand-up Comedy Night', 'arts', 250, 'Various comedians'], ['Open Mic Poetry', 'arts', null, null],
 ]
-const summaries = definitions.map(([name, category, priceFrom], index) => summary({ id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`, name, category, priceFrom, startAt: `2030-10-${String(21 + index).padStart(2, '0')}T17:00:00.000Z`, soldOut: index === 9, popularity: index * 2 }))
+const summaries = definitions.map(([name, category, priceFrom, performer], index) => summary({ id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`, name, category, priceFrom, performer, startAt: `2030-10-${String(21 + index).padStart(2, '0')}T17:00:00.000Z`, soldOut: index === 9, popularity: index * 2 }))
 let failNextPage = process.env.FIXTURE_FAIL_NEXT_PAGE === '1'
 let failVenues = process.env.FIXTURE_FAIL_VENUES === '1'
+let signedIn = process.env.FIXTURE_SIGNED_IN === '1'
 const server = createServer(async (req, res) => {
   const origin = req.headers.origin
   if (origin && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) res.setHeader('Access-Control-Allow-Origin', origin)
   res.setHeader('Access-Control-Allow-Credentials', 'true')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
   res.setHeader('Content-Type', 'application/json')
   const url = new URL(req.url, 'http://127.0.0.1:3001')
   const send = (status, data) => { res.writeHead(status); res.end(JSON.stringify(data)) }
+  if (req.method === 'OPTIONS') return send(204, {})
+  // Optional delay to reproduce anchor movement while catalogue sections load.
+  if (process.env.FIXTURE_CATALOGUE_DELAY === '1' && (url.pathname === '/api/events' || url.pathname === '/api/venues')) await new Promise((resolve) => setTimeout(resolve, 700))
+  if (url.pathname === '/api/auth/me' && signedIn) return send(200, { user: { id: 'fixture-user', fullName: 'Fixture Member', email: 'fixture@example.test', role: 'USER', emailVerified: true } })
+  if (url.pathname === '/api/auth/logout' && req.method === 'POST') { signedIn = false; return send(200, { message: 'Signed out' }) }
+  if (url.pathname === '/api/tickets' && signedIn) return send(200, { upcoming: process.env.FIXTURE_EMPTY_TICKETS === '1' ? [] : [{
+    id: '00000000-0000-4000-8000-000000000101', status: 'VALID', attendeeName: 'Fixture ticket holder', qrToken: 'HAFLETNA-FIXTURE:NO-ENTRY', orderReference: 'QA-ORDER', category: 'VIP', seat: null,
+    event: { id: eventId, name: 'Cairo Jazz Night', startAt: summaries[0].startAt, doorsOpenAt: '2030-10-21T16:00:00.000Z', endsAt: '2030-10-21T19:00:00.000Z', venue: { name: 'Cairo Opera House — Small Hall', city: 'Cairo', address: 'Fixture address' } }, transferCount: 0, transfersLeft: 3, usedAt: null,
+  }], past: [] })
   if (url.pathname === '/api/events') {
     const p = url.searchParams, query = (p.get('q') ?? '').toLowerCase()
     if (p.get('page') === '2' && failNextPage) { failNextPage = false; return send(503, { message: 'Fixture page outage' }) }

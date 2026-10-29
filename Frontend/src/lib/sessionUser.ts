@@ -27,7 +27,7 @@ export function normaliseSessionUser(value: unknown): SessionUser {
 }
 
 export function accountReturnPath(value: string | null): string {
-  return value === '/profile' || value === '/profile/settings' ? value : '/'
+  return value === '/profile' || value === '/profile/settings' || value === '/my-tickets' ? value : '/'
 }
 
 const returnKey = 'hafletna.auth-return'

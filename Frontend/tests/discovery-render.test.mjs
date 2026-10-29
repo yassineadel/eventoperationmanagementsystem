@@ -35,6 +35,7 @@ let PolicyDialog
 let TicketsContext
 let Confirmation
 let MyTickets
+let WalletContents
 let TicketDetail
 let TransferTicket
 let RefundRequest
@@ -70,6 +71,7 @@ before(async () => {
   TicketsContext = (await server.ssrLoadModule('/src/Components/Tickets/ticketsContext.ts')).TicketsContext
   Confirmation = (await server.ssrLoadModule('/src/Components/Tickets/Confirmation.tsx')).default
   MyTickets = (await server.ssrLoadModule('/src/Components/Tickets/MyTickets.tsx')).default
+  WalletContents = (await server.ssrLoadModule('/src/Components/Tickets/MyTickets.tsx')).WalletContents
   TicketDetail = (await server.ssrLoadModule('/src/Components/Tickets/TicketDetail.tsx')).default
   TransferTicket = (await server.ssrLoadModule('/src/Components/Tickets/TransferTicket.tsx')).default
   RefundRequest = (await server.ssrLoadModule('/src/Components/Tickets/RefundRequest.tsx')).default
@@ -97,6 +99,7 @@ function render(path, lang = 'en', theme = 'light', savedIds = [], sessionState 
         h(Route, { path: '/checkout', element: h(Checkout) }),
         h(Route, { path: '/orders/:orderRef/confirmation', element: h(Confirmation) }),
         h(Route, { path: '/my-tickets', element: h(MyTickets) }),
+        h(Route, { path: '/wallet-content', element: h(WalletContents, { tickets: wallet.liveTickets ?? [] }) }),
         h(Route, { path: '/my-tickets/:ticketId', element: h(TicketDetail) }),
         h(Route, { path: '/my-tickets/:ticketId/transfer', element: h(TransferTicket) }),
         h(Route, { path: '/my-tickets/:ticketId/refund', element: h(RefundRequest) }),
@@ -133,7 +136,8 @@ test('API details render actual inventory, unknown prices, and missing informati
       h(SavedEventsProvider, { storage: { getItem() { return null }, setItem() {} } }, h(MemoryRouter, null, h(DetailContent, mapped)))))
     assert.ok(html.includes(lang === 'en' ? 'Price unavailable' : 'السعر غير متاح'))
     assert.ok(html.includes(lang === 'en' ? 'has not published event policies' : 'لم ينشر المنظّم سياسات'))
-    assert.ok(html.includes(lang === 'en' ? 'Ticket selection for catalogue events is not connected yet' : 'اختيار تذاكر فعاليات الدليل غير متصل بعد'))
+    assert.ok(html.includes(lang === 'en' ? 'Payments are currently simulated' : 'الدفع حاليًا بالمحاكاة'))
+    assert.ok(html.includes('Cairo Jazz Band'))
     assert.doesNotMatch(html, /Hafletna Experiences|seven days|30 minutes|sample organiser/)
     assert.doesNotMatch(html, /href="\/events\/[^"]+\/tickets"/)
     assert.match(html, /google.com\/maps\?q=30.0424%2C31.2244/)
@@ -141,10 +145,9 @@ test('API details render actual inventory, unknown prices, and missing informati
   }
 })
 
-test('all five after-buying routes render English and Arabic in both themes', () => {
+test('sample after-buying routes render English and Arabic in both themes', () => {
   const routes = [
     ['/orders/DEMO-A1B2C3D4/confirmation', 'tickets-confirm-hero'],
-    ['/my-tickets', 'tickets-wallet-grid'],
     ['/my-tickets/DEMO-A1B2C3D4-1', 'tickets-pass'],
     ['/my-tickets/DEMO-A1B2C3D4-1/transfer', 'transfer-recipient-email'],
     ['/my-tickets/DEMO-A1B2C3D4-1/refund', 'refund-quote-title'],
@@ -160,15 +163,44 @@ test('all five after-buying routes render English and Arabic in both themes', ()
   }
 })
 
-test('wallet links and tabs separate upcoming from past experiences', () => {
-  const upcoming = render('/my-tickets')
+test('wallet content groups only the supplied account tickets into upcoming and past', () => {
+  const wallet = { liveTickets: createSampleWallet().tickets }
+  const upcoming = render('/wallet-content', 'en', 'dark', [], undefined, {}, wallet)
   assert.match(upcoming, /href="\/my-tickets\/DEMO-A1B2C3D4-1"/)
   assert.doesNotMatch(upcoming, /href="\/my-tickets\/DEMO-C1D2E3F4-1"/)
   assert.match(upcoming, /id="tickets-tab-upcoming"[^>]*aria-selected="true"/)
-  const past = render('/my-tickets?view=past')
+  const past = render('/wallet-content?view=past', 'en', 'dark', [], undefined, {}, wallet)
   assert.match(past, /href="\/my-tickets\/DEMO-C1D2E3F4-1"/)
   assert.doesNotMatch(past, /href="\/my-tickets\/DEMO-A1B2C3D4-1"/)
   assert.match(past, /id="tickets-tab-past"[^>]*aria-selected="true"/)
+})
+
+test('guest, loading and unavailable sessions never show sample tickets from browser storage', () => {
+  for (const status of ['guest', 'loading', 'unavailable']) for (const lang of ['en', 'ar']) for (const theme of ['light', 'dark']) {
+    const html = render('/my-tickets?view=past', lang, theme, [], { status, user: null })
+    assert.match(html, /id="wallet-access-title"/)
+    assert.doesNotMatch(html, /DEMO-|Sample ticket wallet|محفظة تذاكر تجريبية|wallet-stats|tickets-wallet-card|Load sample|تحميل تذاكر تجريبية|Cairo After Dark/)
+    if (status !== 'loading') assert.match(html, /href="\/login\?returnTo=%2Fmy-tickets"/)
+    else assert.doesNotMatch(html, /href="\/login\?returnTo=/)
+    assert.ok(html.includes(lang === 'ar' ? 'تذاكري' : 'My Tickets'))
+  }
+})
+
+test('authenticated wallet waits for its API response without flashing samples or an empty account', () => {
+  const session = { status: 'authenticated', user: { id: 'real-user', fullName: 'Real Member', email: 'real@example.com', role: 'customer' } }
+  for (const lang of ['en', 'ar']) for (const theme of ['light', 'dark']) {
+    const html = render('/my-tickets', lang, theme, [], session)
+    assert.ok(html.includes(lang === 'ar' ? 'جارٍ تحميل تذاكرك' : 'Loading your tickets'))
+    assert.doesNotMatch(html, /DEMO-|tickets-wallet-card|Sample ticket wallet|No upcoming sample|example wallet/)
+  }
+})
+
+test('an account without tickets shows a real empty state without any load-samples action', () => {
+  for (const lang of ['en', 'ar']) for (const theme of ['light', 'dark']) {
+    const html = render('/wallet-content', lang, theme, [], undefined, {}, { liveTickets: [] })
+    assert.ok(html.includes(lang === 'ar' ? 'ليس لديك تذاكر قادمة' : 'You have no upcoming tickets'))
+    assert.doesNotMatch(html, /DEMO-|tickets-wallet-card|Sample ticket wallet|example wallet|Load sample/)
+  }
 })
 
 test('confirmation is scoped to the requested order and recovers unknown references', () => {
@@ -232,7 +264,7 @@ test('listing routes render bounded pages and URL-selected filters in both langu
 test('account routes require sign-in without offering a sample profile', () => {
   for (const path of ['/profile', '/profile/settings']) for (const query of ['', '?preview=1']) {
     const html = render(`${path}${query}`)
-    assert.match(html, /Your space at Hafletna/)
+    assert.match(html, /Sign in to your account/)
     assert.doesNotMatch(html, /Try sample profile|preview=1|Youssef Hassan/)
     assert.doesNotMatch(html, /id="profile-name"|id="account-new-password"/)
     assert.ok(html.includes(`/login?returnTo=${encodeURIComponent(path)}`))
@@ -534,7 +566,7 @@ test('cart renders attendee inputs, separate fees, remove controls and an access
 test('paid checkout offers sample payment methods, collapsed outcomes, and policy review in both languages and themes', () => {
   for (const lang of ['en', 'ar']) for (const theme of ['light', 'dark']) {
     const missing = render('/checkout', lang, theme, [], undefined, activeBooking(false))
-    assert.ok(missing.includes(lang === 'ar' ? 'لكل تذكرة اسم.' : 'Every ticket needs a name.'))
+    assert.ok(missing.includes(lang === 'ar' ? 'أسماء الحاضرين غير مكتملة' : 'Missing attendee names'))
     assert.match(missing, /href="\/cart"/)
     assert.doesNotMatch(missing, /name="sample-payment-outcome"/)
     const html = render('/checkout?preview=1', lang, theme, [], undefined, activeBooking())
@@ -632,12 +664,12 @@ test('autofill waits for an authenticated session and does not use an email disp
 })
 
 test('booking handles empty, expired, replacement, sold-out, cancelled and invalid-event routes', () => {
-  assert.match(render('/cart'), /Your next experience is still out there/)
-  assert.match(render('/checkout'), /Your next experience is still out there/)
+  assert.match(render('/cart'), /Your cart is empty/)
+  assert.match(render('/checkout'), /Your cart is empty/)
   const expired = activeBooking()
   expired.state = { ...expired.state, items: [], expiresAt: null, expired: true }
-  assert.match(render('/cart', 'en', 'light', [], undefined, expired), /reservation couldn’t/)
-  assert.match(render('/events/next-perspectives/tickets', 'en', 'dark', [], undefined, activeBooking()), /A different night/)
+  assert.match(render('/cart', 'en', 'light', [], undefined, expired), /Reservation expired/)
+  assert.match(render('/events/next-perspectives/tickets', 'en', 'dark', [], undefined, activeBooking()), /Replace your current selection/)
   for (const id of ['creative-canvas', 'nile-nights']) {
     const html = render(`/events/${id}/tickets`)
     assert.match(html, /This event is unavailable for booking/)

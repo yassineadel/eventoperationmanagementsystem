@@ -15,7 +15,7 @@ export function Brand({ name }: { name: string }) {
   return <Link className="home-brand" to="/" aria-label={name}><span className="home-brand-mark"><Icon name="ticket" size={27} /></span><span>{name}</span></Link>
 }
 export default function Navbar({ t, onViewChange }: { t: HomeStrings; onViewChange?: (view: EventView) => void }) {
-  const { pathname, search } = useLocation()
+  const { pathname, search, hash } = useLocation()
   const { user } = useSession()
   const { lang } = usePreferences()
   const { state: booking } = useBooking()
@@ -38,9 +38,9 @@ export default function Navbar({ t, onViewChange }: { t: HomeStrings; onViewChan
     <button ref={menuButton} className="home-menu-button" aria-label={open ? t.closeMenu : t.menu} aria-expanded={open} aria-controls="home-navigation" onClick={() => setOpen(!open)}><Icon name={open ? 'close' : 'menu'} size={24} /></button>
     <div ref={menu} id="home-navigation" className={`home-navigation${open ? ' is-open' : ''}`}>
       <nav aria-label={t.navigation}>
-        <Link to="/" aria-current={pathname === '/' ? 'page' : undefined} onClick={() => { onViewChange?.('trending'); setOpen(false) }}>{t.home}</Link>
+        <Link to="/" aria-current={pathname === '/' && hash !== '#venues' ? 'page' : undefined} onClick={() => { onViewChange?.('trending'); setOpen(false) }}>{t.home}</Link>
         <Link to="/events" aria-current={pathname === '/events' ? 'page' : undefined} onClick={() => setOpen(false)}>{t.events}</Link>
-        <Link to="/#venues" onClick={() => setOpen(false)}>{t.venues}</Link>
+        <Link to="/#venues" aria-current={pathname === '/' && hash === '#venues' ? 'location' : undefined} onClick={() => setOpen(false)}>{t.venues}</Link>
         <Link to="/my-tickets" aria-current={pathname.startsWith('/my-tickets') || pathname.startsWith('/orders/') ? 'page' : undefined} onClick={() => setOpen(false)}>{lang === 'ar' ? 'تذاكري' : 'My Tickets'}</Link>
       </nav>
       <div className="home-nav-actions"><PreferenceControls variant="main" /><AccountMenu key={`${pathname}${search}`} onNavigate={() => setOpen(false)} />{!user && <><Link className="home-signin" to="/login">{t.login}</Link><Link className="home-button home-button--small" to="/register">{t.register}</Link></>}</div>

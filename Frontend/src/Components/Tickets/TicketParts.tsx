@@ -17,7 +17,7 @@ export function TicketShell({ title, lead, eyebrow, children, backTo = '/my-tick
   return <div className={`tickets-page home-container${appearance ? ` tickets-${appearance}-page` : ''}`}>
     <nav className="tickets-breadcrumb" aria-label={lang === 'ar' ? 'مسار الصفحة' : 'Page path'}><Link to={backTo}><Icon name="arrow" size={16} />{backLabel ?? t.backWallet}</Link>{!live && <span>{t.sampleFlow}</span>}</nav>
     {header ?? <header className="tickets-heading"><p className="discovery-eyebrow">{eyebrow ?? t.wallet}</p><h1 className="discovery-title">{title}</h1><p>{lead}</p></header>}
-    <div className="tickets-notice tickets-sample-notice" role="note"><Icon name="ticket" size={24} /><div><strong>{live ? t.liveTitle : t.sample}</strong><p>{live ? t.liveLead : t.sampleLead}</p>{!storageAvailable && <p className="tickets-error">{t.storageNote}</p>}</div></div>
+    <div className="tickets-notice tickets-sample-notice" role="note"><Icon name="ticket" size={24} /><div><strong>{live ? t.liveTitle : t.sample}</strong><p>{live ? t.liveLead : t.sampleLead}</p>{!live && !storageAvailable && <p className="tickets-error">{t.storageNote}</p>}</div></div>
     {children}
   </div>
 }

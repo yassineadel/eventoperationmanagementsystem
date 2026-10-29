@@ -54,7 +54,7 @@ export function EventDetailContent({ event, details }: { event: Event; details: 
       <div className="detail-tags"><Link to={`/events?category=${event.category}`}><Icon name={event.category} size={16} />{categoryNames[event.category][lang]}</Link><span><Icon name="pin" size={16} />{cityNames[event.city][lang]}</span><EventStatusBadge status={event.status} lang={lang} sample={sample} />{sample ? <span className="detail-sample-tag">{t.sample}</span> : details.synthetic && <span className="detail-sample-tag">{a.testEvent}</span>}</div>
       <div className="detail-title-row"><h1 className="discovery-title">{event.title[lang]}</h1><SaveEventButton event={event} lang={lang} labelled /></div>
       {details.organiser && <p>{t.organisedBy} <strong>{details.organiser[lang]}</strong></p>}
-      {!!event.performer?.[lang] && <p>{a.performer} <strong>{event.performer[lang]}</strong></p>}
+      <p className="detail-performer">{home.performer}: <strong><bdi>{event.performer?.[lang] || home.performerPending}</bdi></strong></p>
     </header>
     <div className="detail-layout">
       <div className="detail-content">
