@@ -6,8 +6,26 @@ import { createEventsClient, loadSavedEvents } from '../src/lib/eventsApi.ts'
 import { eventRequest } from '../src/lib/eventRequests.ts'
 import { parseListingFilters, getListingResults } from '../src/Components/Discovery/listing.ts'
 import { createSavedEventsStore, parseSavedEventIds } from '../src/Components/Discovery/savedEventsStore.ts'
+import { existsSync } from 'node:fs'
 
 const filters = (query = '') => parseListingFilters(new URLSearchParams(query))
+
+test('temporary photos vary by event, exist locally and match across listing and detail', () => {
+  const names = ['Cairo Jazz Night', 'Classical Piano Recital', 'Oud & Strings Evening', 'Electronic Music Festival', 'Photography Workshop']
+  const photos = names.map((name) => {
+    const card = mapEventSummary(summary({ name }))
+    const page = mapEventDetail(detail({ name }))
+    assert.equal(card.image, page.event.image)
+    assert.equal(page.details.gallery[0], card.image)
+    assert.equal(page.details.fallbackImage, true)
+    assert.ok(existsSync(new URL(`../public${card.image}`, import.meta.url)))
+    return card.image
+  })
+  assert.equal(new Set(photos).size, names.length)
+  const uploaded = mapEventDetail(detail({ image: '/uploads/cover.jpg', images: [] }))
+  assert.equal(uploaded.event.image, '/uploads/cover.jpg')
+  assert.equal(uploaded.details.fallbackImage, false)
+})
 
 test('summary mapping preserves unknown prices, real UUIDs, performer and language fallback', () => {
   const mapped = mapEventSummary(summary({ priceFrom: null }))
@@ -17,7 +35,7 @@ test('summary mapping preserves unknown prices, real UUIDs, performer and langua
   assert.equal(mapped.performer.en, 'Cairo Jazz Band')
   assert.equal(mapped.city, 'cairo')
   assert.equal(mapped.source, 'api')
-  assert.equal(mapped.image, '/event-images/concert.jpg')
+  assert.equal(mapped.image, '/event-images/jazz.jpg')
   assert.equal(mapEventSummary(summary({ priceFrom: 0 })).price, 0)
   assert.equal(mapEventSummary(summary({ soldOut: true })).status, 'sold-out')
   assert.equal(mapEventSummary(summary({ nameAr: 'ليلة الجاز', performerAr: 'فرقة الجاز' })).title.ar, 'ليلة الجاز')
@@ -35,7 +53,7 @@ test('unknown price is never free or paid and sorts after known prices in saved 
 
 test('invalid records and unsafe image URLs cannot reach rendering as unchecked casts', () => {
   for (const change of [{ id: '../../private' }, { category: '__proto__' }, { venue: { name: 'Venue', city: 'unknown' } }, { startAt: 'bad-date' }, { priceFrom: -1 }, { popularity: -1 }, { soldOut: 'false' }]) assert.throws(() => mapEventSummary(summary(change)))
-  assert.equal(mapEventSummary(summary({ image: 'javascript:alert(1)' })).image, '/event-images/concert.jpg')
+  assert.equal(mapEventSummary(summary({ image: 'javascript:alert(1)' })).image, '/event-images/jazz.jpg')
   assert.equal(mapEventSummary(summary({ image: 'https://example.org/event.jpg' })).image, 'https://example.org/event.jpg')
   for (const value of [null, undefined, '']) assert.equal(decimal(value), null)
   assert.equal(decimal('600.50'), 600.5)
@@ -84,7 +102,7 @@ test('detail mapping uses actual door time, venue, decimals, capacity and invent
   assert.equal(result.details.organiser, null)
   assert.deepEqual(result.details.policies, [])
   assert.deepEqual(result.details.faqs, [])
-  assert.deepEqual(result.details.gallery, ['/event-images/concert.jpg'])
+  assert.deepEqual(result.details.gallery, ['/event-images/jazz.jpg'])
   assert.equal(result.details.fallbackImage, true)
 })
 
@@ -128,7 +146,7 @@ test('uploaded image paths resolve against the API while frontend fallback image
   assert.equal((await client.listing(filters(), signal)).events[0].image, 'http://localhost:3000/uploads/event.jpg')
   assert.equal((await client.detail(eventId, signal)).details.gallery[0], 'http://localhost:3000/uploads/event.jpg')
   const fallback = createEventsClient(async () => page(), 'http://localhost:3000')
-  assert.equal((await fallback.listing(filters(), signal)).events[0].image, '/event-images/concert.jpg')
+  assert.equal((await fallback.listing(filters(), signal)).events[0].image, '/event-images/jazz.jpg')
 })
 
 test('category totals ignore category selection, page and sort while respecting other filters', async () => {

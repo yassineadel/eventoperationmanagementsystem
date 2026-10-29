@@ -91,7 +91,7 @@ export default function HeroSection({ t, lang, event, loading, failed, onRetry }
       {event ? <Link ref={ticketRef} className="home-hero-ticket home-hero-ticket--catalogue" to={`/events/${event.id}`} state={{ from: '/' }} aria-label={`${t.details}: ${event.title[lang]}. ${eventUiStrings[lang].status}: ${eventStatusLabels[event.status][lang]}`}>
         {imageFailure !== event.image ? <img src={event.image} alt="" fetchPriority="high" width="1536" height="768" onError={() => setImageFailure(event.image)} /> : <div className="home-hero-image-fallback"><Icon name={event.category} size={70} /></div>}
         <span className="home-ticket-sheen" aria-hidden="true" />
-        <span className="home-hero-ticket-copy"><strong>{event.title[lang]}</strong><span>{event.venue[lang]}</span></span>
+        <span className="home-hero-ticket-copy"><strong>{event.title[lang]}</strong><span className="home-hero-performer">{t.performer}: <bdi>{event.performer?.[lang] || t.performerPending}</bdi></span><span>{event.venue[lang]}</span></span>
         <EventStatusBadge status={event.status} lang={lang} sample={event.source !== 'api'} />
         <time dateTime={event.date} className="home-ticket-date" aria-label={formatDate(event.date, lang)}>
           <span>{part({ weekday: 'short' })}</span><span>{part({ month: 'short' })}</span><strong>{part({ day: '2-digit' })}</strong><span>{part({ year: 'numeric' })}</span>

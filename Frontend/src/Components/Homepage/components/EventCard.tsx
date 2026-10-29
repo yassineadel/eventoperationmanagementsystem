@@ -24,6 +24,7 @@ export default function EventCard({ event, lang, t, rank }: { event: Event; lang
       <SaveEventButton event={event} lang={lang} />
       <div className="home-event-body">
         <h3><Link to={to} state={state}>{event.title[lang]}</Link></h3>
+        <p className="home-event-performer"><span>{t.performer}:</span> <bdi>{event.performer?.[lang] || t.performerPending}</bdi></p>
         <p className="home-event-location"><Icon name="pin" size={14} />{cityNames[event.city][lang]}<span className="home-sr-only"> · {event.venue[lang]} · {categoryNames[event.category][lang]}</span></p>
         <time className="home-event-date" dateTime={event.date}>{formatDate(event.date, lang)}</time>
         <strong className={`home-event-price${event.price === 0 ? ' home-free' : ''}`}>{event.price === null ? lang === 'ar' ? 'السعر غير متاح' : 'Price unavailable' : event.price === 0 ? t.free : formatPrice(event.price, lang)}</strong>

@@ -1,10 +1,10 @@
 # After-buying frontend
 
-Five customer screens share Hafletna's theme, English/Arabic preference, RTL layout and light/dark modes. All orders, QR codes and actions in this module are explicitly sample previews, separate from authenticated account data. No backend files or real ticket, email, payment, refund or transfer operations are involved.
+Five customer screens share Hafletna's theme, English/Arabic preference, RTL layout and light/dark modes. My Tickets requires a signed-in account and loads its backend tickets; live ticket details use the server QR token. Sample order confirmation and management flows remain separate previews.
 
 ## Access
 
-- **My Tickets** in the main navigation and signed-in account menu opens `/my-tickets`. Upcoming and past tabs group at the event's end time. Example standing, seated, free and past-used tickets are included.
+- **My Tickets** in the main navigation and account menu opens `/my-tickets`. Signed-out visitors see a sign-in prompt, never sample tickets or an option to load examples. Sign-in returns to My Tickets. Loading, session failures, API failures with retry, and an account with no tickets have distinct translated states. Upcoming and past tabs group at the event's end time. The wallet remounts per account ID, so signing out or switching accounts discards its loaded data.
 - Successful sample checkout opens `/orders/:orderRef/confirmation`. The order captures exactly its selection, names and itemised totals; repeated completion cannot duplicate its tickets.
 - Confirmation also shows the selected sample payment method. Its enum alone is stored; older orders without method metadata remain readable. Free orders show that no payment is required.
 - Open a wallet card to view `/my-tickets/:ticketId`: logistics, seat/zone, demo QR, transfer/refund eligibility, email preview, and activity. The QR pass appears first on mobile.

@@ -1,10 +1,11 @@
 import { useContext, useEffect, useState } from 'react'
 import { getMyTickets, type ApiTicket } from '../../lib/bookingApi'
-import { fallbackImages } from '../../lib/eventsModel'
+import { eventPlaceholderImage } from '../../lib/eventImages'
 import { EventsClientContext } from '../../lib/useEventsApi'
 import type { EventsClient } from '../../lib/eventsApi'
 import type { Event, LocalizedText } from '../Homepage/types'
 import type { SampleTicket } from './ticketsModel'
+import { eventRequest } from '../../lib/eventRequests'
 
 const text = (value: string): LocalizedText => ({ en: value, ar: value })
 
@@ -17,7 +18,7 @@ function fallbackEvent(ticket: ApiTicket): Event {
   return {
     id: ticket.event.id, title: text(ticket.event.name), description: text(''), venue: text(ticket.event.venue.name),
     category: 'concerts', city: 'cairo', date: ticket.event.startAt, price: null, source: 'api',
-    status: 'available', image: fallbackImages.concerts, activity: { views: 0, registrations: 0 },
+    status: 'available', image: eventPlaceholderImage(ticket.event.name, 'concerts'), activity: { views: 0, registrations: 0 },
   }
 }
 
@@ -80,17 +81,18 @@ async function loadLiveTickets(client: EventsClient | null, signal: AbortSignal)
  */
 export function useLiveTickets(enabled: boolean) {
   const client = useContext(EventsClientContext)
-  const [data, setData] = useState<{ tickets: SampleTicket[]; qrTokens: Record<string, string | null> } | null>(null)
-  const [failed, setFailed] = useState(false)
+  const [attempt, setAttempt] = useState(0)
+  const [state, setState] = useState<{ attempt: number; data: Awaited<ReturnType<typeof loadLiveTickets>> | null; failed: boolean } | null>(null)
 
   useEffect(() => {
     if (!enabled) return
     const controller = new AbortController()
-    loadLiveTickets(client, controller.signal)
-      .then(setData)
-      .catch(() => { if (!controller.signal.aborted) setFailed(true) })
+    eventRequest((signal) => loadLiveTickets(client, signal), controller.signal)
+      .then((data) => { if (!controller.signal.aborted) setState({ attempt, data, failed: false }) })
+      .catch(() => { if (!controller.signal.aborted) setState({ attempt, data: null, failed: true }) })
     return () => controller.abort()
-  }, [enabled, client])
+  }, [enabled, client, attempt])
 
-  return { tickets: data?.tickets ?? null, qrTokens: data?.qrTokens ?? {}, failed }
+  const current = enabled && state?.attempt === attempt ? state : null
+  return { tickets: current?.data?.tickets ?? null, qrTokens: current?.data?.qrTokens ?? {}, failed: current?.failed ?? false, retry: () => setAttempt((value) => value + 1) }
 }

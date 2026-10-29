@@ -58,7 +58,7 @@
 .home-navigation { flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .home-navigation nav { display: flex; gap: 35px; margin-inline: auto; align-items: center; }
 .home-navigation nav a { display: block; font-size: 13px; font-weight: 700; padding-block: 25px 21px; border-bottom: 2px solid transparent; }
-.home-navigation nav a[aria-current='page'] { border-bottom-color: var(--home-purple); }
+.home-navigation nav a[aria-current='page'], .home-navigation nav a[aria-current='location'] { border-bottom-color: var(--home-purple); }
 .home-navigation nav a:hover, .home-signin:hover { color: var(--home-purple); }
 .home-nav-actions { display: flex; align-items: center; gap: 18px; }
 .home-signin { padding-inline-start: 16px; border-inline-start: 1px solid var(--home-line); font-size: 12px; font-weight: 700; white-space: nowrap; }
@@ -184,6 +184,9 @@
 .home-event-body { position: relative; min-height: 107px; padding: 12px 18px 15px; border-top: 1px dashed var(--home-muted); }
 .home-event-body h3 { font-size: 22px; line-height: 1.15; margin-bottom: 7px; }
 .home-event-location { display: flex; align-items: center; gap: 5px; font-size: 11px; }
+.home-event-performer { margin-bottom: 7px; color: var(--home-text); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.home-event-performer > span { color: var(--home-muted); }
+.home-event-body { padding-bottom: 57px; }
 .home-event-location svg { color: var(--home-purple); }
 .home-event-date { display: block; padding-inline-start: 19px; font-size: 10px; color: var(--home-muted); padding-inline-end: 120px; }
 .home-event-price { position: absolute; bottom: 23px; inset-inline-end: 68px; font-size: 11px; font-weight: 700; }
@@ -199,7 +202,8 @@
 .home-outline-button:hover { background: var(--home-tint); }
 
 /* Venue photographs with names below, followed by the compact footer. */
-.home-venues { padding-block: 30px 36px; }
+/* Leave enough room for this last section to align below the sticky navigation. */
+.home-venues { padding-block: 30px 36px; min-height: calc(100svh - 96px); }
 .home-venues-heading { display: flex; align-items: baseline; gap: 16px; margin-bottom: 22px; }
 .home-venues-heading h2 { font-size: 36px; line-height: 1.1; }
 .home-venues-heading p { color: var(--home-muted); font-size: 13px; }
@@ -281,6 +285,7 @@
   .home-event-body h3 { font-size: 19px; }
   .home-event-price { bottom: 18px; font-size: 10px; inset-inline-end: 60px; }
   .home-event-date { padding-inline-end: 90px; }
+  .home-event-body { padding-bottom: 57px; }
   .home-event-body > .home-round-action { inset-inline-end: 10px; }
   .home-venues-grid { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: calc((100% - 22px) / 2); overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; scroll-padding-inline: 8px; scrollbar-width: thin; scrollbar-color: var(--home-purple) var(--home-line); padding-bottom: 16px; }
 }
@@ -305,6 +310,7 @@
   .home-hero-ticket-copy { top: 18px; inset-inline-start: 20px; }
   .home-hero-ticket-copy strong { font-size: 19px; }
   .home-hero-ticket-copy > span { display: none; }
+  .home-hero-ticket--catalogue .home-hero-ticket-copy > .home-hero-performer { display: block; font-size: 10px; }
   .home-ticket-date { width: 72px; font-size: 17px; }
   .home-ticket-date strong { font-size: 43px; }
   .home-ticket-date > span:last-child { font-size: 16px; }
@@ -338,7 +344,7 @@
   .home-event-date { font-size: 11px; }
   .home-event-price { font-size: 12px; inset-inline-end: 68px; bottom: 21px; }
   .home-event-body > .home-round-action { inset-inline-end: 14px; bottom: 15px; }
-  .home-venues { padding-block: 26px 30px; }
+  .home-venues { padding-block: 26px 30px; min-height: calc(100svh - 82px); }
   .home-venues-grid { grid-auto-columns: min(86%, 360px); gap: 16px; }
   .home-venues-heading { flex-direction: column; gap: 4px; margin-bottom: 14px; }
   .home-venues-heading h2 { font-size: 31px; }

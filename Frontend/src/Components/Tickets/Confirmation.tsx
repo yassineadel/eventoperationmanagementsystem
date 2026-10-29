@@ -11,18 +11,18 @@ import './Confirmation.css'
 
 const confirmationCopy = {
   en: {
-    eyebrow: 'ORDER CONFIRMATION', heading: 'A new plan. A good feeling.',
-    receipt: 'YOUR BOOKING RECEIPT', receiptTitle: 'All the details, settled.',
-    preview: 'Sample booking complete', experience: 'THE EXPERIENCE',
-    tickets: 'YOUR TICKET COLLECTION', next: 'KEEP THE MOMENT CLOSE',
-    wallet: 'Find your tickets', pass: 'Explore your pass', manage: 'Keep your options open',
+    eyebrow: 'ORDER CONFIRMATION', heading: 'Order confirmation',
+    receipt: 'YOUR BOOKING RECEIPT', receiptTitle: 'Order summary',
+    preview: 'Sample booking complete', experience: 'EVENT',
+    tickets: 'TICKETS', next: 'NEXT STEPS',
+    wallet: 'Find your tickets', pass: 'Open ticket details', manage: 'Manage your tickets',
   },
   ar: {
-    eyebrow: 'تأكيد الطلب', heading: 'خطة جديدة. وشعور جميل.',
-    receipt: 'إيصال الحجز', receiptTitle: 'كل التفاصيل، في مكان واحد.',
-    preview: 'اكتمل الحجز التجريبي', experience: 'التجربة',
-    tickets: 'مجموعة تذاكرك', next: 'احتفظ باللحظة بين يديك',
-    wallet: 'اعثر على تذاكرك', pass: 'استكشف تذكرتك', manage: 'خياراتك بين يديك',
+    eyebrow: 'تأكيد الطلب', heading: 'تأكيد الطلب',
+    receipt: 'إيصال الحجز', receiptTitle: 'ملخص الطلب',
+    preview: 'اكتمل الحجز التجريبي', experience: 'الفعالية',
+    tickets: 'مجموعة تذاكرك', next: 'الخطوات التالية',
+    wallet: 'اعثر على تذاكرك', pass: 'افتح تفاصيل التذكرة', manage: 'إدارة تذاكرك',
   },
 }
 

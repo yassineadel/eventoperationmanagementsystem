@@ -103,8 +103,9 @@ test('session normalisation supports both schema formats without retaining crede
   for (const invalid of [null, {}, { id: '1' }, { id: 1, email: 'a@example.com' }]) assert.throws(() => normaliseSessionUser(invalid))
 })
 
-test('sign-in return destinations are restricted to the two account screens', () => {
+test('sign-in return destinations are restricted to account screens and My Tickets', () => {
   assert.equal(accountReturnPath('/profile'), '/profile')
   assert.equal(accountReturnPath('/profile/settings'), '/profile/settings')
+  assert.equal(accountReturnPath('/my-tickets'), '/my-tickets')
   for (const path of [null, 'https://example.com', '//example.com', '/profile/../admin', '/profile?preview=1', '/admin', 'javascript:alert(1)']) assert.equal(accountReturnPath(path), '/')
 })
