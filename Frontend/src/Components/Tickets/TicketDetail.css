@@ -231,3 +231,6 @@
   .pass-action-card { transition: none; }
   .pass-action-card:hover, .pass-action-card:focus-within { transform: none; }
 }
+.pass-live-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-block: 22px; }
+.pass-live-actions .tickets-success, .pass-live-actions .tickets-error { margin-top: 12px; }
+@media (max-width: 900px) { .pass-live-actions { grid-template-columns: minmax(0, 1fr); } }

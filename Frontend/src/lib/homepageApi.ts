@@ -42,7 +42,7 @@ export function parsePublicVenues(value: unknown, assetOrigin?: string): PublicV
     return {
       id: row.id, name: { en: row.name.trim(), ar: typeof row.nameAr === 'string' && row.nameAr.trim() ? row.nameAr.trim() : row.name.trim() },
       city, searchCity: Object.hasOwn(cityNames, cityKey) ? cityKey : '',
-      image: image ?? (row.type === 'STANDING' ? '/event-images/venue-garden.jpg' : '/event-images/conference.jpg'), illustrativeImage: !image,
+      image: image ?? (/opera|أوبرا/i.test(row.name) ? '/event-images/venue-opera.jpg' : /manara|منارة/i.test(row.name) ? '/event-images/venue-arena.jpg' : row.type === 'STANDING' ? '/event-images/venue-garden.jpg' : '/event-images/conference.jpg'), illustrativeImage: !image,
     }
   })
 }

@@ -59,7 +59,6 @@ function CheckoutContent() {
   const inFlight = useRef(false)
     // Made once per visit to this page: retrying the same checkout never creates a second order
   const idempotencyKey = useRef(crypto.randomUUID())
-  const [liveReceipt, setLiveReceipt] = useState<SampleReceipt | null>(null)
   const [serverError, setServerError] = useState('')
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current) }, [])
@@ -79,10 +78,9 @@ function CheckoutContent() {
         // Real events: buy on the server instead of the local simulation
     if (isLiveEvent(state.eventId!)) {
       setServerError('')
-      const quantity = state.items.length
       payOnServer(state.eventId!, state.items, names, idempotencyKey.current, isFree ? 'success' : choice)
         .then((order) => {
-          if (order.status === 'PAID') setLiveReceipt({ reference: order.reference, eventId: order.eventId, quantity, total: Number(order.total) })
+          if (order.status === 'PAID' || order.status === 'PENDING') navigate(`/orders/${encodeURIComponent(order.id)}/confirmation`, { replace: true })
           else setOutcome(order.status === 'FAILED' ? 'declined' : 'timeout')
           act({ type: 'release' })
         })
@@ -109,7 +107,6 @@ function CheckoutContent() {
     }, 1200)
   }, [accepted, reviewed, state, names, act, choice, wallet, completeOrder, navigate, method, isFree, t])
 
-  if (liveReceipt && event) return <CheckoutResult event={event} receipt={liveReceipt} />
   if (state.receipt && wallet.orders.some((order) => order.reference === state.receipt!.reference)) return <Navigate to={`/orders/${encodeURIComponent(state.receipt.reference)}/confirmation`} replace />
   if (state.receipt && event) return <CheckoutResult event={event} receipt={state.receipt} />
   if (outcome && event) return <CheckoutResult event={event} outcome={outcome} />

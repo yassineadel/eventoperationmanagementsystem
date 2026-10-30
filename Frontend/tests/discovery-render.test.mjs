@@ -86,7 +86,7 @@ function render(path, lang = 'en', theme = 'light', savedIds = [], sessionState 
   let savedValue = JSON.stringify(savedIds)
   const storage = { getItem: () => savedValue, setItem: (_key, value) => { savedValue = value } }
   const session = { ...sessionState, acceptUser() {}, updateUser() {}, async refresh() {}, async signOut() {} }
-  const bookingValue = { state: booking.state ?? emptyBooking(), now: booking.now ?? Date.now(), names: booking.names ?? {}, storageAvailable: true, act() {}, setAttendee() {} }
+  const bookingValue = { state: booking.state ?? emptyBooking(), now: booking.now ?? Date.now(), names: booking.names ?? {}, storageAvailable: true, restoration: booking.restoration ?? 'ready', retryRestore() {}, act() {}, setAttendee() {} }
   const ticketsValue = { state: wallet.state ?? createSampleWallet(), now: wallet.now ?? Date.parse('2026-10-20T12:00:00Z'), storageAvailable: wallet.storageAvailable ?? true, completeOrder() {}, transferTicket() {}, requestRefund() {}, resendTicket() {}, resetSamples() {} }
   return renderToStaticMarkup(h(EventsClientContext.Provider, { value: null }, h(PreferencesContext.Provider, { value },
     h(SessionContext.Provider, { value: session }, h(SavedEventsProvider, { storage }, h(BookingContext.Provider, { value: bookingValue }, h(TicketsContext.Provider, { value: ticketsValue }, h(MemoryRouter, { initialEntries: [path] }, h(Routes, null,
@@ -452,6 +452,13 @@ test('homepage retains its controls and themes without rendering fictional conte
     assert.match(html, /href="\/events"/)
     assert.match(html, /href="\/login"/)
     assert.match(html, /href="\/register"/)
+    assert.match(html, /class="board-discovery-layout home-container"/)
+    assert.match(html, /class="board-feature"/)
+    const footer = html.match(/<footer class="board-footer">[\s\S]*?<\/footer>/)?.[0]
+    assert.ok(footer)
+    assert.doesNotMatch(footer, /href="\/login"|href="\/register"|href="\/cart"|home-navigation|hf-controls|hf-segmented/)
+    assert.ok(footer.includes(homeStrings[lang].help))
+    assert.ok(footer.includes(homeStrings[lang].privacy))
   }
 })
 
@@ -467,6 +474,10 @@ test('database homepage content keeps API order, bilingual venue fallbacks and v
     )))))
     assert.ok(html.includes(`/events/${apiEventId}`))
     assert.match(html, /Cairo Jazz Night/)
+    assert.equal((html.match(/class="board-event-row"/g) ?? []).length, 1)
+    assert.match(html, /Cairo Jazz Band/)
+    assert.match(html, /class="board-event-date"/)
+    assert.match(html, /class="board-event-actions"/)
     assert.ok(html.includes(lang === 'ar' ? 'مكان من قاعدة البيانات' : 'Database venue'))
     assert.ok(html.includes(t.illustrativePhoto))
     assert.match(html, /q=Database\+venue&amp;city=cairo/)
@@ -661,6 +672,19 @@ test('autofill waits for an authenticated session and does not use an email disp
   assert.equal(authenticated.match(/id="attendee-0"[^>]*value="([^"]*)"/)?.[1], 'Account Holder')
   const missingName = render('/cart', 'en', 'light', [], { status: 'authenticated', user: { ...user, fullName: user.email } }, booking)
   assert.equal(missingName.match(/id="attendee-0"[^>]*value="([^"]*)"/)?.[1], '')
+})
+
+test('buying screens wait for reservation recovery instead of showing an empty cart or stale selection', () => {
+  for (const path of ['/cart', '/checkout', `/events/${apiEventId}/tickets`]) for (const lang of ['en', 'ar']) for (const theme of ['light', 'dark']) {
+    const html = render(path, lang, theme, [], undefined, { restoration: 'loading' })
+    assert.match(html, /role="status"/)
+    assert.ok(html.includes(lang === 'ar' ? 'جارٍ استعادة حجزك' : 'Restoring your reservation'))
+    assert.doesNotMatch(html, /booking-empty|booking-stepper|id="attendee-0"|sample-payment-outcome/)
+    const failed = render(path, lang, theme, [], undefined, { restoration: 'failed' })
+    assert.match(failed, /role="alert"/)
+    assert.ok(failed.includes(lang === 'ar' ? 'حاول مرة أخرى' : 'Try again'))
+    assert.doesNotMatch(failed, /booking-empty|sample-payment-outcome/)
+  }
 })
 
 test('booking handles empty, expired, replacement, sold-out, cancelled and invalid-event routes', () => {

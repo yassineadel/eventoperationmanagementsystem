@@ -13,6 +13,8 @@ import TicketQr from './TicketQr'
 import { ticketsStrings, ticketRuleText } from './strings'
 import { useSession } from '../Auth/sessionContext'
 import { useLiveTickets } from './liveTickets'
+import TicketResendEmail from './TicketResendEmail'
+import TicketTransferAction from './TicketTransferAction'
 import './TicketDetail.css'
 
 const detailCopy = {
@@ -75,7 +77,7 @@ export default function TicketDetail() {
   return <TicketShell title={`${t.ticket}: ${ticket.event.title[lang]}`} lead={c.lead} appearance="detail" live={isLive} header={
     <header className="pass-page-heading">
       <div><p className="pass-eyebrow"><span aria-hidden="true" />{c.eyebrow}</p><h1 id="tickets-detail-event-title">{ticket.event.title[lang]}</h1><p>{c.lead}</p></div>
-      <div className="pass-heading-status"><TicketStatus ticket={ticket} /><span>{ticket.categoryName[lang]}</span></div>
+      <div className="pass-heading-status"><TicketStatus ticket={ticket} live={isLive} /><span>{ticket.categoryName[lang]}</span></div>
     </header>
   }>
     <div className="pass-detail-grid">
@@ -99,14 +101,19 @@ export default function TicketDetail() {
         </div>
       </div>
       <aside className="tickets-pass pass-collectible" aria-labelledby="tickets-pass-title">
-        <header className="pass-collectible-head"><div className="pass-brand-line"><span><Icon name="ticket" size={21} />{lang === 'ar' ? 'حفلتنا' : 'Hafletna'}</span>{!isLive && <span>{t.sampleFlow}</span>}</div><p className="pass-collectible-eyebrow">{isLive ? t.livePass : c.admission}</p><h2 id="tickets-pass-title">{ticket.event.title[lang]}</h2><TicketStatus ticket={ticket} /></header>
+        <header className="pass-collectible-head"><div className="pass-brand-line"><span><Icon name="ticket" size={21} />{lang === 'ar' ? 'حفلتنا' : 'Hafletna'}</span>{!isLive && <span>{t.sampleFlow}</span>}</div><p className="pass-collectible-eyebrow">{isLive ? t.livePass : c.admission}</p><h2 id="tickets-pass-title">{ticket.event.title[lang]}</h2><TicketStatus ticket={ticket} live={isLive} /></header>
         <div className="pass-collectible-body"><p className="tickets-pass-label">{isLive ? t.liveQrLead : t.qrLead}</p>{qrAvailable ? <div className="tickets-pass-qr"><TicketQr ticket={ticket} value={qrToken ?? undefined} /></div> : <div className="tickets-qr-placeholder"><Icon name="lock" size={38} /><p>{t.qrUnavailable}</p></div>}<p className="pass-serial-label">{c.ticketId}</p><strong className="tickets-pass-code" dir="ltr">{ticket.id}</strong><p className="tickets-pass-warning">{isLive ? t.liveQrWarning : t.qrWarning}</p></div>
         <div className="pass-collectible-stub"><div className="pass-stub-date"><strong>{day}</strong><span>{month}</span></div><div className="pass-stub-holder"><span>{t.attendee}</span><strong><bdi>{ticket.attendeeName || t.sampleNames}</bdi></strong><p>{ticket.categoryName[lang]}{ticket.seat && <> · {t.row} <bdi>{ticket.seat.row}</bdi> · {t.seat} {bookingNumber(ticket.seat.number, lang)}</>}</p><time dateTime={ticket.event.date}>{formatDate(ticket.event.date, lang, true)}</time></div></div>
         <footer className="pass-collectible-footer"><Icon name="lock" size={13} /><span>{isLive ? `${t.liveQrHeading} · ${t.liveNoCharge}` : `${t.qrHeading} · ${t.noCharge}`}</span></footer>
       </aside>
     </div>
     
-       {/* Transfer, refund, resend and the order breakdown still use the sample logic: hidden for real tickets for now */}
+    {isLive && <section className="pass-action-grid pass-live-actions" aria-label={t.orderDetails}>
+      <TicketTransferAction ticket={ticket} />
+      <TicketResendEmail key={`${session.user?.id}:${ticket.id}`} ticketId={ticket.id} available={qrAvailable} />
+      <article className="pass-action-card"><span className="pass-action-icon" aria-hidden="true"><Icon name="ticket" size={25} /></span><h3>{t.orderDetails}</h3><p>{t.liveOrderLead}</p><Link className="pass-action-link" to={`/orders/${encodeURIComponent(ticket.orderRef)}/confirmation`}>{t.orderDetails}<Icon name="arrow" size={17} /></Link></article>
+    </section>}
+    {/* Refund and the sample order breakdown remain separate previews. */}
     {!isLive && <><section className="pass-management" aria-labelledby="tickets-manage-title">
       <header className="pass-section-heading"><span className="pass-section-number" aria-hidden="true">03</span><div><p className="pass-eyebrow">{t.tickets}</p><h2 id="tickets-manage-title">{t.manage}</h2><p>{t.manageLead}</p></div></header>
       <div className="pass-action-grid">

@@ -1,5 +1,5 @@
 import { useContext, useEffect, useState } from 'react'
-import { getMyTickets, type ApiTicket } from '../../lib/bookingApi'
+import { getMyTicket, getMyTickets, type ApiTicket } from '../../lib/bookingApi'
 import { eventPlaceholderImage } from '../../lib/eventImages'
 import { EventsClientContext } from '../../lib/useEventsApi'
 import type { EventsClient } from '../../lib/eventsApi'
@@ -49,10 +49,24 @@ function toWalletTicket(ticket: ApiTicket, event: Event, coordinates: readonly [
   }
 }
 
+export type LiveTicketData = { ticket: SampleTicket; status: ApiTicket['status']; transfersLeft: number }
+
+// Read a single owned ticket; its QR token is not needed by management forms.
+export async function loadLiveTicket(id: string, client: EventsClient | null, signal: AbortSignal): Promise<LiveTicketData> {
+  const saved = await getMyTicket(id, signal)
+  let event = fallbackEvent(saved)
+  let coordinates: readonly [number, number] | null = null
+  if (client) {
+    try { const page = await client.detail(saved.event.id, signal); event = page.event; coordinates = page.details.coordinates }
+    catch (error) { if (signal.aborted) throw error }
+  }
+  return { ticket: toWalletTicket(saved, event, coordinates), status: saved.status, transfersLeft: saved.transfersLeft }
+}
+
 // Loads the user's tickets, plus each event's page once (for its photo, texts and location)
-async function loadLiveTickets(client: EventsClient | null, signal: AbortSignal) {
+export async function loadLiveTickets(client: EventsClient | null, signal: AbortSignal, orderReference?: string) {
   const { upcoming, past } = await getMyTickets(signal)
-  const all = [...upcoming, ...past]
+  const all = [...upcoming, ...past].filter((ticket) => !orderReference || ticket.orderReference === orderReference)
 
   const events = new Map<string, { event: Event; coordinates: readonly [number, number] | null }>()
   const eventIds = [...new Set(all.map((ticket) => ticket.event.id))]

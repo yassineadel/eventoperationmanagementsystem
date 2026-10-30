@@ -42,3 +42,23 @@ Temporary event photos use `auto=format&fit=crop&w=1200&q=80`:
 `src/lib/eventImages.ts` selects a relevant temporary photo by title or a stable category fallback. Uploaded event photos take priority. These illustrative photos do not depict the named events or performers. Catalogue event data comes from the backend; the separate frontend sample events and their performer names are fictional.
 
 The official SIL Open Font License files for these families are included beside the font files as Anton-OFL.txt, DM-Serif-Display-OFL.txt, and Cairo-OFL.txt.
+
+## Event Board redesign
+
+The selected homepage concept is implemented in the existing app. The following illustrative event assets were generated with the built-in ImageGen tool from crops of that concept; they are not documentary photographs of the named events or performers:
+
+- `oud.jpg` (900×900): anonymous hands playing an authentic fretless Arabic oud; warm amber stage light, dark navy background, no text or watermark. Replaces the guitar fallback for oud events.
+- `festival-pyramid.jpg` (960×1040): portrait composition of the existing concert scene, anonymous concertgoer with raised arm, violet stage, golden pyramid visible at upper right. No UI or lettering. Used for the Summer Beats illustrative event photo so the featured panel retains the selected composition.
+- `dance-stage.jpg` (960×1040): anonymous contemporary dancers on a theater stage, flowing costumes, warm amber side light and restrained violet lighting. Used for dance/ballet event fallbacks so the live database's featured dance event has relevant imagery. It does not depict its named troupe.
+- `esports.jpg` (1200×900): anonymous esports players at gaming PCs on a professional navy/violet-lit stage; no text or logos. Replaces the unrelated athletics fallback for esports events. Generated with built-in ImageGen; original retained at `C:/Users/admin/.codex/generated_images/01a18940-2dc6-7ce1-865b-c7e05975a2ef/exec-453c0bf6-e303-4a8e-882c-670c90b1025f.png`.
+
+The existing `jazz.jpg` supplies the remaining selected-design event photo. Original generated PNGs were retained in the tool's generated-images directory; the application uses the project-local JPEGs.
+
+## Real venue photography — 29 October 2026
+
+The two generated architectural venue images were replaced at the user's request. The current files contain real photographs, preserved without retouching; responsive cards apply their existing CSS crop. Uploaded venue images still take priority. The illustrative-photo label remains because these frontend reference photos are not uploads supplied with the backend venue records, and the Opera photo shows the complex rather than the Small Hall interior.
+
+- `venue-opera.jpg` (1656×1104): Cairo Opera House exterior in daylight, photographed by Daniel Csörföly during January–February 2007. Released into the public domain by the photographer. [Source and release](https://commons.wikimedia.org/wiki/File:Cairo_Opera_byDanielCsorfoly.JPG). [Original JPEG](https://upload.wikimedia.org/wikipedia/commons/4/48/Cairo_Opera_byDanielCsorfoly.JPG).
+- `venue-arena.jpg` (1600×1068): Al Manara Arena stage and audience during a concert, from the [TicketsMarche venue listing](https://www.ticketsmarche.com/venue/6da16733-3ffe-431f-a3e8-af0b03b5f8c5). [Original JPEG](https://d3vzzcunewy153.cloudfront.net/img/17f95c00-4ab0-492d-94a6-3a647e5ea2fe/bf7419ddaea3fcb11c9f6604de157b80.jpg). The supplied image bears an AZEMA Photography credit, which is retained in the original file. No open reuse license was stated; this reference is used in the local project preview. Use rights-cleared venue photography for public distribution.
+
+The superseded generated venue originals remain in the tool's generated-images directory; they are no longer displayed by the homepage.

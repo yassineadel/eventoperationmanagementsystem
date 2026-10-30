@@ -11,7 +11,7 @@ import { existsSync } from 'node:fs'
 const filters = (query = '') => parseListingFilters(new URLSearchParams(query))
 
 test('temporary photos vary by event, exist locally and match across listing and detail', () => {
-  const names = ['Cairo Jazz Night', 'Classical Piano Recital', 'Oud & Strings Evening', 'Electronic Music Festival', 'Photography Workshop']
+  const names = ['Cairo Jazz Night', 'Classical Piano Recital', 'Oud & Strings Evening', 'Electronic Music Festival', 'Photography Workshop', 'Modern Dance Showcase']
   const photos = names.map((name) => {
     const card = mapEventSummary(summary({ name }))
     const page = mapEventDetail(detail({ name }))

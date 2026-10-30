@@ -3,6 +3,8 @@ import type { BookingAction, BookingError, BookingState } from './bookingModel'
 
 export type BookingContextValue = {
   state: BookingState; now: number; names: Record<string, string>; storageAvailable: boolean;
+  restoration: 'loading' | 'failed' | 'ready';
+  retryRestore: () => void;
   act: (action: BookingAction) => BookingError | undefined;
   setAttendee: (key: string, name: string) => void
 }
