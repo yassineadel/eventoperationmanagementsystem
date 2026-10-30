@@ -66,7 +66,13 @@ export type Order = {
   createdAt: string
 }
 
-export type CheckoutResult = { order: Order; payment: { providerTxId: string } }
+export type CheckoutResult = { order: Order; payment: { providerTxId: string } | null }
+
+export type OrderDetail = Order & {
+  items: { ticketCategoryId: string; quantity: number; unitPrice: string; serviceFeePercent: string; serviceFeeAmount: string }[]
+  event: { id: string; name: string; startAt: string }
+  payment: { status: string; provider: string } | null
+}
 
 export type SimulatedOutcome = 'success' | 'decline' | 'timeout' | 'success_lost' | 'success_twice'
 
@@ -150,7 +156,9 @@ export const simulatePayment = (providerTxId: string, outcome: SimulatedOutcome)
 
 // One order. Ask again until status is no longer PENDING.
 export const getOrder = (orderId: string, signal?: AbortSignal) =>
-  getJson<Order>(`/api/orders/${encodeURIComponent(orderId)}`, { signal })
+  getJson<OrderDetail>(`/api/orders/${encodeURIComponent(orderId)}`, { signal })
+
+export const getMyOrders = (signal?: AbortSignal) => getJson<Order[]>('/api/orders', { signal })
 
 // Give up before paying: stops the payment and releases the places
 export const cancelOrder = (orderId: string) =>
@@ -183,3 +191,13 @@ export type ApiTicket = {
 // The user's tickets, split into upcoming and past
 export const getMyTickets = (signal?: AbortSignal) =>
   getJson<{ upcoming: ApiTicket[]; past: ApiTicket[] }>('/api/tickets', { signal })
+
+export const getMyTicket = (ticketId: string, signal?: AbortSignal) =>
+  getJson<ApiTicket>(`/api/tickets/${encodeURIComponent(ticketId)}`, { signal })
+
+export type TicketTransferResult = { transferCount: number; transfersLeft: number; attendeeName?: string }
+export const transferTicketToAccount = (ticketId: string, email: string, signal?: AbortSignal) =>
+  postJson<TicketTransferResult>(`/api/tickets/${encodeURIComponent(ticketId)}/transfer`, { email }, { signal })
+
+export const resendTicketEmail = (ticketId: string, signal?: AbortSignal) =>
+  postJson<{ message: string }>(`/api/tickets/${encodeURIComponent(ticketId)}/resend`, {}, { signal })

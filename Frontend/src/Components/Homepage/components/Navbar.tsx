@@ -38,7 +38,7 @@ export default function Navbar({ t, onViewChange }: { t: HomeStrings; onViewChan
     <button ref={menuButton} className="home-menu-button" aria-label={open ? t.closeMenu : t.menu} aria-expanded={open} aria-controls="home-navigation" onClick={() => setOpen(!open)}><Icon name={open ? 'close' : 'menu'} size={24} /></button>
     <div ref={menu} id="home-navigation" className={`home-navigation${open ? ' is-open' : ''}`}>
       <nav aria-label={t.navigation}>
-        <Link to="/" aria-current={pathname === '/' && hash !== '#venues' ? 'page' : undefined} onClick={() => { onViewChange?.('trending'); setOpen(false) }}>{t.home}</Link>
+        <Link to="/" aria-current={pathname === '/' && hash !== '#venues' ? 'page' : undefined} onClick={() => { onViewChange?.('upcoming'); setOpen(false) }}>{t.home}</Link>
         <Link to="/events" aria-current={pathname === '/events' ? 'page' : undefined} onClick={() => setOpen(false)}>{t.events}</Link>
         <Link to="/#venues" aria-current={pathname === '/' && hash === '#venues' ? 'location' : undefined} onClick={() => setOpen(false)}>{t.venues}</Link>
         <Link to="/my-tickets" aria-current={pathname.startsWith('/my-tickets') || pathname.startsWith('/orders/') ? 'page' : undefined} onClick={() => setOpen(false)}>{lang === 'ar' ? 'تذاكري' : 'My Tickets'}</Link>

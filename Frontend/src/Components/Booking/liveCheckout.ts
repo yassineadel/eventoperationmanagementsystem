@@ -55,12 +55,15 @@ export async function payOnServer(
   // 3. Create the order (the same idempotencyKey never creates a second order)
   const { order, payment } = await checkout({ eventId, idempotencyKey, policyAccepted: true, attendees })
 
+  // An idempotent retry can return the saved result with no new payment session.
+  if (['PAID', 'FAILED', 'CANCELLED'].includes(order.status)) return order
+
   // 4. Pay. "Timeout" means the buyer never finishes, so we cancel the order straight away.
   if (choice === 'timeout') {
     await cancelOrder(order.id)
     return { ...order, status: 'CANCELLED' }
   }
-  await simulatePayment(payment.providerTxId, choice === 'declined' ? 'decline' : 'success')
+  if (payment) await simulatePayment(payment.providerTxId, choice === 'declined' ? 'decline' : 'success')
 
   // 5. Ask for the order until it is no longer PENDING (at most 10 seconds)
   for (let attempt = 0; attempt < 10; attempt++) {

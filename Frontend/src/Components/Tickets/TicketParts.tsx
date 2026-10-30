@@ -28,12 +28,12 @@ export function TicketEmpty({ title, lead }: { title: string; lead: string }) {
   return <section className="tickets-empty tickets-panel"><span className="tickets-empty-mark"><Icon name="ticket" size={38} /></span><h2>{title}</h2><p>{lead}</p><div className="tickets-actions"><Link className="home-button" to="/my-tickets">{t.wallet}<Icon name="arrow" size={17} /></Link><Link className="home-outline-button" to="/events">{t.browse}</Link></div></section>
 }
 
-export function TicketStatus({ ticket }: { ticket: SampleTicket }) {
+export function TicketStatus({ ticket, live = ticket.event.source === 'api' }: { ticket: SampleTicket; live?: boolean }) {
   const { lang } = usePreferences()
   const { now } = useTickets()
   const t = ticketsStrings[lang]
   const state = ticket.status === 'active' && ticket.event.status === 'cancelled' ? 'cancelled' : ticket.status === 'active' && ticketIsPast(ticket, now) ? 'expired' : ticket.status
-  const label = state === 'active' ? t.active : state === 'used' ? t.used : state === 'transferred' ? t.transferredStatus : state === 'refund-pending' ? t.refundStatus : state === 'refunded' ? t.refunded : state === 'cancelled' ? t.cancelled : t.expired
+  const label = state === 'active' ? live ? t.liveActive : t.active : state === 'used' ? t.used : state === 'transferred' ? t.transferredStatus : state === 'refund-pending' ? t.refundStatus : state === 'refunded' ? t.refunded : state === 'cancelled' ? t.cancelled : t.expired
   return <span className={`tickets-status tickets-status--${state}`}><span aria-hidden="true" />{label}</span>
 }
 
@@ -56,6 +56,6 @@ export function WalletTicketCard({ ticket, live = false }: { ticket: SampleTicke
   const date = new Date(ticket.event.date)
   return <article className={`tickets-wallet-card${ticketIsPast(ticket, now) ? ' is-archived' : ''}`}>
     <div className="tickets-card-photo"><img src={ticket.event.image} alt="" width="700" height="500" loading="lazy" /><div className="tickets-date-stamp"><strong>{new Intl.DateTimeFormat(lang === 'ar' ? 'ar-EG' : 'en-GB', { day: '2-digit', timeZone: 'Africa/Cairo' }).format(date)}</strong><span>{new Intl.DateTimeFormat(lang === 'ar' ? 'ar-EG' : 'en-GB', { month: 'short', timeZone: 'Africa/Cairo' }).format(date)}</span></div>{!live && <span className="tickets-card-sample">{t.sampleFlow}</span>}</div>
-    <div className="tickets-card-content"><div className="tickets-card-topline"><TicketStatus ticket={ticket} /><time dateTime={ticket.event.date}>{new Intl.DateTimeFormat(lang === 'ar' ? 'ar-EG' : 'en-GB', { hour: 'numeric', minute: '2-digit', timeZone: 'Africa/Cairo' }).format(date)}</time></div><h2><Link to={`/my-tickets/${encodeURIComponent(ticket.id)}`}>{ticket.event.title[lang]}</Link></h2><p className="tickets-icon-line"><Icon name="pin" size={16} />{ticket.event.venue[lang]}</p><p className="tickets-card-category">{ticket.categoryName[lang]}{ticket.seat && <> · {t.row} <bdi>{ticket.seat.row}</bdi> · {t.seat} {bookingNumber(ticket.seat.number, lang)}</>}</p><div className="tickets-card-bottom"><span><small>{t.attendee}</small><bdi>{ticket.attendeeName || t.sampleNames}</bdi></span><Link className="tickets-circle-link" to={`/my-tickets/${encodeURIComponent(ticket.id)}`} aria-label={`${t.viewTicket}: ${ticket.event.title[lang]}, ${ticket.id}`}><Icon name="arrow" size={21} /></Link></div></div>
+    <div className="tickets-card-content"><div className="tickets-card-topline"><TicketStatus ticket={ticket} live={live} /><time dateTime={ticket.event.date}>{new Intl.DateTimeFormat(lang === 'ar' ? 'ar-EG' : 'en-GB', { hour: 'numeric', minute: '2-digit', timeZone: 'Africa/Cairo' }).format(date)}</time></div><h2><Link to={`/my-tickets/${encodeURIComponent(ticket.id)}`}>{ticket.event.title[lang]}</Link></h2><p className="tickets-icon-line"><Icon name="pin" size={16} />{ticket.event.venue[lang]}</p><p className="tickets-card-category">{ticket.categoryName[lang]}{ticket.seat && <> · {t.row} <bdi>{ticket.seat.row}</bdi> · {t.seat} {bookingNumber(ticket.seat.number, lang)}</>}</p><div className="tickets-card-bottom"><span><small>{t.attendee}</small><bdi>{ticket.attendeeName || t.sampleNames}</bdi></span><Link className="tickets-circle-link" to={`/my-tickets/${encodeURIComponent(ticket.id)}`} aria-label={`${t.viewTicket}: ${ticket.event.title[lang]}, ${ticket.id}`}><Icon name="arrow" size={21} /></Link></div></div>
   </article>
 }

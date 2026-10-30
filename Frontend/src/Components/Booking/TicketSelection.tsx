@@ -17,6 +17,7 @@ import { bookingMoney, bookingNumber} from './strings'
 import { useBookingStrings } from './liveStrings'
 import { BookingEmpty, BookingErrorMessage, BookingShell, OrderSummary, ReservationTimer, TicketDescription } from './BookingParts'
 import SeatMap from './SeatMap'
+import LiveBookingRestore from './LiveBookingRestore'
 
 // onSeatsTaken (real seated events): reloads which seats are free, after a seat was taken by someone else
 function SelectionContent({ event, onSeatsTaken }: { event: Event; onSeatsTaken?: () => Promise<void> }) {
@@ -30,6 +31,7 @@ function SelectionContent({ event, onSeatsTaken }: { event: Event; onSeatsTaken?
   const navigate = useNavigate()
   const [reserving, setReserving] = useState(false)
   const [serverError, setServerError] = useState('')
+  const reservationLimitError = /^You can hold at most \d+ tickets for this event\. You can add \d+ more\.$/.test(serverError)
   const items = state.eventId === event.id ? state.items : []
   const purchased = state.purchases[event.id]
   const atLimit = items.length + (purchased?.quantity ?? 0) >= MAX_TICKETS
@@ -112,7 +114,7 @@ function SelectionContent({ event, onSeatsTaken }: { event: Event; onSeatsTaken?
       </div>
       <OrderSummary event={event}>
         {items.length ? <ul className="booking-selection-items">{items.map((item) => <li key={item.key}><div><TicketDescription item={item} eventId={event.id} /></div><button type="button" aria-label={`${t.remove}: ${item.seatId ? catalogue.seats.find((seat) => seat.id === item.seatId)?.row + ' ' + catalogue.seats.find((seat) => seat.id === item.seatId)?.number : catalogue.categories.find((category) => category.id === item.categoryId)?.name[lang]}`} onClick={() => select(items.filter((current) => current.key !== item.key))}><Icon name="close" size={16} /></button></li>)}</ul> : <div className="booking-summary-empty"><Icon name="ticket" size={26} /><h3>{t.selectionEmpty}</h3><p>{t.selectionEmptyLead}</p></div>}
-{serverError && <p className="booking-error" role="alert">{serverError}</p>}
+{serverError && <p className="booking-error" role="alert">{reservationLimitError ? t.errorLimit : serverError}</p>}
         {!items.length ? <button className="home-button booking-full-button" disabled>{t.continueCart}</button>
           : isLiveEvent(event.id) ? <button className="home-button booking-full-button" type="button" disabled={reserving} onClick={reserve}>{reserving ? t.reserving : t.continueCart}<Icon name="arrow" size={18} /></button>
           : <Link className="home-button booking-full-button" to="/cart">{t.continueCart}<Icon name="arrow" size={18} /></Link>}
@@ -153,6 +155,10 @@ function LiveSelection({ eventId }: { eventId: string }) {
 }
 
 export default function TicketSelection() {
+  return <LiveBookingRestore><TicketSelectionContent /></LiveBookingRestore>
+}
+
+function TicketSelectionContent() {
   const { eventId = '' } = useParams()
   const sample = events.find((event) => event.id === eventId)
   if (sample) return <SelectionContent key={sample.id} event={sample} />

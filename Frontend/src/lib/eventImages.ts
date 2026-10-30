@@ -8,8 +8,11 @@ export const fallbackImages: Record<Category, string> = {
 // Temporary local photos, used only until an organiser uploads event photography.
 // A stable choice keeps cards, the hero, tickets and the detail page consistent.
 export function eventPlaceholderImage(title: string, category: Category): string {
+  if (/summer beats/i.test(title)) return '/event-images/festival-pyramid.jpg'
+  if (/dance|ballet|رقص|باليه/i.test(title)) return '/event-images/dance-stage.jpg'
+  if (/esports|e-sports|gaming|رياضات إلكترونية|ألعاب إلكترونية/i.test(title)) return '/event-images/esports.jpg'
   const topics: [RegExp, string][] = [
-    [/jazz|جاز/i, 'jazz'], [/piano|بيانو/i, 'piano'], [/oud|guitar|acoustic|عود|جيتار/i, 'guitar'],
+    [/jazz|جاز/i, 'jazz'], [/piano|بيانو/i, 'piano'], [/oud|عود/i, 'oud'], [/guitar|acoustic|جيتار/i, 'guitar'],
     [/electronic|dj|إلكتروني/i, 'electronic'], [/violin|classical|orchestra|sufi|كمان|كلاسيك|صوفي/i, 'orchestra'],
     [/poetry|شعر/i, 'poetry'], [/comedy|open mic|كوميديا/i, 'microphone'], [/film|cinema|فيلم|سينما/i, 'cinema'],
     [/photograph|تصوير/i, 'photography'],

@@ -6,6 +6,8 @@ import { useTickets } from './ticketsContext'
 import { sampleRecipients, ticketEligibility, type SampleTicket, type TicketRule } from './ticketsModel'
 import { TicketEmpty, TicketShell } from './TicketParts'
 import { TicketActionHeader, TicketActionSummary } from './TicketActionParts'
+import LiveTransferTicket from './LiveTransferTicket'
+import { eventIdPattern } from '../../lib/eventsModel'
 
 const en = {
   title: 'Transfer ticket', lead: 'Choose a recipient and review the transfer details.', eyebrow: 'Ticket transfer',
@@ -137,5 +139,6 @@ export default function TransferTicket() {
   const { lang } = usePreferences()
   const t = lang === 'ar' ? ar : en
   const ticket = state.tickets.find((candidate) => candidate.id === ticketId)
+  if (!ticket && ticketId && eventIdPattern.test(ticketId)) return <LiveTransferTicket ticketId={ticketId} />
   return ticket ? <TransferContent key={ticket.id} ticket={ticket} /> : <TicketShell title={t.title} lead={t.lead} eyebrow={t.eyebrow}><TicketEmpty title={t.missingTitle} lead={t.missingLead} /></TicketShell>
 }

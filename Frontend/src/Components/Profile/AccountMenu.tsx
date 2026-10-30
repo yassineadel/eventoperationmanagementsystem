@@ -29,7 +29,7 @@ export default function AccountMenu({ onNavigate }: { onNavigate: () => void }) 
     setBusy(true); setFailed(false)
     try { await signOut(); close(); navigate('/') } catch { setFailed(true) } finally { setBusy(false) }
   }
-  if (!user) return <Link className="home-account-entry" to="/profile" onClick={onNavigate}><Icon name="user" size={19} /><span>{t.account}</span></Link>
+  if (!user) return <Link className="home-account-entry" to="/profile" aria-label={t.account} onClick={onNavigate}><Icon name="user" size={19} /><span>{t.account}</span></Link>
   return <div className="home-account-controls" ref={container}>
     <button ref={trigger} className="home-account-trigger" aria-label={`${t.accountMenu}: ${user.fullName}`} aria-expanded={open} aria-controls="home-account-dropdown" onClick={() => setOpen(!open)}><span className="home-account-avatar" aria-hidden="true">{Array.from(user.fullName)[0]}</span><span>{user.fullName.split(/\s+/)[0]}</span><Icon name="settings" size={16} /></button>
     {open && <div id="home-account-dropdown" className="home-account-dropdown" role="group" aria-label={t.account}>
