@@ -1,0 +1,49 @@
+{
+  "slug": "bibliotheca-alexandrina-plaza",
+  "name": "Bibliotheca Alexandrina — Plaza",
+  "type": "STANDING",
+  "address": "El Shatby, Corniche Road",
+  "city": "Alexandria",
+  "country": "Egypt",
+  "latitude": 31.2089,
+  "longitude": 29.9092,
+  "capacity": 1500,
+  "image": "/event-images/venues/bibliotheca-alexandrina-plaza.jpg",
+  "stage": {
+    "position": "top"
+  },
+  "categories": [
+    {
+      "key": "FRONT_STAGE",
+      "label": "Front Stage",
+      "color": "#C9A227"
+    },
+    {
+      "key": "GENERAL",
+      "label": "General Admission",
+      "color": "#2E86AB"
+    }
+  ],
+  "zones": [
+    {
+      "key": "FRONT",
+      "label": "Front Stage",
+      "category": "FRONT_STAGE",
+      "capacity": 300,
+      "x": 20,
+      "y": 10,
+      "width": 60,
+      "height": 22
+    },
+    {
+      "key": "GA",
+      "label": "General Admission",
+      "category": "GENERAL",
+      "capacity": 1200,
+      "x": 5,
+      "y": 35,
+      "width": 90,
+      "height": 60
+    }
+  ]
+}

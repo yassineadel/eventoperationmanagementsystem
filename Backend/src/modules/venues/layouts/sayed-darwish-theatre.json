@@ -1,0 +1,116 @@
+{
+  "slug": "sayed-darwish-theatre",
+  "name": "Sayed Darwish Theatre (Alexandria Opera House)",
+  "type": "SEATED",
+  "address": "Fouad Street, Mahatet El Raml",
+  "city": "Alexandria",
+  "country": "Egypt",
+  "latitude": 31.1981,
+  "longitude": 29.9036,
+  "capacity": 240,
+  "image": "/event-images/venues/sayed-darwish-theatre.jpg",
+  "stage": {
+    "position": "top"
+  },
+  "categories": [
+    {
+      "key": "VIP",
+      "label": "VIP",
+      "color": "#C9A227"
+    },
+    {
+      "key": "PREMIUM",
+      "label": "Premium",
+      "color": "#2E86AB"
+    },
+    {
+      "key": "STANDARD",
+      "label": "Standard",
+      "color": "#6C757D"
+    }
+  ],
+  "sections": [
+    {
+      "key": "ORC",
+      "label": "Orchestra",
+      "rows": [
+        {
+          "label": "A",
+          "seats": 18,
+          "category": "VIP"
+        },
+        {
+          "label": "B",
+          "seats": 18,
+          "category": "VIP"
+        },
+        {
+          "label": "C",
+          "seats": 18,
+          "category": "VIP"
+        },
+        {
+          "label": "D",
+          "seats": 18,
+          "category": "PREMIUM"
+        },
+        {
+          "label": "E",
+          "seats": 18,
+          "category": "PREMIUM"
+        },
+        {
+          "label": "F",
+          "seats": 18,
+          "category": "PREMIUM"
+        },
+        {
+          "label": "G",
+          "seats": 18,
+          "category": "PREMIUM"
+        },
+        {
+          "label": "H",
+          "seats": 18,
+          "category": "PREMIUM"
+        }
+      ]
+    },
+    {
+      "key": "BAL",
+      "label": "Balcony",
+      "rows": [
+        {
+          "label": "A",
+          "seats": 16,
+          "category": "STANDARD"
+        },
+        {
+          "label": "B",
+          "seats": 16,
+          "category": "STANDARD"
+        },
+        {
+          "label": "C",
+          "seats": 16,
+          "category": "STANDARD"
+        },
+        {
+          "label": "D",
+          "seats": 16,
+          "category": "STANDARD"
+        },
+        {
+          "label": "E",
+          "seats": 16,
+          "category": "STANDARD"
+        },
+        {
+          "label": "F",
+          "seats": 16,
+          "category": "STANDARD"
+        }
+      ]
+    }
+  ]
+}

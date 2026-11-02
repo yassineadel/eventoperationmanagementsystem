@@ -1,5 +1,6 @@
 import prisma from '../../config/db'
-import { getPaymentProvider, toMinorUnits } from '../payments/payments.service'
+import { providerFor, toMinorUnits } from '../payments/payments.service'
+import { sendRefundEmail } from './ticket-mail'
 import { TicketError } from './tickets.service'
 import { guardTx } from '../../utils/guardTx'
 
@@ -158,6 +159,8 @@ export const approveRefund = async (adminId: string, refundId: string) => {
   })
   await audit(adminId, 'REFUND_APPROVED', refundId)
   await settleRefund(adminId, refundId)
+  // the customer hears about it by email too; a mail failure must not undo the refund
+  sendRefundEmail(refundId).catch((e) => console.error(`Refund email for ${refundId} failed:`, e.message))
   return refund
 }
 
@@ -171,16 +174,18 @@ export const settleRefund = async (adminId: string, refundId: string) => {
     select: {
       status: true,
       amount: true,
-      ticket: { select: { orderItem: { select: { order: { select: { payment: { select: { providerTxId: true } } } } } } } },
+      ticket: { select: { orderItem: { select: { order: { select: { payment: { select: { providerTxId: true, provider: true } } } } } } } },
     },
   })
   if (r.status === 'SETTLED') return 'SETTLED'
   if (r.status !== 'APPROVED') throw new TicketError('Only approved refunds can be settled', 409)
 
-  const txId = r.ticket.orderItem.order.payment?.providerTxId
+  const payment = r.ticket.orderItem.order.payment
+  const txId = payment?.providerTxId
   if (!txId) throw new TicketError('No payment found for this ticket', 409)
   try {
-    await getPaymentProvider().refund(txId, { amountMinor: toMinorUnits(r.amount), idempotencyKey: `refund-${refundId}` })
+    // Stripe payments are refunded on Stripe; simulated (test) payments never took real money
+    if (payment.provider !== 'simulator') await providerFor(payment.provider).refund(txId, { amountMinor: toMinorUnits(r.amount), idempotencyKey: `refund-${refundId}` })
   } catch (e) {
     console.error(`Refund ${refundId} could not be settled yet:`, e)
     return 'APPROVED'
@@ -203,4 +208,5 @@ export const rejectRefund = async (adminId: string, refundId: string, reason: st
     data: { userId: r.payeeId, ticketId: r.ticketId, type: 'REFUND_REJECTED', subject: 'Your refund request was not approved' },
   })
   await audit(adminId, 'REFUND_REJECTED', refundId, { reason })
+  sendRefundEmail(refundId).catch((e) => console.error(`Refund email for ${refundId} failed:`, e.message))
 }

@@ -45,6 +45,10 @@ const base = {
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
   capacity: z.number().int().positive(),
+  // Photo of the venue: a file the website serves from Frontend/public (credits in layouts/README.md) or an https URL
+  image: z.string().max(1000).regex(/^(\/event-images\/venues\/[a-z0-9-]+\.(jpg|jpeg|png|webp)|https:\/\/\S+)$/, 'Image must be an https URL').optional(),
+  // Google Maps link for the venue (latitude/longitude are read from it in the admin console)
+  mapUrl: z.string().max(2000).regex(/^https:\/\/\S+$/, 'Map link must be an https URL').optional(),
   stage: z.object({ position: z.enum(['top', 'bottom', 'left', 'right']) }),
   categories: z.array(category).min(1),
 }
@@ -119,6 +123,14 @@ export function checkLayoutRules(layout: VenueLayout): string[] {
   }
 
   return errors
+}
+
+/** Validates a layout that did not come from a file (the admin console). Returns the problems, or the layout. */
+export function parseLayout(raw: unknown): { layout: VenueLayout; problems: [] } | { layout: null; problems: string[] } {
+  const parsed = layoutSchema.safeParse(raw)
+  if (!parsed.success) return { layout: null, problems: parsed.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`) }
+  const problems = checkLayoutRules(parsed.data)
+  return problems.length ? { layout: null, problems } : { layout: parsed.data, problems: [] }
 }
 
 export class LayoutError extends Error {

@@ -24,10 +24,21 @@ export const getPaymentProvider = (): PaymentProvider => {
   return provider
 }
 
+// Payments made with the simulator (test data) stay with the simulator even when the site now uses Stripe:
+// Stripe has never heard of a "sim_" payment. The simulator remembers payments only while the server runs,
+// so an unknown one reads as FAILED and refunding it is a no-op (no real money ever moved).
+let detachedSimulator: SimulatorProvider | null = null
+export const providerFor = (name?: string | null): PaymentProvider => {
+  const current = getPaymentProvider()
+  if (name !== 'simulator' || current.name === 'simulator') return current
+  detachedSimulator ??= new SimulatorProvider((txId, outcome) => handlePaymentResult(txId, outcome))
+  return detachedSimulator
+}
+
 /** For the admin test-mode banner and the frontend's payment form (FR-PAY-07) */
 export const getPaymentConfig = () => {
   const p = getPaymentProvider()
-  return { provider: p.name, testMode: p.testMode }
+  return { provider: p.name, testMode: p.testMode, publishableKey: p.name === 'stripe' ? env.STRIPE_PUBLISHABLE_KEY ?? null : null }
 }
 
 /** Whole-currency amounts are stored as Decimal; providers want the smallest unit */
@@ -112,9 +123,20 @@ export const fulfilOrder = async (orderId: string): Promise<'PAID' | 'ALREADY_PA
 const refundOrderPayment = async (orderId: string) => {
   const payment = await prisma.payment.findUniqueOrThrow({ where: { orderId } })
   if (payment.status === 'REFUNDED' || !payment.providerTxId) return
-  await getPaymentProvider().refund(payment.providerTxId, { idempotencyKey: `order-refund-${orderId}` })
+  if (payment.provider !== 'simulator') await providerFor(payment.provider).refund(payment.providerTxId, { idempotencyKey: `order-refund-${orderId}` })
   await prisma.payment.update({ where: { orderId }, data: { status: 'REFUNDED' } })
   console.warn(`Order ${orderId}: payment succeeded after the order closed, refunded automatically`)
+}
+
+/**
+ * Asks the provider directly whether a waiting order has been paid, and fulfils it if so.
+ * The buyer's page calls this while it waits, so a slow or missing webhook never leaves a
+ * paid order looking unpaid (FR-PAY-05).
+ */
+export const checkOrderPayment = async (orderId: string) => {
+  const payment = await prisma.payment.findUnique({ where: { orderId }, select: { providerTxId: true, status: true, provider: true } })
+  if (!payment?.providerTxId || payment.status !== 'PENDING') return
+  if ((await providerFor(payment.provider).getStatus(payment.providerTxId)) === 'SUCCEEDED') await fulfilOrder(orderId)
 }
 
 /**
@@ -139,17 +161,17 @@ export const failOrder = async (orderId: string, status: 'FAILED' | 'CANCELLED' 
  * - orders still waiting after a couple of minutes: ask the provider whether they actually paid
  */
 export const reconcilePayments = async () => {
-  const p = getPaymentProvider()
   const now = new Date()
   const waiting = await prisma.order.findMany({
     where: { status: 'PENDING', createdAt: { lt: new Date(now.getTime() - 2 * 60_000) } },
-    select: { id: true, expiresAt: true, payment: { select: { providerTxId: true } } },
+    select: { id: true, expiresAt: true, payment: { select: { providerTxId: true, provider: true } } },
     take: 100,
   })
 
   let paid = 0
   let cancelled = 0
   for (const o of waiting) {
+    const p = providerFor(o.payment?.provider)
     const txId = o.payment?.providerTxId
     const status = txId ? await p.getStatus(txId) : 'FAILED'
     if (status === 'SUCCEEDED') {

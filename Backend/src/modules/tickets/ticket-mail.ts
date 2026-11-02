@@ -3,6 +3,10 @@ import prisma from '../../config/db'
 import { env } from '../../config/env'
 import { transporter } from '../../config/mailer'
 
+// .test addresses are reserved for test data (RFC 2606): never send them real email
+const send = (mail: Parameters<typeof transporter.sendMail>[0]) =>
+  /\.test$/i.test(String(mail.to ?? '')) ? Promise.resolve() : transporter.sendMail(mail)
+
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!)
 const when = (d: Date) =>
   d.toLocaleString('en-GB', { timeZone: 'Africa/Cairo', weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
@@ -59,7 +63,7 @@ export const sendTicketEmail = async (ticketId: string) => {
     <tr><td style="padding:6px 0;color:#8a8494;font-size:12px;text-transform:uppercase;letter-spacing:1px" width="38%">${label}</td>
         <td style="padding:6px 0;color:#1d1b26;font-size:15px;font-weight:bold">${value}</td></tr>`
 
-  await transporter.sendMail({
+  await send({
     from: `"Hafletna" <${env.MAIL_USER}>`,
     to: t.holder.email,
     subject: `🎟 Your ticket for ${t.event.name}`,
@@ -111,4 +115,52 @@ export const sendOrderTicketEmails = async (orderId: string) => {
   for (const { id } of tickets) {
     await sendTicketEmail(id).catch((e) => console.error(`Ticket email for ${id} failed:`, e.message))
   }
+}
+
+/**
+ * Tells the customer what happened to their refund request: approved (with the amount coming back)
+ * or declined (with the administrator's message). Shown on their ticket too.
+ */
+export const sendRefundEmail = async (refundId: string) => {
+  const r = await prisma.refund.findUniqueOrThrow({
+    where: { id: refundId },
+    select: {
+      status: true, amount: true, rejectionReason: true,
+      payee: { select: { email: true, fullName: true } },
+      ticket: { select: { attendeeName: true, event: { select: { name: true, startAt: true } }, orderItem: { select: { order: { select: { reference: true } } } } } },
+    },
+  })
+  const declined = r.status === 'REJECTED'
+  const brand = '#7a2e5c'
+  const amount = `EGP ${Number(r.amount).toFixed(2)}`
+  const title = declined ? 'Your refund request was declined' : 'Your refund was approved'
+  const body = declined
+    ? `<p style="margin:0 0 12px">We reviewed your refund request and could not approve it.</p>
+       <div style="background:#f5f3ef;border-left:4px solid ${brand};padding:12px 14px;border-radius:6px;color:#1d1b26">${esc(r.rejectionReason ?? '')}</div>
+       <p style="margin:14px 0 0;color:#6b6878;font-size:13px">Your ticket is still valid and you can use it at the event.</p>`
+    : `<p style="margin:0 0 12px">Good news: your refund of <b>${amount}</b> is on its way back to the card you paid with.</p>
+       <p style="margin:0;color:#6b6878;font-size:13px">It can take up to two weeks to appear, depending on your bank. This ticket can no longer be used.</p>`
+
+  await send({
+    from: `"Hafletna" <${env.MAIL_USER}>`,
+    to: r.payee.email,
+    subject: `${title}: ${r.ticket.event.name}`,
+    text: `${title}\n${r.ticket.event.name} (order ${r.ticket.orderItem.order.reference})\n${declined ? `Message from Hafletna: ${r.rejectionReason}` : `${amount} is on its way back to your card.`}`,
+    html: `<!doctype html><html><head><meta name="color-scheme" content="light only"></head>
+<body style="margin:0;padding:0;background:#f5f3ef">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#f5f3ef" style="padding:24px 12px"><tr><td align="center">
+ <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:440px;font-family:Arial,Helvetica,sans-serif">
+  <tr><td bgcolor="${brand}" style="background:${brand};border-radius:16px 16px 0 0;padding:22px 24px">
+    <div style="color:#fff;font-size:22px;font-weight:bold">hafletna</div>
+    <div style="color:#fff;font-size:20px;font-weight:bold;margin-top:12px">${title}</div>
+  </td></tr>
+  <tr><td bgcolor="#ffffff" style="background:#fff;border-radius:0 0 16px 16px;padding:22px 24px;color:#1d1b26;font-size:15px;line-height:1.5">
+    <p style="margin:0 0 14px">Hi ${esc(r.payee.fullName)},</p>
+    <p style="margin:0 0 14px;color:#6b6878;font-size:13px">${esc(r.ticket.event.name)} · ${esc(r.ticket.attendeeName)} · order ${esc(r.ticket.orderItem.order.reference)}</p>
+    ${body}
+  </td></tr>
+  <tr><td align="center" style="padding:16px;color:#8a8494;font-size:11px">Hafletna · Cairo, Egypt</td></tr>
+ </table>
+</td></tr></table></body></html>`,
+  })
 }

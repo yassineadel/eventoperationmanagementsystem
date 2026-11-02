@@ -1,0 +1,100 @@
+{
+  "slug": "el-sawy-culturewheel-river-hall",
+  "name": "El Sawy Culturewheel — River Hall",
+  "type": "SEATED",
+  "address": "26th of July Street, Zamalek",
+  "city": "Cairo",
+  "country": "Egypt",
+  "latitude": 30.0631,
+  "longitude": 31.2193,
+  "capacity": 168,
+  "image": "/event-images/venues/el-sawy-culturewheel-river-hall.jpg",
+  "stage": {
+    "position": "top"
+  },
+  "categories": [
+    {
+      "key": "VIP",
+      "label": "VIP",
+      "color": "#C9A227"
+    },
+    {
+      "key": "PREMIUM",
+      "label": "Premium",
+      "color": "#2E86AB"
+    },
+    {
+      "key": "STANDARD",
+      "label": "Standard",
+      "color": "#6C757D"
+    }
+  ],
+  "sections": [
+    {
+      "key": "HALL",
+      "label": "Main Hall",
+      "rows": [
+        {
+          "label": "A",
+          "seats": 14,
+          "category": "VIP"
+        },
+        {
+          "label": "B",
+          "seats": 14,
+          "category": "VIP"
+        },
+        {
+          "label": "C",
+          "seats": 14,
+          "category": "PREMIUM"
+        },
+        {
+          "label": "D",
+          "seats": 14,
+          "category": "PREMIUM"
+        },
+        {
+          "label": "E",
+          "seats": 14,
+          "category": "PREMIUM"
+        },
+        {
+          "label": "F",
+          "seats": 14,
+          "category": "PREMIUM"
+        },
+        {
+          "label": "G",
+          "seats": 14,
+          "category": "STANDARD"
+        },
+        {
+          "label": "H",
+          "seats": 14,
+          "category": "STANDARD"
+        },
+        {
+          "label": "I",
+          "seats": 14,
+          "category": "STANDARD"
+        },
+        {
+          "label": "J",
+          "seats": 14,
+          "category": "STANDARD"
+        },
+        {
+          "label": "K",
+          "seats": 14,
+          "category": "STANDARD"
+        },
+        {
+          "label": "L",
+          "seats": 14,
+          "category": "STANDARD"
+        }
+      ]
+    }
+  ]
+}

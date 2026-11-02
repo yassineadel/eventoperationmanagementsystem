@@ -1,0 +1,126 @@
+{
+  "slug": "ewart-memorial-hall",
+  "name": "Ewart Memorial Hall (AUC Tahrir)",
+  "type": "SEATED",
+  "address": "Mohamed Mahmoud Street, Tahrir Square",
+  "city": "Cairo",
+  "country": "Egypt",
+  "latitude": 30.0434,
+  "longitude": 31.2368,
+  "capacity": 320,
+  "image": "/event-images/venues/ewart-memorial-hall.jpg",
+  "stage": {
+    "position": "top"
+  },
+  "categories": [
+    {
+      "key": "VIP",
+      "label": "VIP",
+      "color": "#C9A227"
+    },
+    {
+      "key": "PREMIUM",
+      "label": "Premium",
+      "color": "#2E86AB"
+    },
+    {
+      "key": "STANDARD",
+      "label": "Standard",
+      "color": "#6C757D"
+    }
+  ],
+  "sections": [
+    {
+      "key": "ORC",
+      "label": "Orchestra",
+      "rows": [
+        {
+          "label": "A",
+          "seats": 20,
+          "category": "VIP"
+        },
+        {
+          "label": "B",
+          "seats": 20,
+          "category": "VIP"
+        },
+        {
+          "label": "C",
+          "seats": 20,
+          "category": "VIP"
+        },
+        {
+          "label": "D",
+          "seats": 20,
+          "category": "PREMIUM"
+        },
+        {
+          "label": "E",
+          "seats": 20,
+          "category": "PREMIUM"
+        },
+        {
+          "label": "F",
+          "seats": 20,
+          "category": "PREMIUM"
+        },
+        {
+          "label": "G",
+          "seats": 20,
+          "category": "PREMIUM"
+        },
+        {
+          "label": "H",
+          "seats": 20,
+          "category": "PREMIUM"
+        },
+        {
+          "label": "I",
+          "seats": 20,
+          "category": "PREMIUM"
+        },
+        {
+          "label": "J",
+          "seats": 20,
+          "category": "PREMIUM"
+        }
+      ]
+    },
+    {
+      "key": "BAL",
+      "label": "Balcony",
+      "rows": [
+        {
+          "label": "A",
+          "seats": 20,
+          "category": "STANDARD"
+        },
+        {
+          "label": "B",
+          "seats": 20,
+          "category": "STANDARD"
+        },
+        {
+          "label": "C",
+          "seats": 20,
+          "category": "STANDARD"
+        },
+        {
+          "label": "D",
+          "seats": 20,
+          "category": "STANDARD"
+        },
+        {
+          "label": "E",
+          "seats": 20,
+          "category": "STANDARD"
+        },
+        {
+          "label": "F",
+          "seats": 20,
+          "category": "STANDARD"
+        }
+      ]
+    }
+  ]
+}

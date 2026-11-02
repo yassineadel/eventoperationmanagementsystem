@@ -15,6 +15,7 @@ import { useSession } from '../Auth/sessionContext'
 import { useLiveTickets } from './liveTickets'
 import TicketResendEmail from './TicketResendEmail'
 import TicketTransferAction from './TicketTransferAction'
+import TicketRefundAction from './TicketRefundAction'
 import './TicketDetail.css'
 
 const detailCopy = {
@@ -111,6 +112,7 @@ export default function TicketDetail() {
     {isLive && <section className="pass-action-grid pass-live-actions" aria-label={t.orderDetails}>
       <TicketTransferAction ticket={ticket} />
       <TicketResendEmail key={`${session.user?.id}:${ticket.id}`} ticketId={ticket.id} available={qrAvailable} />
+      <TicketRefundAction ticketId={ticket.id} />
       <article className="pass-action-card"><span className="pass-action-icon" aria-hidden="true"><Icon name="ticket" size={25} /></span><h3>{t.orderDetails}</h3><p>{t.liveOrderLead}</p><Link className="pass-action-link" to={`/orders/${encodeURIComponent(ticket.orderRef)}/confirmation`}>{t.orderDetails}<Icon name="arrow" size={17} /></Link></article>
     </section>}
     {/* Refund and the sample order breakdown remain separate previews. */}

@@ -74,6 +74,8 @@ const ticketInclude = {
   ticketCategory: { select: { name: true, categoryKey: true } },
   seat: { select: { section: true, row: true, number: true } },
   orderItem: { select: { order: { select: { reference: true } } } },
+  // the latest refund, so the ticket can show "refund declined" with the administrator's message
+  refunds: { orderBy: { createdAt: 'desc' }, take: 1, select: { id: true, status: true, type: true, amount: true, rejectionReason: true, createdAt: true, reviewedAt: true, payeeId: true } },
 } as const
 
 type TicketRow = Prisma.TicketGetPayload<{ include: typeof ticketInclude }>
@@ -108,6 +110,10 @@ const present = (t: TicketRow, userId: string) => {
     transferCount: t.transferCount,
     transfersLeft: Math.max(0, MAX_TRANSFERS - t.transferCount),
     usedAt: t.usedAt,
+    // only the person the refund belongs to sees it (a refund on a ticket they later received is not theirs)
+    refund: t.refunds[0] && t.refunds[0].payeeId === userId
+      ? { id: t.refunds[0].id, status: t.refunds[0].status, type: t.refunds[0].type, amount: t.refunds[0].amount, message: t.refunds[0].rejectionReason, requestedAt: t.refunds[0].createdAt, reviewedAt: t.refunds[0].reviewedAt }
+      : null,
   }
 }
 
@@ -171,14 +177,20 @@ export const resendTicket = async (userId: string, ticketId: string) => {
  * Give a ticket to another registered, verified user (FR-MTK-10 to 16, BR-07, BR-08).
  * The ticket stays the same; only the holder changes, and the old QR code stops working.
  */
-export const transferTicket = async (userId: string, ticketId: string, recipientEmail: string) => {
-  const result = await moveTicket(userId, ticketId, recipientEmail)
+/**
+ * `attendeeName` is the name printed on the ticket for the new holder. Leave it empty to use the
+ * recipient's account name (e.g. send it to a parent's account but put the child's name on it).
+ */
+export const transferTicket = async (userId: string, ticketId: string, recipientEmail: string, attendeeName?: string) => {
+  const name = typeof attendeeName === 'string' ? attendeeName.trim() : ''
+  if (name && (name.length < 2 || name.length > 200)) throw new TicketError('The name on the ticket must be between 2 and 200 characters')
+  const result = await moveTicket(userId, ticketId, recipientEmail, name || undefined)
   // the new holder gets the ticket with its new QR; a failed email must not undo the transfer
   sendTicketEmail(ticketId).catch((e) => console.error(`Ticket email for ${ticketId} failed:`, e.message))
   return result
 }
 
-const moveTicket = async (userId: string, ticketId: string, recipientEmail: string) => {
+const moveTicket = async (userId: string, ticketId: string, recipientEmail: string, attendeeName?: string) => {
   const email = String(recipientEmail ?? '').trim().toLowerCase()
   const ticket = await getMyTicket(userId, ticketId)
   if (ticket.status !== 'VALID') throw new TicketError('Only valid tickets for upcoming events can be transferred')
@@ -201,7 +213,7 @@ const moveTicket = async (userId: string, ticketId: string, recipientEmail: stri
     // Conditional: only moves if nothing changed since we looked (no double transfer, cap respected)
     const { count } = await tx.ticket.updateMany({
       where: { id: ticketId, holderId: userId, status: 'VALID', transferCount: { lt: MAX_TRANSFERS } },
-      data: { holderId: recipient.id, attendeeName: recipient.fullName, transferCount: { increment: 1 }, qrToken: newQrToken() },
+      data: { holderId: recipient.id, attendeeName: attendeeName ?? recipient.fullName, transferCount: { increment: 1 }, qrToken: newQrToken() },
     })
     if (count !== 1) throw new TicketError('This ticket can no longer be transferred', 409)
 
@@ -216,7 +228,7 @@ const moveTicket = async (userId: string, ticketId: string, recipientEmail: stri
         { userId: recipient.id, ticketId, type: 'TRANSFER_RECEIVED', subject: `You received a ticket for ${ticket.event.name}` },
       ],
     })
-    return { transferCount, transfersLeft: MAX_TRANSFERS - transferCount, attendeeName: recipient.fullName }
+    return { transferCount, transfersLeft: MAX_TRANSFERS - transferCount, attendeeName: attendeeName ?? recipient.fullName }
   })
 }
 

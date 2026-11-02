@@ -80,6 +80,12 @@ model Venue {
   latitude  Decimal   @db.Decimal(9, 6)
   longitude Decimal   @db.Decimal(9, 6)
   capacity  Int
+  /// Full layout (categories, stage, sections/zones) as edited in the admin console; seats/zones rows hold the ids
+  layout    Json?
+  /// Photo shown on the website: a path under /event-images/venues/ or an https URL
+  image     String?
+  /// Google Maps link the admin pasted; latitude/longitude are read from it
+  mapUrl    String?   @map("map_url")
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 

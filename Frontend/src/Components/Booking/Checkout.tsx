@@ -7,7 +7,9 @@ import Icon from '../Homepage/components/Icon'
 import { useBooking } from './bookingContext'
 import { selectionTotals, validAttendee, type BookingError, type SampleReceipt } from './bookingModel'
 import { selectionPath, getBookingEvent, isLiveEvent } from './catalogue'
-import { payOnServer, SeatMismatchError } from './liveCheckout'
+import { createServerOrder, payOnServer, SeatMismatchError, waitForOrder } from './liveCheckout'
+import StripeCardForm, { type StripeCardFormHandle } from './StripePayment'
+import { getPaymentConfig, type Order, type PaymentConfig } from '../../lib/bookingApi'
 import { bookingMoney, bookingNumber } from './strings'
 import { useBookingStrings } from './liveStrings'
 import { BookingEmpty, BookingErrorMessage, BookingShell, OrderSummary, TicketDescription } from './BookingParts'
@@ -64,11 +66,27 @@ function CheckoutContent() {
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current) }, [])
   const event = state.eventId ? getBookingEvent(state.eventId) : undefined
   const isFree = selectionTotals(state.eventId, state.items).total === 0
+  // Real events pay with whatever the server uses: Stripe shows its card form after the order is created
+  const [payConfig, setPayConfig] = useState<PaymentConfig | null>(null)
+  const card = useRef<StripeCardFormHandle>(null)
+  const live = state.eventId ? isLiveEvent(state.eventId) : false
+  useEffect(() => {
+    if (!live) return
+    const controller = new AbortController()
+    getPaymentConfig(controller.signal).then(setPayConfig).catch(() => {})
+    return () => controller.abort()
+  }, [live])
+  const stripeMode = live && !isFree && payConfig?.provider === 'stripe' && !!payConfig.publishableKey
+  const finishLiveOrder = useCallback((order: Order) => {
+    if (order.status === 'PAID' || order.status === 'PENDING') navigate(`/orders/${encodeURIComponent(order.id)}/confirmation`, { replace: true })
+    else setOutcome(order.status === 'FAILED' ? 'declined' : 'timeout')
+    act({ type: 'release' })
+  }, [navigate, act])
 
   const submit = useCallback((submission: FormEvent) => {
     submission.preventDefault()
     if (inFlight.current) return
-    const selectedMethod = isFree ? 'free' : method
+    const selectedMethod = isFree ? 'free' : stripeMode ? 'card' : method
     if (!selectedMethod) { setMethodError(true); document.getElementById('booking-payment-methods')?.focus(); return }
     if (!accepted || !reviewed) { setPolicyError(true); document.getElementById('booking-read-policies')?.focus(); return }
     if (!state.items.length || !state.expiresAt || state.expiresAt <= Date.now()) { act({ type: 'expire' }); return }
@@ -76,14 +94,28 @@ function CheckoutContent() {
     inFlight.current = true
     setProcessing(true); setError(''); setWalletError('')
         // Real events: buy on the server instead of the local simulation
+    if (isLiveEvent(state.eventId!) && stripeMode) {
+      // Like any online shop: check the card, create the order, charge the card, then wait for the server to confirm
+      setServerError('')
+      ;(async () => {
+        const cardError = await card.current?.check()
+        if (cardError !== null) { setServerError(cardError ?? t.loadError); return }
+        const { order, payment } = await createServerOrder(state.eventId!, state.items, names, idempotencyKey.current)
+        if (order.status !== 'PENDING') { finishLiveOrder(order); return }
+        if (!payment?.clientSecret) { setServerError(t.loadError); return }
+        // A declined card leaves the order waiting: fixing the card and pressing Pay again reuses the same order
+        const payError = await card.current!.pay(payment.clientSecret, order.id)
+        if (payError) { setServerError(payError); return }
+        finishLiveOrder(await waitForOrder(order.id, 20))
+      })()
+        .catch((error) => setServerError(error instanceof SeatMismatchError ? t.seatMismatch : error instanceof Error ? error.message : t.loadError))
+        .finally(() => { inFlight.current = false; setProcessing(false) })
+      return
+    }
     if (isLiveEvent(state.eventId!)) {
       setServerError('')
       payOnServer(state.eventId!, state.items, names, idempotencyKey.current, isFree ? 'success' : choice)
-        .then((order) => {
-          if (order.status === 'PAID' || order.status === 'PENDING') navigate(`/orders/${encodeURIComponent(order.id)}/confirmation`, { replace: true })
-          else setOutcome(order.status === 'FAILED' ? 'declined' : 'timeout')
-          act({ type: 'release' })
-        })
+        .then(finishLiveOrder)
         .catch((error) => setServerError(error instanceof SeatMismatchError ? t.seatMismatch : error instanceof Error ? error.message : t.loadError))
         .finally(() => { inFlight.current = false; setProcessing(false) })
       return
@@ -105,28 +137,29 @@ function CheckoutContent() {
       if (result.ok) navigate(`/orders/${encodeURIComponent(reference)}/confirmation`)
       else setWalletError(result.error ?? 'not-found')
     }, 1200)
-  }, [accepted, reviewed, state, names, act, choice, wallet, completeOrder, navigate, method, isFree, t])
+  }, [accepted, reviewed, state, names, act, choice, wallet, completeOrder, navigate, method, isFree, t, stripeMode, finishLiveOrder])
 
   if (state.receipt && wallet.orders.some((order) => order.reference === state.receipt!.reference)) return <Navigate to={`/orders/${encodeURIComponent(state.receipt.reference)}/confirmation`} replace />
   if (state.receipt && event) return <CheckoutResult event={event} receipt={state.receipt} />
   if (outcome && event) return <CheckoutResult event={event} outcome={outcome} />
   if (!event || !state.items.length || state.expired || state.expiresAt !== null && state.expiresAt <= now) return <BookingEmpty step={3} event={event} />
   if (event.status !== 'available' || Date.parse(event.date) <= now) return <BookingEmpty step={3} event={event} blocked />
+  if (live && session.status === 'guest') return <BookingShell step={3} event={event} title={t.signInToBuy} lead={t.signInLead}><section className="booking-panel booking-missing-names"><Icon name="user" size={42} /><Link className="home-button" to={`/login?returnTo=${encodeURIComponent(`/events/${event.id}/tickets`)}`}>{t.signInToBuy}<Icon name="arrow" size={18} /></Link></section></BookingShell>
   if (state.items.some((item) => !validAttendee(names[item.key] ?? ''))) return <BookingShell step={3} event={event} title={t.missingNamesTitle} lead={t.missingNamesLead}><div className="booking-layout"><section className="booking-panel booking-missing-names"><Icon name="user" size={42} /><Link className="home-button" to="/cart">{t.returnCart}<Icon name="arrow" size={18} /></Link></section><OrderSummary event={event} showItems /></div></BookingShell>
 
   return <BookingShell step={3} event={event} title={t.checkoutTitle} lead={t.checkoutLead}>
     <form className="booking-layout" noValidate onSubmit={submit} aria-busy={processing}>
       <div className="booking-checkout-main">
         <section className="booking-panel" aria-labelledby="booking-review-title"><header className="booking-panel-heading"><p className="discovery-eyebrow">01 / {t.stepCart}</p><h2 id="booking-review-title">{t.review}</h2></header><ol className="booking-review-list">{state.items.map((item, index) => <li key={item.key}><span className="booking-review-index" aria-hidden="true">{bookingNumber(index + 1, lang)}</span><div><TicketDescription item={item} eventId={event.id} /><span className="booking-review-name"><bdi>{names[item.key].trim()}</bdi></span></div><Icon name="ticket" size={21} /></li>)}</ol><Link className="home-text-link" to="/cart">{t.editSelection}<Icon name="arrow" size={16} /></Link></section>
-        <section className="booking-panel booking-payment-panel" aria-labelledby="booking-payment-title"><header className="booking-panel-heading"><p className="discovery-eyebrow">02 / {isFree ? t.free : t.paymentMethod}</p><h2 id="booking-payment-title">{isFree ? t.freePaymentTitle : t.paymentTitle}</h2><p>{isFree ? t.freePaymentLead : t.paymentLead}</p></header>
-          {isFree ? <div className="booking-free-payment"><Icon name="ticket" size={26} /><div><strong>{paymentMethodName('free', lang)}</strong><p>{t.freePaymentNote}</p></div></div> : <>
+        <section className="booking-panel booking-payment-panel" aria-labelledby="booking-payment-title"><header className="booking-panel-heading"><p className="discovery-eyebrow">02 / {isFree ? t.free : t.paymentMethod}</p><h2 id="booking-payment-title">{isFree ? t.freePaymentTitle : stripeMode ? (lang === 'ar' ? 'الدفع بالبطاقة' : 'Pay by card') : t.paymentTitle}</h2><p>{isFree ? t.freePaymentLead : stripeMode ? (lang === 'ar' ? 'أدخل بيانات بطاقة Visa أو Mastercard.' : 'Enter your Visa or Mastercard details.') : t.paymentLead}</p></header>
+          {stripeMode ? <StripeCardForm ref={card} publishableKey={payConfig!.publishableKey!} amount={selectionTotals(state.eventId, state.items).total} disabled={processing} /> : live && !isFree && !payConfig ? <p className="booking-subtle-note" role="status">{lang === 'ar' ? 'جارٍ تحميل طرق الدفع…' : 'Loading payment options…'}</p> : isFree ? <div className="booking-free-payment"><Icon name="ticket" size={26} /><div><strong>{paymentMethodName('free', lang)}</strong><p>{t.freePaymentNote}</p></div></div> : <>
             <PaymentMethods method={method} onChange={(value) => { setMethod(value); setMethodError(false) }} disabled={processing} error={methodError} />
             <details className="booking-simulation-controls"><summary>{t.simulationTools}</summary><p>{t.simulationLead}</p><fieldset className="booking-outcomes" disabled={processing}><legend>{t.outcome}</legend>{(['success', 'declined', 'timeout'] as const).map((value) => <label key={value} className={choice === value ? 'is-selected' : ''}><input type="radio" name="sample-payment-outcome" value={value} checked={choice === value} onChange={() => setChoice(value)} /><span>{value === 'success' ? t.successOption : value === 'declined' ? t.declineOption : t.timeoutOption}</span></label>)}</fieldset></details>
           </>}
         </section>
         <section className="booking-panel" aria-labelledby="booking-policy-section-title"><header className="booking-panel-heading"><p className="discovery-eyebrow">03 / {t.stepCheckout}</p><h2 id="booking-policy-section-title">{t.policies}</h2><p>{t.policyLead}</p></header><button id="booking-read-policies" className="home-outline-button" type="button" aria-haspopup="dialog" aria-controls="booking-policy-dialog" disabled={processing} onClick={() => setPolicyOpen(true)}>{t.readPolicies}<Icon name="arrow" size={16} /></button><label className="booking-policy-checkbox"><input id="booking-policy-accept" type="checkbox" checked={accepted} disabled={!reviewed || processing} onChange={(event) => { setAccepted(event.target.checked); setPolicyError(false) }} aria-describedby={policyError ? 'booking-policy-error' : undefined} />{t.policyAccept}</label>{policyError && <p id="booking-policy-error" className="booking-field-error" role="alert">{t.policyRequired}</p>}</section>
       </div>
-      <OrderSummary event={event}><div className="booking-payment-review" role="status"><span>{t.paymentMethod}</span><strong>{isFree ? paymentMethodName('free', lang) : method ? paymentMethodName(method, lang) : t.choosePaymentMethod}</strong></div><BookingErrorMessage error={error} />{walletError && <p className="booking-field-error" role="alert">{ticketRuleText(walletError, lang)}</p>}{serverError && <p className="booking-error" role="alert">{serverError}</p>}<button className="home-button booking-full-button" type="submit" disabled={processing}>{processing ? <><span className="booking-spinner" aria-hidden="true" />{t.processing}</> : <>{isFree ? t.reserveFree : t.pay}<Icon name="arrow" size={18} /></>}</button><p className="booking-subtle-note" role="status">{processing ? t.processing : t.paymentNote}</p></OrderSummary>
+      <OrderSummary event={event}><div className="booking-payment-review" role="status"><span>{t.paymentMethod}</span><strong>{isFree ? paymentMethodName('free', lang) : stripeMode ? 'Stripe' : method ? paymentMethodName(method, lang) : t.choosePaymentMethod}</strong></div><BookingErrorMessage error={error} />{walletError && <p className="booking-field-error" role="alert">{ticketRuleText(walletError, lang)}</p>}{serverError && <p className="booking-error" role="alert">{serverError}</p>}<button className="home-button booking-full-button" type="submit" disabled={processing}>{processing ? <><span className="booking-spinner" aria-hidden="true" />{t.processing}</> : <>{isFree ? t.reserveFree : t.pay}<Icon name="arrow" size={18} /></>}</button><p className="booking-subtle-note" role="status">{processing ? t.processing : stripeMode ? (lang === 'ar' ? 'وضع اختبار Stripe: لا يُخصم أي مبلغ حقيقي.' : 'Stripe test mode: no real money is taken.') : t.paymentNote}</p></OrderSummary>
       {policyOpen && <PolicyDialog event={event} onClose={() => setPolicyOpen(false)} onAccept={() => { setAccepted(true); setReviewed(true); setPolicyError(false); setPolicyOpen(false) }} />}
     </form>
   </BookingShell>

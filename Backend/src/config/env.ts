@@ -23,6 +23,8 @@ const envSchema = z.object({
   PAYMENT_PROVIDER: z.enum(['simulator', 'stripe']).default('simulator'),
   STRIPE_SECRET_KEY: z.string().startsWith('sk_').optional(),
   STRIPE_WEBHOOK_SECRET: z.string().startsWith('whsec_').optional(),
+  // public key the website uses to show Stripe's card form; safe to share
+  STRIPE_PUBLISHABLE_KEY: z.string().startsWith('pk_').optional(),
 }).refine(
   (e) => e.PAYMENT_PROVIDER !== 'stripe' || (e.STRIPE_SECRET_KEY && e.STRIPE_WEBHOOK_SECRET),
   { message: 'PAYMENT_PROVIDER=stripe needs STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET', path: ['PAYMENT_PROVIDER'] },
