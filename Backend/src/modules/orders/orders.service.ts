@@ -171,10 +171,10 @@ export const checkout = async (userId: string, input: CheckoutInput) => {
 const resumeExisting = async (userId: string, order: { id: string; userId: string; status: string } & Record<string, unknown>) => {
   if (order.userId !== userId) throw new OrderError('This checkout key is already used', 409)
   const { userId: _, ...view } = order
-  const payment = await prisma.payment.findUnique({ where: { orderId: order.id }, select: { providerTxId: true } })
+  const payment = await prisma.payment.findUnique({ where: { orderId: order.id }, select: { providerTxId: true, provider: true } })
   const session =
     order.status === 'PENDING' && payment?.providerTxId
-      ? await getPaymentProvider().resumePayment(payment.providerTxId)
+      ? await providerFor(payment.provider).resumePayment(payment.providerTxId)
       : null
   return { order: view, payment: session }
 }

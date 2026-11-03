@@ -19,9 +19,27 @@ To add test catalogue data to your development database, run these commands in `
 ```powershell
 npm run seed:venues
 npm run seed:events
+npm run seed:demo
 ```
 
 Seeding creates test events in PostgreSQL. It is separate from the frontend's sample booking data. Do not run seeds against a production database.
+
+`seed:venues` loads the 9 venue layouts (and their photos) into the database. Re-run it after pulling a change to `Backend/src/modules/venues/layouts/`; it is safe to run again. `seed:demo` adds sample customers (password `Demo-1234`, `@demo.hafletna.test` addresses that never receive email), orders, transfers and refunds through the real purchase flow, using the payment simulator.
+
+After pulling, always run `npx prisma migrate deploy` in `Backend`: the migration `20261102120000_venue_admin_fields` adds the venue layout, photo and map link columns used by the admin console.
+
+## Payments (Stripe test mode)
+
+With `PAYMENT_PROVIDER=simulator` (the default) checkout uses the payment simulator. To take test card payments with Stripe, set in `Backend/.env`:
+
+```
+PAYMENT_PROVIDER=stripe
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_PUBLISHABLE_KEY=pk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+```
+
+Use test keys only. The website shows Stripe's card form inside checkout (test card `4242 4242 4242 4242`), and approving a refund in the admin console refunds the card on Stripe automatically. A Stripe account that has submitted business details but is under review cannot refund; an unactivated test-mode account can.
 
 ## Email and Google sign-in
 
@@ -61,7 +79,7 @@ Open `http://localhost:5173/register` to sign up or `http://localhost:5173/event
 
 ## Current integration scope
 
-Authentication, the homepage catalogue and venues, and the events listing/detail pages use the backend. Homepage recommendations filter database events using interests and a city saved in this browser. Venue photos are labelled as illustrative when the API has no image. Database events support live reservations, cart restoration, orders and simulator checkout; signed-in My Tickets and ticket details load backend tickets and QR tokens. Saved order confirmations, ticket email resend and ticket transfer also use the backend. Transfers update ownership, the attendee name and entry QR in one transaction. Payment method previews, customer refund screens, chatbot and admin data still use their existing sample implementations. Bookmarks remain browser-local. Profile pages save name/phone, password changes, verified email changes and marketing preferences through the account APIs. Account settings also record and cancel deletion requests; the backend now handles anonymisation after the fourteen-day grace period. The sample-profile option has been removed.
+Authentication, the homepage catalogue and venues, and the events listing/detail pages use the backend. Homepage recommendations filter database events using interests and a city saved in this browser. Venue photos are labelled as illustrative when the API has no image. Database events support live reservations, cart restoration, orders and simulator checkout; signed-in My Tickets and ticket details load backend tickets and QR tokens. Saved order confirmations, ticket email resend and ticket transfer also use the backend. Transfers update ownership, the attendee name and entry QR in one transaction. Checkout takes Stripe test card payments when Stripe is configured. Customers request refunds from a real ticket and see the administrator's decision and message there. The admin console at `/admin` (administrators only; the website shows an Admin dashboard button) reads and writes the database: dashboard, events and ticket types, orders, tickets, refunds, customers, venues (added or edited with a Google Maps link), gate staff and the activity log. The first sample-data admin design remains at `/admin-preview`. The chatbot still uses its sample implementation. Bookmarks remain browser-local. Profile pages save name/phone, password changes, verified email changes and marketing preferences through the account APIs. Account settings also record and cancel deletion requests; the backend now handles anonymisation after the fourteen-day grace period. The sample-profile option has been removed.
 
 Run `npm run build` in `Backend`. In `Frontend`, run `npm test`, `npm run build`, and `npm run lint` for validation.
 

@@ -98,7 +98,7 @@ export function TicketPage() {
       </div>
     </div>
     {voiding && <Confirm title="Void ticket" danger confirm="Void ticket"
-      message="The ticket stops working at the gate and its place goes back on sale. No money is refunded; use Refunds for that."
+      message="The ticket stops working at the gate and its place goes back on sale. No money is refunded: use this for stolen, duplicate or fraudulent tickets. To pay a customer back, approve a refund instead."
       reason={{ label: 'Reason (kept in the activity log)' }} suggestions={['Reported stolen', 'Duplicate issued by mistake', 'Fraudulent purchase']}
       onConfirm={(reason) => run(() => api.post(`/tickets/${t.id}/void`, { reason }), 'Ticket voided', reload)} onClose={() => setVoiding(false)} />}
   </>

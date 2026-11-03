@@ -7,7 +7,7 @@ import { approveRefund, listRefunds, rejectRefund, settleRefund } from '../ticke
 import { getTransferChain } from '../tickets/tickets.service'
 import { sendTicketEmail } from '../tickets/ticket-mail'
 import { getAllVenues, getVenueCategories, getVenueLayout, saveVenue } from '../venues/venues.service'
-import { parseLayout } from '../venues/venues.layout'
+import { parseLayout, type VenueLayout } from '../venues/venues.layout'
 import { resolveMapLink } from './maps'
 
 export class AdminError extends Error {
@@ -251,22 +251,41 @@ export const cancelAdminEvent = async (adminId: string, id: string, reason: stri
   const pending = await prisma.order.findMany({ where: { eventId: id, status: 'PENDING' }, select: { id: true } })
   for (const o of pending) await failOrder(o.id, 'CANCELLED')
 
-  const tickets = await prisma.ticket.findMany({
-    where: { eventId: id, status: 'VALID' },
-    select: { id: true, holderId: true, orderItem: { select: { unitPrice: true, serviceFeeAmount: true } } },
-  })
+  const toRefund = await prisma.ticket.count({ where: { eventId: id, status: 'VALID' } })
+  await audit(adminId, 'EVENT_CANCELLED', 'Event', id, { reason, ticketsToRefund: toRefund, ordersCancelled: pending.length })
+  // A big event can have thousands of tickets, each refunded on Stripe and emailed: far longer than a web
+  // request may take. The refunds run in the background; any that fail stay in the refund queue.
+  void refundCancelledEvent(adminId, id, text(reason))
+  return { ...(await getEvent(id)), ticketsToRefund: toRefund }
+}
+
+/** Full refunds (service fee included, BR-12) for every valid ticket of a cancelled event, one at a time */
+const refundCancelledEvent = async (adminId: string, eventId: string, reason: string) => {
   let refunded = 0
-  for (const t of tickets) {
-    const refund = await prisma.refund.create({
-      data: {
-        ticketId: t.id, type: 'EVENT_CANCELLED', payeeId: t.holderId, reason: `Event cancelled: ${text(reason)}`,
-        amount: Number(t.orderItem.unitPrice) + Number(t.orderItem.serviceFeeAmount), serviceFeeRetained: 0,
-      },
+  let failed = 0
+  try {
+    const tickets = await prisma.ticket.findMany({
+      where: { eventId, status: 'VALID', refunds: { none: { status: { in: ['SUBMITTED', 'APPROVED', 'SETTLED'] } } } },
+      select: { id: true, holderId: true, orderItem: { select: { unitPrice: true, serviceFeeAmount: true } } },
     })
-    await approveRefund(adminId, refund.id).then(() => refunded++).catch((e) => console.error(`Refund for ticket ${t.id} failed:`, e))
+    for (const t of tickets) {
+      try {
+        const refund = await prisma.refund.create({
+          data: {
+            ticketId: t.id, type: 'EVENT_CANCELLED', payeeId: t.holderId, reason: `Event cancelled: ${reason}`,
+            amount: Number(t.orderItem.unitPrice) + Number(t.orderItem.serviceFeeAmount), serviceFeeRetained: 0,
+          },
+        })
+        await approveRefund(adminId, refund.id)
+        refunded++
+      } catch (e) {
+        failed++
+        console.error(`Refund for ticket ${t.id} of cancelled event ${eventId} failed (it stays in the refund queue):`, e)
+      }
+    }
+  } finally {
+    await audit(adminId, 'EVENT_REFUNDS_FINISHED', 'Event', eventId, { refunded, failed }).catch(() => {})
   }
-  await audit(adminId, 'EVENT_CANCELLED', 'Event', id, { reason, ticketsRefunded: refunded, ordersCancelled: pending.length })
-  return { ...(await getEvent(id)), ticketsRefunded: refunded }
 }
 
 export const deleteAdminEvent = async (adminId: string, id: string) => {
@@ -456,14 +475,17 @@ export const getTicket = async (id: string) => {
 
 export const voidTicket = async (adminId: string, id: string, reason: string) => {
   if (!text(reason)) throw new AdminError('Please give a reason')
-  const ticket = await prisma.ticket.findUnique({ where: { id }, select: { status: true, ticketCategoryId: true } })
-  if (!ticket) throw new AdminError('Ticket not found', 404)
-  if (ticket.status !== 'VALID') throw new AdminError('Only valid tickets can be voided')
-  await prisma.$transaction([
-    prisma.ticket.update({ where: { id }, data: { status: 'VOID' } }),
-    // the place goes back on sale
-    prisma.$executeRaw`UPDATE ticket_categories SET sold_count = sold_count - 1 WHERE id = ${ticket.ticketCategoryId}::uuid`,
-  ])
+  // Voiding stops the ticket at the gate and puts its place back on sale. It does NOT refund anyone:
+  // that is a deliberate choice (stolen, duplicate or fraudulent tickets); use Refunds to pay money back.
+  await prisma.$transaction(async (tx) => {
+    // conditional update: if two admins void the same ticket at once, only one succeeds,
+    // so the sold count goes down exactly once
+    const ticket = await tx.ticket.findUnique({ where: { id }, select: { ticketCategoryId: true } })
+    if (!ticket) throw new AdminError('Ticket not found', 404)
+    const { count } = await tx.ticket.updateMany({ where: { id, status: 'VALID' }, data: { status: 'VOID' } })
+    if (count !== 1) throw new AdminError('Only valid tickets can be voided')
+    await tx.$executeRaw`UPDATE ticket_categories SET sold_count = sold_count - 1 WHERE id = ${ticket.ticketCategoryId}::uuid`
+  })
   await audit(adminId, 'TICKET_VOIDED', 'Ticket', id, { reason })
   return getTicket(id)
 }
@@ -589,13 +611,17 @@ const PALETTE = ['#C9A227', '#2E86AB', '#6C757D', '#8E44AD', '#16A085', '#D35400
  * Builds a full layout from the admin form:
  *  seated:   sections → rows (label, seats, category)
  *  standing: zones (label, capacity, category); rectangles are laid out top to bottom automatically
- * Categories get keys from their names (VIP → VIP, "General Admission" → GENERAL_ADMISSION).
+ * New categories, sections and zones get keys from their names (VIP → VIP, "General Admission" →
+ * GENERAL_ADMISSION). When editing, the form sends the existing keys (and zone positions) back and they
+ * are kept: events' ticket types, seats and zones are linked by those keys, so they must not change.
  */
 const layoutFromForm = (body: Record<string, unknown>, slug: string, coords: { latitude: number; longitude: number }, mapUrl?: string) => {
   const keyOf = (s: string) => s.toUpperCase().normalize('NFKD').replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '').replace(/^(\d)/, 'C_$1').slice(0, 40) || 'GENERAL'
-  const cats = (Array.isArray(body.categories) ? body.categories : []) as { label?: string; color?: string }[]
+  const validKey = (k: unknown) => (typeof k === 'string' && /^[A-Z][A-Z0-9_]{0,49}$/.test(k) ? k : null)
+  const num = (v: unknown, fallback: number) => (typeof v === 'number' && Number.isFinite(v) ? v : fallback)
+  const cats = (Array.isArray(body.categories) ? body.categories : []) as { key?: string; label?: string; color?: string }[]
   const categories = cats.filter((c) => text(c.label)).map((c, i) => ({
-    key: keyOf(text(c.label)), label: text(c.label), color: /^#[0-9a-f]{6}$/i.test(String(c.color)) ? String(c.color) : PALETTE[i % PALETTE.length],
+    key: validKey(c.key) ?? keyOf(text(c.label)), label: text(c.label), color: /^#[0-9a-f]{6}$/i.test(String(c.color)) ? String(c.color) : PALETTE[i % PALETTE.length],
   }))
   const catKey = (label: unknown) => categories.find((c) => c.label === text(label) || c.key === text(label))?.key ?? keyOf(text(label))
   const type = body.type === 'STANDING' ? 'STANDING' : 'SEATED'
@@ -608,18 +634,19 @@ const layoutFromForm = (body: Record<string, unknown>, slug: string, coords: { l
     categories,
   }
   if (type === 'SEATED') {
-    const sections = ((body.sections ?? []) as { label?: string; rows?: { label?: string; seats?: unknown; category?: string }[] }[]).map((s, i) => ({
-      key: keyOf(text(s.label) || `S${i + 1}`), label: text(s.label) || `Section ${i + 1}`,
+    const sections = ((body.sections ?? []) as { key?: string; label?: string; rows?: { label?: string; seats?: unknown; category?: string }[] }[]).map((s, i) => ({
+      key: validKey(s.key) ?? keyOf(text(s.label) || `S${i + 1}`), label: text(s.label) || `Section ${i + 1}`,
       rows: (s.rows ?? []).map((r) => ({ label: text(r.label), seats: Number(r.seats), category: catKey(r.category) })),
     }))
     const capacity = sections.reduce((n, s) => n + s.rows.reduce((m, r) => m + (Number.isFinite(r.seats) ? r.seats : 0), 0), 0)
     return { ...base, type, capacity, sections }
   }
-  const raw = (body.zones ?? []) as { label?: string; capacity?: unknown; category?: string }[]
+  const raw = (body.zones ?? []) as { key?: string; label?: string; capacity?: unknown; category?: string; x?: unknown; y?: unknown; width?: unknown; height?: unknown }[]
   const h = raw.length ? Math.floor(80 / raw.length) : 80
   const zones = raw.map((z, i) => ({
-    key: keyOf(text(z.label) || `Z${i + 1}`), label: text(z.label) || `Zone ${i + 1}`, category: catKey(z.category), capacity: Number(z.capacity),
-    x: 5, y: 15 + i * h, width: 90, height: Math.max(5, h - 3),
+    key: validKey(z.key) ?? keyOf(text(z.label) || `Z${i + 1}`), label: text(z.label) || `Zone ${i + 1}`, category: catKey(z.category), capacity: Number(z.capacity),
+    // an existing zone keeps where it is drawn; a new one is stacked below the stage
+    x: num(z.x, 5), y: num(z.y, 15 + i * h), width: num(z.width, 90), height: num(z.height, Math.max(5, h - 3)),
   }))
   return { ...base, type, capacity: zones.reduce((n, z) => n + (Number.isFinite(z.capacity) ? z.capacity : 0), 0), zones }
 }
@@ -654,17 +681,33 @@ export const updateVenue = async (adminId: string, slug: string, body: Record<st
   checkVenueForm(body)
   const current = await getAdminVenue(slug)
   const place = await placeOf(body, { latitude: Number(current.venue.latitude), longitude: Number(current.venue.longitude), mapUrl: current.venue.mapUrl })
-  const { layout, problems } = parseLayout(layoutFromForm(body, slug, place, place.mapUrl))
-  if (!layout) throw new AdminError(`The layout is not complete: ${problems[0]}`)
-  if (current.hasSales) {
-    // seats and zones with tickets sold can't move; only the description of the venue can change
-    const before = JSON.stringify((current.definition as { sections?: unknown; zones?: unknown } | null) ?? {})
-    const sameShape = (l: typeof layout) => JSON.stringify({ sections: 'sections' in l ? l.sections : undefined, zones: 'zones' in l ? l.zones : undefined })
-    if (sameShape(layout) !== JSON.stringify({ sections: JSON.parse(before).sections, zones: JSON.parse(before).zones }) || layout.type !== current.venue.type) {
-      throw new AdminError('Tickets are already sold at this venue, so its seats and zones cannot change. You can still edit the name, address, photo and map.')
+  const stored = parseLayout(current.definition)
+  let layout: VenueLayout
+  if (current.hasSales && stored.layout) {
+    // Tickets are sold here: the seats, zones and areas stay exactly as they are. Only the venue's
+    // description changes, so the stored layout is reused instead of being rebuilt from the form.
+    const { image: _i, mapUrl: _m, ...shape } = stored.layout
+    layout = {
+      ...shape, name: text(body.name), address: text(body.address), city: text(body.city),
+      latitude: place.latitude, longitude: place.longitude,
+      ...(text(body.image) && { image: text(body.image) }), ...(place.mapUrl && { mapUrl: place.mapUrl }),
     }
+  } else {
+    const built = parseLayout(layoutFromForm(body, slug, place, place.mapUrl))
+    if (!built.layout) throw new AdminError(`The layout is not complete: ${built.problems[0]}`)
+    layout = built.layout
+    // events sell tickets per area: an area some event already prices cannot disappear
+    const priced = await prisma.ticketCategory.findMany({ where: { event: { venueId: current.venue.id } }, select: { categoryKey: true }, distinct: ['categoryKey'] })
+    const missing = priced.map((c) => c.categoryKey).filter((k) => !layout.categories.some((c) => c.key === k))
+    if (missing.length) throw new AdminError(`Events at this venue sell tickets for ${missing.join(', ')}, so that area cannot be removed or renamed.`)
   }
-  const { venue } = await saveVenue(layout)
+  const { venue } = await saveVenue(layout).catch((e) => {
+    // a seat or zone still referenced by an old reservation or ticket cannot be deleted
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
+      throw new AdminError('Some seats or zones you removed are still linked to reservations or tickets, so they must stay.')
+    }
+    throw e
+  })
   await audit(adminId, 'VENUE_UPDATED', 'Venue', venue.id, { name: venue.name })
   return getAdminVenue(slug)
 }
@@ -696,7 +739,7 @@ export const listStaff = () => prisma.staffAccount.findMany({ select: staffSelec
 export const createStaff = async (adminId: string, body: Record<string, unknown>) => {
   const username = text(body.username).toLowerCase()
   if (!text(body.fullName) || !/^[a-z0-9._-]{3,40}$/.test(username)) throw new AdminError('Enter a name and a username (3–40 letters, numbers, dots or dashes)')
-  if (String(body.password ?? '').length < 4) throw new AdminError('The password must be at least 4 characters')
+  if (String(body.password ?? '').length < 8) throw new AdminError('The password must be at least 8 characters: these accounts decide who gets into events')
   if (await prisma.staffAccount.findUnique({ where: { username } })) throw new AdminError('This username is taken')
   const staff = await prisma.staffAccount.create({
     data: { fullName: text(body.fullName), username, passwordHash: await bcrypt.hash(String(body.password), 10), role: body.role === 'APP_ADMIN' ? 'APP_ADMIN' : 'SCANNER' },

@@ -43,7 +43,7 @@ export default function EventPage() {
         {e.status === 'DRAFT' && <button className="cx-btn is-danger" onClick={() => setDialog('delete')}>Delete draft</button>}
       </>} />
 
-    {cancelled && <div className="cx-note is-red" style={{ marginBottom: 16 }}><b>Cancelled.</b> {e.cancellationReason} Every ticket was refunded in full.</div>}
+    {cancelled && <div className="cx-note is-red" style={{ marginBottom: 16 }}><b>Cancelled.</b> {e.cancellationReason} Every ticket is refunded in full; refunds that could not be sent wait in Refunds.</div>}
     {e.status === 'DRAFT' && <div className="cx-note is-amber" style={{ marginBottom: 16 }}>This is a draft: customers cannot see it. Add at least one ticket type, then publish it.</div>}
 
     <div className="cx-stats">
@@ -132,6 +132,6 @@ export default function EventPage() {
       message={<>Sales stop at once and <b>all {num(sold)} sold tickets are refunded in full</b>, service fee included. Card payments are refunded on Stripe automatically and each customer gets an email.</>}
       reason={{ label: 'Reason (customers will see it)', placeholder: 'e.g. The performer is unwell.' }}
       suggestions={['The performer is unwell.', 'The venue is no longer available.', 'The event is postponed to a later date.']}
-      onConfirm={(reason) => run(() => api.post(`/events/${e.id}/cancel`, { reason }), 'Event cancelled and tickets refunded', reload)} onClose={() => setDialog(null)} />}
+      onConfirm={(reason) => run(() => api.post(`/events/${e.id}/cancel`, { reason }), 'Event cancelled. Refunds are being sent in the background; check Refunds in a few minutes.', reload)} onClose={() => setDialog(null)} />}
   </>
 }

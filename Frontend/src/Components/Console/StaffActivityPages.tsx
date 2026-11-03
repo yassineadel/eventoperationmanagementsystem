@@ -45,11 +45,11 @@ export function StaffPage() {
 
     {creating && <Modal title="New staff account" onClose={() => setCreating(false)} footer={<>
       <button className="cx-btn is-ghost" onClick={() => setCreating(false)}>Back</button>
-      <button className="cx-btn is-primary" onClick={create} disabled={!form.fullName || !form.username || form.password.length < 4}>Create</button>
+      <button className="cx-btn is-primary" onClick={create} disabled={!form.fullName || !form.username || form.password.length < 8}>Create</button>
     </>}>
       <Field label="Full name"><input className="cx-input" value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} /></Field>
       <Field label="Username (used to sign in to the scanner app)"><input className="cx-input" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value.toLowerCase() })} placeholder="e.g. mona.gate" /></Field>
-      <Field label="Password" hint="At least 4 characters. Share it with the staff member."><input className="cx-input" type="text" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></Field>
+      <Field label="Password" hint="At least 8 characters. Share it privately with the staff member."><input className="cx-input" type="text" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></Field>
       <Field label="Role"><select className="cx-input" style={{ width: '100%' }} value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}><option value="SCANNER">Scanner</option><option value="APP_ADMIN">Gate admin</option></select></Field>
     </Modal>}
     {assign && <Modal title={`Assign ${assign.staff.fullName}`} onClose={() => setAssign(null)} footer={<>

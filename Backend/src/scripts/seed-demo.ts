@@ -173,7 +173,7 @@ async function main() {
   })
   if (withSales && !(await prisma.event.findFirst({ where: { status: 'CANCELLED' } }))) {
     const r = await admin.cancelAdminEvent(adminUser.id, withSales.id, 'The performer is unwell. Every ticket has been refunded in full.')
-    console.log(`Cancelled "${withSales.name}" and refunded ${r.ticketsRefunded} tickets`)
+    console.log(`Cancelled "${withSales.name}"; refunding ${r.ticketsToRefund} tickets in the background`)
   }
 
   // ── gate staff ──

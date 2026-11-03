@@ -41,7 +41,7 @@ type Definition = {
   name: string; address: string; city: string; type: 'SEATED' | 'STANDING'; image?: string; mapUrl?: string; stage: { position: string }
   categories: { key: string; label: string; color: string }[]
   sections?: { key: string; label: string; rows: { label: string; seats: number; category: string }[] }[]
-  zones?: { key: string; label: string; category: string; capacity: number }[]
+  zones?: { key: string; label: string; category: string; capacity: number; x: number; y: number; width: number; height: number }[]
 }
 
 export function LayoutPreview({ layout }: { layout: Pick<Layout, 'categories' | 'sections' | 'zones'> }) {
@@ -96,10 +96,12 @@ export function VenuePage() {
 }
 
 // ── form ──
-type Cat = { label: string; color: string }
+// `key` (and a zone's position) is kept for things that already exist, so seats, zones and events'
+// ticket types stay linked to them when the venue is edited; new ones get no key and the server makes one
+type Cat = { key?: string; label: string; color: string }
 type RowGroup = { rows: number; seats: number; category: string }
-type Section = { label: string; groups: RowGroup[] }
-type Zone = { label: string; capacity: number; category: string }
+type Section = { key?: string; label: string; groups: RowGroup[] }
+type Zone = { key?: string; label: string; capacity: number; category: string; x?: number; y?: number; width?: number; height?: number }
 type VenueForm = { name: string; address: string; city: string; type: 'SEATED' | 'STANDING'; image: string; mapUrl: string; stage: string; categories: Cat[]; sections: Section[]; zones: Zone[] }
 
 const COLORS = ['#C9A227', '#2E86AB', '#6C757D', '#8E44AD', '#16A085', '#D35400']
@@ -116,8 +118,9 @@ const toForm = (d: Definition): VenueForm => {
   const label = (key: string) => d.categories.find((c) => c.key === key)?.label ?? key
   return {
     name: d.name, address: d.address, city: d.city, type: d.type, image: d.image ?? '', mapUrl: d.mapUrl ?? '', stage: d.stage.position,
-    categories: d.categories.map((c) => ({ label: c.label, color: c.color })),
+    categories: d.categories.map((c) => ({ key: c.key, label: c.label, color: c.color })),
     sections: (d.sections ?? []).map((s) => ({
+      key: s.key,
       label: s.label,
       groups: s.rows.reduce<RowGroup[]>((gs, r) => {
         const last = gs[gs.length - 1]
@@ -126,7 +129,7 @@ const toForm = (d: Definition): VenueForm => {
         return gs
       }, []),
     })),
-    zones: (d.zones ?? []).map((z) => ({ label: z.label, capacity: z.capacity, category: label(z.category) })),
+    zones: (d.zones ?? []).map((z) => ({ key: z.key, label: z.label, capacity: z.capacity, category: label(z.category), x: z.x, y: z.y, width: z.width, height: z.height })),
   }
 }
 
@@ -134,7 +137,7 @@ const toBody = (f: VenueForm) => ({
   name: f.name, address: f.address, city: f.city, type: f.type, image: f.image, mapUrl: f.mapUrl, stage: f.stage, categories: f.categories,
   sections: f.type === 'SEATED' ? f.sections.map((s) => {
     let i = 0
-    return { label: s.label, rows: s.groups.flatMap((g) => Array.from({ length: g.rows }, () => ({ label: rowLabel(i++), seats: g.seats, category: g.category }))) }
+    return { key: s.key, label: s.label, rows: s.groups.flatMap((g) => Array.from({ length: g.rows }, () => ({ label: rowLabel(i++), seats: g.seats, category: g.category }))) }
   }) : undefined,
   zones: f.type === 'STANDING' ? f.zones : undefined,
 })

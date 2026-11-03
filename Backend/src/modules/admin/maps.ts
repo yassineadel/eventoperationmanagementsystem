@@ -19,7 +19,8 @@ export const coordinatesIn = (url: string): { latitude: number; longitude: numbe
   return null
 }
 
-const GOOGLE_HOSTS = /^(?:www\.)?(?:google\.[a-z.]+|maps\.google\.[a-z.]+|maps\.app\.goo\.gl|goo\.gl)$/i
+// exact Google Maps hosts only, so the server never fetches an address like google.attacker.com
+const GOOGLE_HOSTS = /^(?:(?:www\.|maps\.)?google\.(?:com|com\.eg|co\.uk|de|fr|ae|com\.sa)|maps\.app\.goo\.gl|goo\.gl)$/i
 
 export class MapLinkError extends Error {}
 
