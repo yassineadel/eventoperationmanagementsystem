@@ -1,5 +1,7 @@
 // Guest list: search by name and mark present (FR-APP-22, FR-APP-23).
 // Deliberately no way to add a person (FR-APP-24). Manual admissions are flagged MANUAL by the backend (FR-APP-25).
+// FOR NOW this screen uses demo data (src/api/mock.ts): the backend has no guest list yet,
+// so the banner below says clearly that nothing here is real or recorded.
 import * as Crypto from 'expo-crypto';
 import * as Haptics from 'expo-haptics';
 import { useEffect, useMemo, useState } from 'react';
@@ -30,7 +32,7 @@ export default function GuestListScreen() {
     if (res.result === 'ACCEPTED') {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setGuests((list) => list?.map((x) => (x.ticketId === g.ticketId ? { ...x, admitted: true } : x)) ?? null);
-      setMessage(`${g.attendeeName} admitted manually`);
+      setMessage(`Demo only: ${g.attendeeName} marked present (not recorded)`);
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setMessage(`${g.attendeeName}: ${rejectLabels[res.reason] ?? res.reason}`);
@@ -39,6 +41,13 @@ export default function GuestListScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.demo}>
+        <Text style={styles.demoTitle}>DEMO DATA</Text>
+        <Text style={styles.demoText}>
+          These are not the real guests of this event, and &quot;Mark present&quot; does not admit anyone or save anything.
+          Scan the QR code to admit a guest.
+        </Text>
+      </View>
       <TextInput
         style={styles.search}
         placeholder="Search attendee name"
@@ -77,6 +86,9 @@ export default function GuestListScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg, padding: 16 },
+  demo: { backgroundColor: colors.warn, borderRadius: 12, padding: 14, marginBottom: 12 },
+  demoTitle: { color: '#fff', fontSize: 18, fontWeight: '800', letterSpacing: 1 },
+  demoText: { color: '#fff', fontSize: 15, marginTop: 4 },
   search: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 12, color: colors.text, fontSize: 18, padding: 14, marginBottom: 12 },
   message: { color: colors.text, fontSize: 15, marginBottom: 12 },
   empty: { color: colors.muted, fontSize: 16, textAlign: 'center', marginTop: 24 },

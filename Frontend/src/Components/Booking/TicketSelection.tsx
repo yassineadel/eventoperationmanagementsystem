@@ -7,18 +7,20 @@ import Icon from '../Homepage/components/Icon'
 import NotFound from '../Discovery/NotFound'
 import { useBooking } from './bookingContext'
 import { categoryRemaining, MAX_TICKETS, type BookingError, type Selection } from './bookingModel'
-import { getBookingCatalogue, getBookingEvent, registerLiveCatalogue, type Seat, isLiveEvent } from './catalogue'
+import { getBookingCatalogue, getBookingEvent, seatSectionOf, type Seat, isLiveEvent } from './catalogue'
 import { useApiEvent } from '../../lib/useEventsApi'
 import { eventIdPattern } from '../../lib/eventsModel'
-import { getAvailability, type Availability } from '../../lib/bookingApi'
-import { syncHolds } from './liveHolds'
+import { SeatTakenError, syncHolds } from './liveHolds'
+import { loadLiveBooking } from './liveBooking'
 import { ApiError } from '../../lib/api'
 import { bookingMoney, bookingNumber} from './strings'
 import { useBookingStrings } from './liveStrings'
 import { BookingEmpty, BookingErrorMessage, BookingShell, OrderSummary, ReservationTimer, TicketDescription } from './BookingParts'
 import SeatMap from './SeatMap'
+import LiveBookingRestore from './LiveBookingRestore'
 
-function SelectionContent({ event }: { event: Event }) {
+// onSeatsTaken (real seated events): reloads which seats are free, after a seat was taken by someone else
+function SelectionContent({ event, onSeatsTaken }: { event: Event; onSeatsTaken?: () => Promise<void> }) {
   const { lang } = usePreferences()
   const t = useBookingStrings(event.id)
   const { state, act, now } = useBooking()
@@ -29,6 +31,7 @@ function SelectionContent({ event }: { event: Event }) {
   const navigate = useNavigate()
   const [reserving, setReserving] = useState(false)
   const [serverError, setServerError] = useState('')
+  const reservationLimitError = /^You can hold at most \d+ tickets for this event\. You can add \d+ more\.$/.test(serverError)
   const items = state.eventId === event.id ? state.items : []
   const purchased = state.purchases[event.id]
   const atLimit = items.length + (purchased?.quantity ?? 0) >= MAX_TICKETS
@@ -60,13 +63,24 @@ function SelectionContent({ event }: { event: Event }) {
       if (expiresAt) act({ type: 'held', expiresAt })
       navigate('/cart')
     } catch (error) {
-      if (error instanceof ApiError && error.status === 401) setServerError(t.signInToReserve)
+      if (error instanceof SeatTakenError) {
+        setServerError(t.seatTaken)
+        // Show the map as it is now, and keep only the chosen seats that are still free
+        try {
+          await onSeatsTaken?.()
+          const fresh = getBookingCatalogue(event.id)!
+          select(items.filter((item) => !item.seatId || fresh.seats.find((seat) => seat.id === item.seatId)?.status === 'available'))
+        } catch { /* the message above already tells the user to choose again */ }
+      }
+      else if (error instanceof ApiError && error.status === 401) setServerError(t.signInToReserve)
       else setServerError(error instanceof Error ? error.message : t.loadError)
     } finally {
       setReserving(false)
     }
   }
   const inspectedCategory = catalogue.categories.find((category) => category.id === inspected?.categoryId)
+  // Sample events: the section is the category. Real venues: the venue's section (e.g. Orchestra).
+  const inspectedSection = inspected ? seatSectionOf(catalogue, inspected)?.label[lang] : undefined
   const inspectedSelected = Boolean(inspected && items.some((item) => item.seatId === inspected.id))
   const inspectedUnavailable = Boolean(inspected && (inspected.status !== 'available' || purchased?.seats.includes(inspected.id)))
 
@@ -74,12 +88,12 @@ function SelectionContent({ event }: { event: Event }) {
     <div className="booking-layout">
       <div className="booking-selection-main">
         {catalogue.mode === 'seated' ? <>
-          <SeatMap catalogue={catalogue} selectedIds={items.flatMap((item) => item.seatId ? [item.seatId] : [])} purchasedIds={purchased?.seats ?? []} disabled={false} inspectedId={inspected?.id} onInspect={(seat) => {
+          <SeatMap eventId={event.id} catalogue={catalogue} selectedIds={items.flatMap((item) => item.seatId ? [item.seatId] : [])} purchasedIds={purchased?.seats ?? []} disabled={false} inspectedId={inspected?.id} onInspect={(seat) => {
             setInspected(seat); setError('')
             if (window.matchMedia('(max-width: 900px)').matches) requestAnimationFrame(() => document.getElementById('booking-seat-inspector')?.scrollIntoView({ block: 'nearest' }))
           }} />
           <section id="booking-seat-inspector" className="booking-seat-inspector booking-panel" aria-live="polite" aria-atomic="true">
-            {inspected && inspectedCategory ? <><div className={`booking-seat-stamp tone-${inspectedCategory.color}`} aria-hidden="true"><small>{inspected.row}</small><strong>{bookingNumber(inspected.number, lang)}</strong></div><div><p className="discovery-eyebrow">{inspectedCategory.name[lang]}</p><h3>{t.row} <bdi>{inspected.row}</bdi> · {t.seat} {bookingNumber(inspected.number, lang)}</h3><p>{t.section}: {inspectedCategory.name[lang]}</p><p>{bookingMoney(inspectedCategory.price, lang)} · {bookingNumber(inspectedCategory.feePercent, lang)}% {t.feeRate}</p>{inspectedUnavailable && <p>{t.unavailableSeat}</p>}</div><button className={inspectedSelected ? 'home-outline-button' : 'home-button'} type="button" disabled={inspectedUnavailable || atLimit && !inspectedSelected} onClick={() => select(inspectedSelected ? items.filter((item) => item.seatId !== inspected.id) : [...items, { key: inspected.id, seatId: inspected.id, categoryId: inspected.categoryId }])}>{inspectedSelected ? t.removeSeat : t.addSeat}</button></>
+            {inspected && inspectedCategory ? <><div className={`booking-seat-stamp tone-${inspectedCategory.color}`} aria-hidden="true"><small>{inspected.row}</small><strong>{bookingNumber(inspected.number, lang)}</strong></div><div><p className="discovery-eyebrow">{inspectedCategory.name[lang]}</p><h3>{t.row} <bdi>{inspected.row}</bdi> · {t.seat} {bookingNumber(inspected.number, lang)}</h3><p>{t.section}: {inspectedSection ?? inspectedCategory.name[lang]}</p><p>{bookingMoney(inspectedCategory.price, lang)} · {bookingNumber(inspectedCategory.feePercent, lang)}% {t.feeRate}</p>{inspectedUnavailable && <p>{t.unavailableSeat}</p>}</div><button className={inspectedSelected ? 'home-outline-button' : 'home-button'} type="button" disabled={inspectedUnavailable || atLimit && !inspectedSelected} onClick={() => select(inspectedSelected ? items.filter((item) => item.seatId !== inspected.id) : [...items, { key: inspected.id, seatId: inspected.id, categoryId: inspected.categoryId }])}>{inspectedSelected ? t.removeSeat : t.addSeat}</button></>
               : <><Icon name="ticket" size={30} /><div><h3>{t.chooseSeat}</h3><p>{t.chooseSeatLead}</p></div></>}
           </section>
           <div className="booking-category-key" aria-label={t.categories}>{catalogue.categories.map((category) => <div className={`tone-${category.color}`} key={category.id}><span className="booking-category-dot" aria-hidden="true" /><div><strong>{category.name[lang]}</strong><span>{bookingMoney(category.price, lang)} + {bookingNumber(category.feePercent, lang)}% {t.feeRate}</span></div></div>)}</div>
@@ -100,7 +114,7 @@ function SelectionContent({ event }: { event: Event }) {
       </div>
       <OrderSummary event={event}>
         {items.length ? <ul className="booking-selection-items">{items.map((item) => <li key={item.key}><div><TicketDescription item={item} eventId={event.id} /></div><button type="button" aria-label={`${t.remove}: ${item.seatId ? catalogue.seats.find((seat) => seat.id === item.seatId)?.row + ' ' + catalogue.seats.find((seat) => seat.id === item.seatId)?.number : catalogue.categories.find((category) => category.id === item.categoryId)?.name[lang]}`} onClick={() => select(items.filter((current) => current.key !== item.key))}><Icon name="close" size={16} /></button></li>)}</ul> : <div className="booking-summary-empty"><Icon name="ticket" size={26} /><h3>{t.selectionEmpty}</h3><p>{t.selectionEmptyLead}</p></div>}
-{serverError && <p className="booking-error" role="alert">{serverError}</p>}
+{serverError && <p className="booking-error" role="alert">{reservationLimitError ? t.errorLimit : serverError}</p>}
         {!items.length ? <button className="home-button booking-full-button" disabled>{t.continueCart}</button>
           : isLiveEvent(event.id) ? <button className="home-button booking-full-button" type="button" disabled={reserving} onClick={reserve}>{reserving ? t.reserving : t.continueCart}<Icon name="arrow" size={18} /></button>
           : <Link className="home-button booking-full-button" to="/cart">{t.continueCart}<Icon name="arrow" size={18} /></Link>}
@@ -109,34 +123,42 @@ function SelectionContent({ event }: { event: Event }) {
   </BookingShell>
 }
 
-// A real event from the backend: load it and its live availability, then show the same page
+// A real event from the backend: load it, its live availability and the user's holds
+// (and the seat layout for seated venues), then show the same page.
 function LiveSelection({ eventId }: { eventId: string }) {
   const t = useBookingStrings(eventId)
   const api = useApiEvent(eventId)
-  const [availability, setAvailability] = useState<Availability | null>(null)
+  // Goes up by one each time the catalogue was (re)loaded, so the page redraws with the new data
+  const [loaded, setLoaded] = useState(0)
   const [failed, setFailed] = useState(false)
+  const data = api.data
 
   useEffect(() => {
+    if (!data) return
     const controller = new AbortController()
-    getAvailability(eventId, controller.signal)
-      .then(setAvailability)
+    loadLiveBooking(data, controller.signal)
+      .then(() => setLoaded((n) => n + 1))
       .catch(() => { if (!controller.signal.aborted) setFailed(true) })
     return () => controller.abort()
-  }, [eventId])
+  }, [data])
 
   if (api.status === 'not-found' || api.status === 'idle') return <NotFound event />
   if (api.status === 'error' || failed) return <section className="home-container discovery-not-found" role="alert"><h1 className="discovery-title">{t.loadError}</h1><button type="button" className="home-button" onClick={() => window.location.reload()}>{t.retry}</button></section>
-  if (!api.data || !availability) return <section className="home-container" role="status"><p>{t.loading}</p></section>
+  if (!data || !loaded) return <section className="home-container" role="status"><p>{t.loading}</p></section>
 
-  // Seat maps for seated venues come in a later step
-  if (api.data.details.venueType === 'SEATED') return <BookingEmpty step={1} event={api.data.event} blocked />
-
-  const feePercents = Object.fromEntries(api.data.details.ticketCategories?.map((c) => [c.id, c.feePercent ?? 0]) ?? [])
-  registerLiveCatalogue(api.data.event, availability, feePercents, api.data.details.policies)
-  return <SelectionContent key={eventId} event={api.data.event} />
+  // After a seat was taken: load the free seats and the user's holds again, and redraw the map
+  const refreshSeats = async () => {
+    await loadLiveBooking(data)
+    setLoaded((n) => n + 1)
+  }
+  return <SelectionContent key={eventId} event={data.event} onSeatsTaken={data.details.venueType === 'SEATED' ? refreshSeats : undefined} />
 }
 
 export default function TicketSelection() {
+  return <LiveBookingRestore><TicketSelectionContent /></LiveBookingRestore>
+}
+
+function TicketSelectionContent() {
   const { eventId = '' } = useParams()
   const sample = events.find((event) => event.id === eventId)
   if (sample) return <SelectionContent key={sample.id} event={sample} />

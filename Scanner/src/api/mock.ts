@@ -33,6 +33,10 @@ const TICKETS: MockTicket[] = [
 
 const reject = (reason: RejectReason): ScanResponse => ({ result: 'REJECTED', reason });
 
+// The guest list still uses this mock while the real events come from the backend.
+// Real event ids don't match the fake ones, so show the "Cairo Jazz Night" demo guests for any unknown event.
+const demoEventId = (eventId: string) => (EVENTS.some((e) => e.id === eventId) ? eventId : 'evt-1');
+
 const admit = (t: MockTicket): ScanResponse => {
   t.status = 'USED';
   t.admitted = true;
@@ -46,6 +50,12 @@ export const mockApi: GateApi = {
       throw new Error('Wrong username or password');
     }
     return { token: 'mock-token', staff: { id: 's1', fullName: 'Gate Staff', role: 'SCANNER' } };
+  },
+
+  async getMe(token) {
+    await wait(150);
+    if (token !== 'mock-token') throw new Error('Please log in');
+    return { id: 's1', fullName: 'Gate Staff', role: 'SCANNER' };
   },
 
   async getAssignedEvents() {
@@ -66,14 +76,14 @@ export const mockApi: GateApi = {
 
   async getGuestList(_token, eventId) {
     await wait(300);
-    return TICKETS.filter((t) => t.eventId === eventId && (t.status === 'VALID' || t.status === 'USED')).map(
+    return TICKETS.filter((t) => t.eventId === demoEventId(eventId) &&(t.status === 'VALID' || t.status === 'USED')).map(
       ({ ticketId, attendeeName, category, seat, admitted }) => ({ ticketId, attendeeName, category, seat, admitted }),
     );
   },
 
   async admitManually(_token, eventId, ticketId) {
     await wait(150);
-    const t = TICKETS.find((x) => x.ticketId === ticketId && x.eventId === eventId);
+    const t = TICKETS.find((x) => x.ticketId === ticketId && x.eventId === demoEventId(eventId));
     if (!t) return reject('INVALID');
     if (t.status === 'USED') return reject('ALREADY_USED');
     if (t.status !== 'VALID') return reject('INVALID');

@@ -1,5 +1,6 @@
 import { events } from '../Homepage/data/events.ts'
 import { getBookingCatalogue, getBookingEvent } from './catalogue.ts'
+import { eventIdPattern } from '../../lib/eventsModel.ts'
 
 export const MAX_TICKETS = 8
 export const HOLD_MS = 10 * 60_000
@@ -109,7 +110,15 @@ export function readBooking(storage: Storage | null = browserStorage(), now = Da
       if (Object.values(categories).reduce((a, b) => a + b, 0) !== purchase.quantity || catalogue.mode === 'seated' && (seats.length !== purchase.quantity || catalogue.categories.some((category) => seats.filter((id) => catalogue.seats.find((seat) => seat.id === id)?.categoryId === category.id).length !== categories[category.id]))) continue
       state.purchases[event.id] = { quantity: purchase.quantity, seats, categories }
     }
-    if (typeof raw.eventId !== 'string' || !getBookingCatalogue(raw.eventId)) return state
+    if (typeof raw.eventId !== 'string') return state
+    // A real event (its id is a UUID): its catalogue only exists once it is loaded from the server again.
+    // Keep only which event it was, and whether its timer had run out. The tickets themselves are NOT
+    // taken from storage: LiveBookingRestore rebuilds them from the server's holds.
+    if (!getBookingCatalogue(raw.eventId)) {
+      if (!eventIdPattern.test(raw.eventId)) return state
+      const timedOut = raw.expired === true || typeof raw.expiresAt === 'number' && now >= raw.expiresAt
+      return { ...state, eventId: raw.eventId.toLowerCase(), expired: timedOut }
+    }
     state.eventId = raw.eventId
     if (raw.expired === true || typeof raw.expiresAt === 'number' && now >= raw.expiresAt) return { ...state, expired: true }
     if (Array.isArray(raw.items) && raw.items.length && Number.isFinite(raw.expiresAt) && raw.expiresAt > now && raw.expiresAt <= now + HOLD_MS) {

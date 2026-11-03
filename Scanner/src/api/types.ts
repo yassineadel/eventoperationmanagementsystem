@@ -45,6 +45,7 @@ export type ScanResponse =
   | {
       result: 'REJECTED';
       reason: RejectReason;
+      usedAt?: string; // ISO date, sent for ALREADY_USED: when the ticket was admitted
     };
 
 export interface Guest {
@@ -57,6 +58,7 @@ export interface Guest {
 
 export interface GateApi {
   login(username: string, password: string, deviceId: string): Promise<LoginResult>;
+  getMe(token: string): Promise<Staff>;
   getAssignedEvents(token: string): Promise<GateEvent[]>;
   scan(token: string, req: ScanRequest): Promise<ScanResponse>;
   getGuestList(token: string, eventId: string): Promise<Guest[]>;

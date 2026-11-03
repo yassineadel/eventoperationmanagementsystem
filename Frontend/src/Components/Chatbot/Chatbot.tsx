@@ -37,6 +37,11 @@ export default function Chatbot({ sendMessage = demoChatReply, defaultOpen = fal
 
   useEffect(() => () => session.cancel(), [session])
   useEffect(() => {
+    const openHelp = () => setOpen(true)
+    window.addEventListener('hafletna:open-help', openHelp)
+    return () => window.removeEventListener('hafletna:open-help', openHelp)
+  }, [])
+  useEffect(() => {
     if (open) input.current?.focus({ preventScroll: true })
   }, [open])
   useEffect(() => {

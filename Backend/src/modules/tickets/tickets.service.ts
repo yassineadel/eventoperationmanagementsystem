@@ -186,7 +186,7 @@ const moveTicket = async (userId: string, ticketId: string, recipientEmail: stri
   if (ticket.transfersLeft === 0) throw new TicketError(`A ticket can be transferred at most ${MAX_TRANSFERS} times`)
 
   // Only to an existing account: a user row exists only once the email is verified (FR-AUT-03)
-  const recipient = await prisma.user.findUnique({ where: { email }, select: { id: true, role: true, isBlocked: true } })
+  const recipient = await prisma.user.findUnique({ where: { email }, select: { id: true, fullName: true, role: true, isBlocked: true } })
   if (!recipient || recipient.role !== 'USER') {
     throw new TicketError('No Hafletna account uses this email. Ask the person to register first, then try again.', 404)
   }
@@ -201,7 +201,7 @@ const moveTicket = async (userId: string, ticketId: string, recipientEmail: stri
     // Conditional: only moves if nothing changed since we looked (no double transfer, cap respected)
     const { count } = await tx.ticket.updateMany({
       where: { id: ticketId, holderId: userId, status: 'VALID', transferCount: { lt: MAX_TRANSFERS } },
-      data: { holderId: recipient.id, transferCount: { increment: 1 }, qrToken: newQrToken() },
+      data: { holderId: recipient.id, attendeeName: recipient.fullName, transferCount: { increment: 1 }, qrToken: newQrToken() },
     })
     if (count !== 1) throw new TicketError('This ticket can no longer be transferred', 409)
 
@@ -216,7 +216,7 @@ const moveTicket = async (userId: string, ticketId: string, recipientEmail: stri
         { userId: recipient.id, ticketId, type: 'TRANSFER_RECEIVED', subject: `You received a ticket for ${ticket.event.name}` },
       ],
     })
-    return { transferCount, transfersLeft: MAX_TRANSFERS - transferCount }
+    return { transferCount, transfersLeft: MAX_TRANSFERS - transferCount, attendeeName: recipient.fullName }
   })
 }
 

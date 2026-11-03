@@ -5,14 +5,20 @@ import { useSession } from '../Auth/sessionContext'
 import Icon from '../Homepage/components/Icon'
 import { useBooking } from './bookingContext'
 import { selectionTotals, validAttendee } from './bookingModel'
-import { getBookingCatalogue, selectionPath, getBookingEvent, isLiveEvent } from './catalogue'
+import { getBookingCatalogue, selectionPath, getBookingEvent, isLiveEvent, seatLabel } from './catalogue'
 import { bookingMoney, bookingNumber } from './strings'
 import { useBookingStrings } from './liveStrings'
 import { BookingEmpty, BookingShell, OrderSummary, TicketDescription } from './BookingParts'
 import { resolveAttendeeNames } from './attendees'
-import { syncHolds } from './liveHolds'
+import { releaseSeatHold, syncHolds } from './liveHolds'
+import LiveBookingRestore from './LiveBookingRestore'
 
+// After a page refresh, a real event's cart is loaded again from the server first
 export default function Cart() {
+  return <LiveBookingRestore><CartContent /></LiveBookingRestore>
+}
+
+function CartContent() {
   const { lang } = usePreferences()
   const t = useBookingStrings()
   const { state, names: enteredNames, setAttendee, act, now } = useBooking()
@@ -34,9 +40,16 @@ export default function Cart() {
     setBusy(true)
     setServerError('')
     try {
-      const expiresAt = await syncHolds(eventId, state.items.filter((item) => item.key !== key))
-      act({ type: 'remove', key })
-      if (expiresAt) act({ type: 'held', expiresAt })
+      const seat = catalogue.seats.find((seat) => seat.id === state.items.find((item) => item.key === key)?.seatId)
+      if (seat) {
+        // A seat: give back only this seat's hold; the other seats keep theirs
+        await releaseSeatHold(eventId, seatLabel(seat))
+        act({ type: 'remove', key })
+      } else {
+        const expiresAt = await syncHolds(eventId, state.items.filter((item) => item.key !== key))
+        act({ type: 'remove', key })
+        if (expiresAt) act({ type: 'held', expiresAt })
+      }
     } catch (error) {
       setServerError(error instanceof Error ? error.message : t.loadError)
     } finally {

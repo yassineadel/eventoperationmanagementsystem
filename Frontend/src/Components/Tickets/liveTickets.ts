@@ -1,10 +1,11 @@
 import { useContext, useEffect, useState } from 'react'
-import { getMyTickets, type ApiTicket } from '../../lib/bookingApi'
-import { fallbackImages } from '../../lib/eventsModel'
+import { getMyTicket, getMyTickets, type ApiTicket } from '../../lib/bookingApi'
+import { eventPlaceholderImage } from '../../lib/eventImages'
 import { EventsClientContext } from '../../lib/useEventsApi'
 import type { EventsClient } from '../../lib/eventsApi'
 import type { Event, LocalizedText } from '../Homepage/types'
 import type { SampleTicket } from './ticketsModel'
+import { eventRequest } from '../../lib/eventRequests'
 
 const text = (value: string): LocalizedText => ({ en: value, ar: value })
 
@@ -17,7 +18,7 @@ function fallbackEvent(ticket: ApiTicket): Event {
   return {
     id: ticket.event.id, title: text(ticket.event.name), description: text(''), venue: text(ticket.event.venue.name),
     category: 'concerts', city: 'cairo', date: ticket.event.startAt, price: null, source: 'api',
-    status: 'available', image: fallbackImages.concerts, activity: { views: 0, registrations: 0 },
+    status: 'available', image: eventPlaceholderImage(ticket.event.name, 'concerts'), activity: { views: 0, registrations: 0 },
   }
 }
 
@@ -48,10 +49,24 @@ function toWalletTicket(ticket: ApiTicket, event: Event, coordinates: readonly [
   }
 }
 
+export type LiveTicketData = { ticket: SampleTicket; status: ApiTicket['status']; transfersLeft: number }
+
+// Read a single owned ticket; its QR token is not needed by management forms.
+export async function loadLiveTicket(id: string, client: EventsClient | null, signal: AbortSignal): Promise<LiveTicketData> {
+  const saved = await getMyTicket(id, signal)
+  let event = fallbackEvent(saved)
+  let coordinates: readonly [number, number] | null = null
+  if (client) {
+    try { const page = await client.detail(saved.event.id, signal); event = page.event; coordinates = page.details.coordinates }
+    catch (error) { if (signal.aborted) throw error }
+  }
+  return { ticket: toWalletTicket(saved, event, coordinates), status: saved.status, transfersLeft: saved.transfersLeft }
+}
+
 // Loads the user's tickets, plus each event's page once (for its photo, texts and location)
-async function loadLiveTickets(client: EventsClient | null, signal: AbortSignal) {
+export async function loadLiveTickets(client: EventsClient | null, signal: AbortSignal, orderReference?: string) {
   const { upcoming, past } = await getMyTickets(signal)
-  const all = [...upcoming, ...past]
+  const all = [...upcoming, ...past].filter((ticket) => !orderReference || ticket.orderReference === orderReference)
 
   const events = new Map<string, { event: Event; coordinates: readonly [number, number] | null }>()
   const eventIds = [...new Set(all.map((ticket) => ticket.event.id))]
@@ -80,17 +95,18 @@ async function loadLiveTickets(client: EventsClient | null, signal: AbortSignal)
  */
 export function useLiveTickets(enabled: boolean) {
   const client = useContext(EventsClientContext)
-  const [data, setData] = useState<{ tickets: SampleTicket[]; qrTokens: Record<string, string | null> } | null>(null)
-  const [failed, setFailed] = useState(false)
+  const [attempt, setAttempt] = useState(0)
+  const [state, setState] = useState<{ attempt: number; data: Awaited<ReturnType<typeof loadLiveTickets>> | null; failed: boolean } | null>(null)
 
   useEffect(() => {
     if (!enabled) return
     const controller = new AbortController()
-    loadLiveTickets(client, controller.signal)
-      .then(setData)
-      .catch(() => { if (!controller.signal.aborted) setFailed(true) })
+    eventRequest((signal) => loadLiveTickets(client, signal), controller.signal)
+      .then((data) => { if (!controller.signal.aborted) setState({ attempt, data, failed: false }) })
+      .catch(() => { if (!controller.signal.aborted) setState({ attempt, data: null, failed: true }) })
     return () => controller.abort()
-  }, [enabled, client])
+  }, [enabled, client, attempt])
 
-  return { tickets: data?.tickets ?? null, qrTokens: data?.qrTokens ?? {}, failed }
+  const current = enabled && state?.attempt === attempt ? state : null
+  return { tickets: current?.data?.tickets ?? null, qrTokens: current?.data?.qrTokens ?? {}, failed: current?.failed ?? false, retry: () => setAttempt((value) => value + 1) }
 }

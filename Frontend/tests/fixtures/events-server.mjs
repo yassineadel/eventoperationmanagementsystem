@@ -4,22 +4,79 @@ import { createServer } from 'node:http'
 import { detail, summary, eventId } from './events-api.mjs'
 
 const definitions = [
-  ['Cairo Jazz Night', 'concerts', 600], ['Oud & Strings Evening', 'concerts', 450],
-  ['Summer Beats Festival', 'festivals', 350], ['Modern Dance Showcase', 'arts', 300],
-  ['Esports Cup Final', 'sports', 200], ['Photography Workshop', 'workshops', 0],
-  ['Tech Founders Summit', 'conferences', 500], ['Classical Piano Recital', 'concerts', 400],
-  ['Stand-up Comedy Night', 'arts', 250], ['Open Mic Poetry', 'arts', null],
+  ['Cairo Jazz Night', 'concerts', 600, 'Cairo Jazz Band'], ['Oud & Strings Evening', 'concerts', 450, 'Naseer Shamma'],
+  ['Summer Beats Festival', 'festivals', 350, 'Various artists'], ['Modern Dance Showcase', 'arts', 300, 'Cairo Contemporary Dance'],
+  ['Esports Cup Final', 'sports', 200, null], ['Photography Workshop', 'workshops', 0, 'Lens Academy'],
+  ['Tech Founders Summit', 'conferences', 500, null], ['Classical Piano Recital', 'concerts', 400, 'Ramzi Yassa'],
+  ['Stand-up Comedy Night', 'arts', 250, 'Various comedians'], ['Open Mic Poetry', 'arts', null, null],
 ]
-const summaries = definitions.map(([name, category, priceFrom], index) => summary({ id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`, name, category, priceFrom, startAt: `2030-10-${String(21 + index).padStart(2, '0')}T17:00:00.000Z`, soldOut: index === 9, popularity: index * 2 }))
+const designQa = process.env.FIXTURE_DESIGN_QA === '1'
+const bookingQa = process.env.FIXTURE_BOOKING === '1'
+let fixtureHolds = []
+let failNextRestore = false
+const activeHolds = (id) => fixtureHolds.filter((hold) => hold.eventId === id && Date.parse(hold.expiresAt) > Date.now())
+const fixtureCategoryId = detail().ticketCategories[0].id
+const summaries = (designQa ? definitions.slice(0, 3) : definitions).map(([name, category, priceFrom, performer], index) => summary({ id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`, name, category, priceFrom, performer,
+  startAt: designQa ? `2026-11-${String(6 + index * 7).padStart(2, '0')}T18:00:00.000Z` : `2030-10-${String(21 + index).padStart(2, '0')}T17:00:00.000Z`, soldOut: index === 9, popularity: index * 2,
+  ...(designQa ? { venue: { name: index === 2 ? 'Al Manara Arena' : 'Cairo Opera House', city: 'Cairo' } } : {}),
+}))
+let failNextPage = process.env.FIXTURE_FAIL_NEXT_PAGE === '1'
+let failVenues = process.env.FIXTURE_FAIL_VENUES === '1'
+let signedIn = process.env.FIXTURE_SIGNED_IN === '1'
 const server = createServer(async (req, res) => {
   const origin = req.headers.origin
   if (origin && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) res.setHeader('Access-Control-Allow-Origin', origin)
   res.setHeader('Access-Control-Allow-Credentials', 'true')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
   res.setHeader('Content-Type', 'application/json')
   const url = new URL(req.url, 'http://127.0.0.1:3001')
   const send = (status, data) => { res.writeHead(status); res.end(JSON.stringify(data)) }
+  if (req.method === 'OPTIONS') return send(204, {})
+  if (bookingQa && req.method === 'POST' && url.pathname === '/__fixture/fail-next-restore') { failNextRestore = true; return send(200, {}) }
+  if (bookingQa && req.method === 'POST' && url.pathname === '/__fixture/expire-holds') {
+    fixtureHolds = fixtureHolds.map((hold) => ({ ...hold, expiresAt: new Date(Date.now() - 1).toISOString() }))
+    return send(200, {})
+  }
+  // Optional reservation fixture: browser refresh QA without database writes.
+  if (bookingQa && url.pathname.startsWith('/api/inventory/events/')) return send(200, {
+    eventId, categories: [{ id: fixtureCategoryId, categoryKey: 'FLOOR', name: 'General admission', price: '600', capacity: 100,
+      available: 100 - activeHolds(eventId).reduce((sum, hold) => sum + hold.quantity, 0), soldOut: false }], heldSeatIds: [], soldSeatIds: [],
+  })
+  if (bookingQa && url.pathname === '/api/inventory/holds' && req.method === 'GET') {
+    if (failNextRestore) { failNextRestore = false; return send(503, { message: 'Fixture reservation outage' }) }
+    return send(200, activeHolds(url.searchParams.get('eventId')))
+  }
+  if (bookingQa && url.pathname === '/api/inventory/holds' && req.method === 'POST') {
+    let body = ''
+    for await (const chunk of req) body += chunk
+    const input = JSON.parse(body)
+    const hold = { id: `fixture-hold-${Date.now()}`, eventId: input.eventId, ticketCategoryId: input.ticketCategoryId, seatId: null,
+      quantity: input.quantity, status: 'ACTIVE', expiresAt: new Date(Date.now() + 600_000).toISOString() }
+    fixtureHolds.push(hold)
+    return send(201, { message: 'Tickets held', holds: [hold] })
+  }
+  if (bookingQa && url.pathname.startsWith('/api/inventory/holds/') && req.method === 'DELETE') {
+    fixtureHolds = fixtureHolds.filter((hold) => hold.id !== url.pathname.split('/').at(-1))
+    return send(200, { message: 'Released' })
+  }
+  if (bookingQa && url.pathname === '/api/orders/cart') {
+    const holds = activeHolds(url.searchParams.get('eventId'))
+    return send(200, { eventId, lines: holds.map((hold) => ({ holdId: hold.id, ticketCategoryId: hold.ticketCategoryId, category: 'General admission',
+      seat: null, quantity: hold.quantity, unitPrice: '600', unitServiceFee: '30', serviceFeePercent: '5', lineTotal: String(hold.quantity * 630) })),
+      ticketCount: holds.reduce((sum, hold) => sum + hold.quantity, 0), subtotal: '1200', serviceFeeTotal: '60', total: '1260', currency: 'EGP' })
+  }
+  // Optional delay to reproduce anchor movement while catalogue sections load.
+  if (process.env.FIXTURE_CATALOGUE_DELAY === '1' && (url.pathname === '/api/events' || url.pathname === '/api/venues')) await new Promise((resolve) => setTimeout(resolve, 700))
+  if (url.pathname === '/api/auth/me' && signedIn) return send(200, { user: { id: 'fixture-user', fullName: 'Fixture Member', email: 'fixture@example.test', role: 'USER', emailVerified: true } })
+  if (url.pathname === '/api/auth/logout' && req.method === 'POST') { signedIn = false; return send(200, { message: 'Signed out' }) }
+  if (url.pathname === '/api/tickets' && signedIn) return send(200, { upcoming: process.env.FIXTURE_EMPTY_TICKETS === '1' ? [] : [{
+    id: '00000000-0000-4000-8000-000000000101', status: 'VALID', attendeeName: 'Fixture ticket holder', qrToken: 'HAFLETNA-FIXTURE:NO-ENTRY', orderReference: 'QA-ORDER', category: 'VIP', seat: null,
+    event: { id: eventId, name: 'Cairo Jazz Night', startAt: summaries[0].startAt, doorsOpenAt: '2030-10-21T16:00:00.000Z', endsAt: '2030-10-21T19:00:00.000Z', venue: { name: 'Cairo Opera House — Small Hall', city: 'Cairo', address: 'Fixture address' } }, transferCount: 0, transfersLeft: 3, usedAt: null,
+  }], past: [] })
   if (url.pathname === '/api/events') {
     const p = url.searchParams, query = (p.get('q') ?? '').toLowerCase()
+    if (p.get('page') === '2' && failNextPage) { failNextPage = false; return send(503, { message: 'Fixture page outage' }) }
     if (query === 'api-error') return send(503, { message: 'Fixture outage' })
     if (query === 'slow') await new Promise((resolve) => setTimeout(resolve, 900))
     const matches = summaries.filter((event) => (!query || `${event.name} ${event.performer} ${event.category} ${event.venue.name}`.toLowerCase().includes(query))
@@ -34,6 +91,10 @@ const server = createServer(async (req, res) => {
     const pageCount = Math.max(1, Math.ceil(matches.length / 6)), page = Math.min(Math.max(Number(p.get('page')) || 1, 1), pageCount)
     return send(200, { events: matches.slice((page - 1) * 6, page * 6), total: matches.length, page, pageCount, pageSize: 6, sort })
   }
+  if (url.pathname === '/api/venues') {
+    if (failVenues) { failVenues = false; return send(503, { message: 'Fixture venue outage' }) }
+    return send(200, process.env.FIXTURE_EMPTY_VENUES === '1' ? [] : designQa ? [{ ...detail().venue, name: 'Cairo Opera House' }, { ...detail().venue, id: '00000000-0000-4000-8000-000000000004', name: 'Al Manara Arena', type: 'STANDING' }] : [detail().venue])
+  }
   if (url.pathname.startsWith('/api/events/')) {
     const id = url.pathname.split('/').at(-1)
     if (id === '00000000-0000-4000-8000-000000000998') return send(503, { message: 'Fixture detail outage' })
@@ -46,6 +107,7 @@ const server = createServer(async (req, res) => {
     })
     // Detail has a full venue, not the summary's short venue object.
     value.venue = detail().venue
+    if (bookingQa) value.venue.type = 'STANDING'
     return send(200, value)
   }
   if (url.pathname === '/health') return send(200, { status: 'fixture', eventId })

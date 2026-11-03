@@ -23,6 +23,19 @@ async function main() {
     update: {},
   })
 
+    // Assign the scanner to a few test events (run seed:events first).
+  // Stand-up Comedy Night is one you bought real tickets for, so you can scan them later.
+  const NAMES = ['Stand-up Comedy Night', 'Electronic Music Festival', 'Cairo Jazz Night']
+  const events = await prisma.event.findMany({ where: { name: { in: NAMES } }, select: { id: true, name: true } })
+  for (const event of events) {
+    await prisma.staffEventAssignment.upsert({
+      where: { staffId_eventId: { staffId: staff.id, eventId: event.id } },
+      create: { staffId: staff.id, eventId: event.id, grantedById: admin.id },
+      update: { revokedAt: null }, // re-running the seed restores a revoked assignment
+    })
+    console.log(`Assigned ${staff.username} to ${event.name}`)
+  }
+
   console.log('Created:', admin.username, '(APP_ADMIN) and', staff.username, '(SCANNER)')
 }
 

@@ -1,8 +1,8 @@
 import type { Language } from '../Homepage/types'
 
 const en = {
-  account: 'My account', profile: 'My Profile', settings: 'Account Settings', accountMenu: 'Open account menu', signOut: 'Sign out', signingOut: 'Signing out', signOutError: 'We could not sign you out. Please try again.',
-  profileTitle: 'A little more you.', profileLead: 'Keep your personal details up to date for your next experience.',
+  account: 'My account', profile: 'My Profile', settings: 'Account settings', accountMenu: 'Open account menu', signOut: 'Sign out', signingOut: 'Signing out', signOutError: 'We could not sign you out. Please try again.',
+  profileTitle: 'My profile', profileLead: 'View and update your personal details.',
   settingsTitle: 'Account settings', settingsLead: 'Manage your security, emails, and privacy.',
   securityTitle: 'Sign-in & security', passwordLabel: 'Password', passwordSummary: 'Use a strong, unique password.', emailSummary: 'A new address must be verified.',
   emailPreferencesTitle: 'Email preferences', savePreferences: 'Save preferences', privacyTitle: 'Privacy & account', closeDialog: 'Close dialog', requestDeletionAction: 'Request deletion',
@@ -26,7 +26,7 @@ const en = {
   deletionNotPending: 'There is no deletion request to cancel. Refresh your account to see its status.',
   refreshAccount: 'Refresh account', deletionRequestedOn: 'Requested on', deletionGraceEnd: 'Grace period ends',
   cancellingDeletion: 'Cancelling request…', requestingDeletion: 'Submitting request…',
-  signInTitle: 'Your space at Hafletna.', signInLead: 'Sign in to view your profile and account settings.', signIn: 'Sign in', loading: 'Checking your session…',
+  signInTitle: 'Sign in to your account', signInLead: 'Sign in to view your profile and account settings.', signIn: 'Sign in', loading: 'Checking your session…',
   unavailable: 'We could not check your account. Please try again.', retry: 'Try again', backHome: 'Back to home', savedEvents: 'Saved events',
   passwordTitle: 'Change password', passwordLead: 'Choose a strong password that you do not use elsewhere.', currentPassword: 'Current password', newPassword: 'New password', confirmPassword: 'Confirm new password',
   passwordDemo: 'For this sample flow, the current password is HafletnaDemo1. Use a sample new password, not a real password.',
@@ -48,7 +48,7 @@ const en = {
 }
 const ar: Record<keyof typeof en, string> = {
   account: 'حسابي', profile: 'ملفي الشخصي', settings: 'إعدادات الحساب', accountMenu: 'فتح قائمة الحساب', signOut: 'تسجيل الخروج', signingOut: 'جارٍ تسجيل الخروج', signOutError: 'تعذّر تسجيل الخروج. حاول مرة أخرى.',
-  profileTitle: 'مساحة تشبهك.', profileLead: 'حدّث بياناتك الشخصية استعدادًا لتجربتك القادمة.',
+  profileTitle: 'ملفي الشخصي', profileLead: 'اعرض بياناتك الشخصية وحدّثها.',
   settingsTitle: 'إعدادات الحساب', settingsLead: 'أدِر الأمان والمراسلات والخصوصية.',
   securityTitle: 'الدخول والأمان', passwordLabel: 'كلمة المرور', passwordSummary: 'استخدم كلمة مرور قوية وفريدة.', emailSummary: 'يجب التحقق من العنوان الجديد.',
   emailPreferencesTitle: 'تفضيلات المراسلات', savePreferences: 'حفظ التفضيلات', privacyTitle: 'الخصوصية والحساب', closeDialog: 'إغلاق النافذة', requestDeletionAction: 'طلب الحذف',
@@ -72,7 +72,7 @@ const ar: Record<keyof typeof en, string> = {
   deletionNotPending: 'لا يوجد طلب حذف لإلغائه. حدّث بيانات حسابك لعرض حالته.',
   refreshAccount: 'تحديث بيانات الحساب', deletionRequestedOn: 'تاريخ الطلب', deletionGraceEnd: 'تنتهي مهلة الإلغاء في',
   cancellingDeletion: 'جارٍ إلغاء الطلب…', requestingDeletion: 'جارٍ إرسال الطلب…',
-  signInTitle: 'مساحتك في حفلتنا.', signInLead: 'سجّل الدخول لعرض ملفك الشخصي وإعدادات حسابك.', signIn: 'تسجيل الدخول', loading: 'جارٍ التحقق من جلستك…',
+  signInTitle: 'سجّل الدخول إلى حسابك', signInLead: 'سجّل الدخول لعرض ملفك الشخصي وإعدادات حسابك.', signIn: 'تسجيل الدخول', loading: 'جارٍ التحقق من جلستك…',
   unavailable: 'تعذّر التحقق من حسابك. يرجى المحاولة مجددًا.', retry: 'حاول مجددًا', backHome: 'العودة للرئيسية', savedEvents: 'الفعاليات المحفوظة',
   passwordTitle: 'تغيير كلمة المرور', passwordLead: 'اختر كلمة مرور قوية لا تستخدمها في مكان آخر.', currentPassword: 'كلمة المرور الحالية', newPassword: 'كلمة المرور الجديدة', confirmPassword: 'تأكيد كلمة المرور الجديدة',
   passwordDemo: 'لهذه التجربة، كلمة المرور الحالية هي HafletnaDemo1. استخدم كلمة مرور تجريبية جديدة، وليس كلمة مرور حقيقية.',

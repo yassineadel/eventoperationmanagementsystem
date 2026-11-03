@@ -1,6 +1,8 @@
 import type { Category, City, Event, LocalizedText } from '../Components/Homepage/types.ts'
 import { categoryNames, cityNames } from '../Components/Homepage/strings.ts'
 import { listingSearchParams, type ListingFilters } from '../Components/Discovery/listing.ts'
+import { eventPlaceholderImage } from './eventImages.ts'
+export { fallbackImages } from './eventImages.ts'
 
 export const eventIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 export type CategoryCounts = Record<Category, number>
@@ -12,15 +14,13 @@ export type CatalogDetails = {
   faqs: { question: LocalizedText; answer: LocalizedText }[];
   ticketCategories?: { id: string; name: LocalizedText; price: number | null; feePercent: number | null; capacity: number; held: number; sold: number; remaining: number }[];
   venueType?: 'SEATED' | 'STANDING'; synthetic?: boolean;
+  // The venue's id in URLs, used to load the seat map (GET /api/venues/:slug/layout)
+  venueSlug?: string;
 }
 export type CatalogEvent = { event: Event; details: CatalogDetails }
 export type EventsPage = {
   events: Event[]; total: number; page: number; pageCount: number; pageSize: number;
   start: number; end: number; invalidDates: boolean; categoryCounts?: CategoryCounts;
-}
-export const fallbackImages: Record<Category, string> = {
-  concerts: '/event-images/concert.jpg', festivals: '/event-images/festival.jpg', arts: '/event-images/art.jpg',
-  sports: '/event-images/sports.jpg', workshops: '/event-images/workshop.jpg', conferences: '/event-images/conference.jpg',
 }
 
 type Row = Record<string, unknown>
@@ -74,7 +74,7 @@ export function mapEventSummary(value: unknown): Event {
     performer: localized(row.performer, row.performerAr), venue: localized(requiredText(venue.name), venue.nameAr),
     category: eventCategory, city: city(venue.city), date: date(row.startAt), price: decimal(row.priceFrom),
     status: row.status === 'CANCELLED' ? 'cancelled' : row.soldOut ? 'sold-out' : 'available', source: 'api',
-    image: safeEventImage(row.image) ?? fallbackImages[eventCategory], activity: { views: 0, registrations: integer(row.popularity ?? 0) },
+    image: safeEventImage(row.image) ?? eventPlaceholderImage(text(row.name), eventCategory), activity: { views: 0, registrations: integer(row.popularity ?? 0) },
   }
 }
 export function parseCategoryCounts(value: unknown): CategoryCounts | undefined {
@@ -119,7 +119,8 @@ export function mapEventDetail(value: unknown): CatalogEvent {
   })
   const prices = ticketCategories.map((c) => c.price).filter((price): price is number => price !== null)
   const gallery = Array.isArray(row.images) ? row.images.map(safeEventImage).filter((image): image is string => Boolean(image)) : []
-  const event = mapEventSummary({ ...row, image: gallery[0], priceFrom: prices.length ? Math.min(...prices) : null, soldOut: ticketCategories.every((c) => c.remaining === 0), popularity: ticketCategories.reduce((sum, c) => sum + c.held + c.sold, 0) })
+  const cover = gallery[0] ?? safeEventImage(row.image)
+  const event = mapEventSummary({ ...row, image: cover, priceFrom: prices.length ? Math.min(...prices) : null, soldOut: ticketCategories.every((c) => c.remaining === 0), popularity: ticketCategories.reduce((sum, c) => sum + c.held + c.sold, 0) })
   event.description = localized(row.about || row.description, row.aboutAr || row.descriptionAr)
   const latitude = decimalCoordinate(venue.latitude, 90), longitude = decimalCoordinate(venue.longitude, 180)
   const faqs = Array.isArray(row.faqs) ? row.faqs.flatMap((item) => {
@@ -128,7 +129,7 @@ export function mapEventDetail(value: unknown): CatalogEvent {
     return question.en && answer.en ? [{ question, answer }] : []
   }) : []
   return { event, details: {
-    gallery: gallery.length ? [...new Set(gallery)] : [event.image], fallbackImage: !gallery.length,
+    gallery: gallery.length ? [...new Set(gallery)] : [event.image], fallbackImage: !cover,
     address: venue.address ? localized(venue.address, venue.addressAr) : null,
     coordinates: latitude !== null && longitude !== null ? [latitude, longitude] : null,
     duration: typeof row.durationMinutes === 'number' && row.durationMinutes > 0 ? row.durationMinutes : null,
@@ -136,6 +137,7 @@ export function mapEventDetail(value: unknown): CatalogEvent {
     capacity: typeof venue.capacity === 'number' ? integer(venue.capacity) : ticketCategories.reduce((sum, c) => sum + c.capacity, 0),
     organiser: null, policies: policyRows(row.policies), faqs, ticketCategories,
     venueType: venue.type === 'SEATED' || venue.type === 'STANDING' ? venue.type : undefined, synthetic: row.isSynthetic === true,
+    venueSlug: text(venue.slug) || undefined,
   } }
 }
 function decimalCoordinate(value: unknown, max: number): number | null {

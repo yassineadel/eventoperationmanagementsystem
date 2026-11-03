@@ -1,4 +1,8 @@
 .tickets-wallet-page { --wallet-peach: #f1be9f; --wallet-lilac: #d2b7fa; padding-bottom: 45px; }
+.wallet-access { display: grid; justify-items: center; gap: 18px; max-width: 780px; padding-block: 70px; text-align: center; }
+.wallet-access .discovery-title { font-size: clamp(30px, 4vw, 48px); line-height: 1.2; }
+.wallet-access > p:not(.discovery-eyebrow) { max-width: 560px; color: var(--home-muted); font-size: 14px; }
+.wallet-access .tickets-actions { justify-content: center; }
 .wallet-hero { display: grid; grid-template-columns: minmax(0,.95fr) minmax(0,1.05fr); gap: 70px; align-items: center; padding-block: 24px 31px; }
 .wallet-hero-copy { min-width: 0; }
 .wallet-eyebrow { display: flex; align-items: center; gap: 10px; color: var(--home-purple) !important; font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }

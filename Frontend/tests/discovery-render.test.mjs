@@ -8,6 +8,8 @@ import { events as sampleEvents } from '../src/Components/Homepage/data/events.t
 import { emptyBooking, transitionBooking } from '../src/Components/Booking/bookingModel.ts'
 import { createSampleWallet, requestSampleRefund, transferSampleTicket } from '../src/Components/Tickets/ticketsModel.ts'
 import { mapEventDetail } from '../src/lib/eventsModel.ts'
+import { parsePublicVenues } from '../src/lib/homepageApi.ts'
+import { homeStrings } from '../src/Components/Homepage/strings.ts'
 import { detail as apiDetail, eventId as apiEventId } from './fixtures/events-api.mjs'
 
 let server
@@ -33,20 +35,25 @@ let PolicyDialog
 let TicketsContext
 let Confirmation
 let MyTickets
+let WalletContents
 let TicketDetail
 let TransferTicket
 let RefundRequest
 let PaymentMethods
 let EventsClientContext
 let DetailContent
+let HeroSection, EventHub, VenueDiscovery
 
 before(async () => {
-  server = await createServer({ server: { middlewareMode: true, hmr: false, watch: null }, appType: 'custom' })
+  server = await createServer({ cacheDir: 'node_modules/.vite-tests/discovery-render', server: { middlewareMode: true, hmr: false, watch: null }, appType: 'custom' })
   Layout = (await server.ssrLoadModule('/src/Components/Discovery/DiscoveryLayout.tsx')).default
   Listing = (await server.ssrLoadModule('/src/Components/Discovery/EventsListing.tsx')).default
   Detail = (await server.ssrLoadModule('/src/Components/Discovery/EventDetail.tsx')).default
   DetailContent = (await server.ssrLoadModule('/src/Components/Discovery/EventDetail.tsx')).EventDetailContent
   Homepage = (await server.ssrLoadModule('/src/Components/Homepage/Homepage.tsx')).default
+  HeroSection = (await server.ssrLoadModule('/src/Components/Homepage/components/HeroSection.tsx')).default
+  EventHub = (await server.ssrLoadModule('/src/Components/Homepage/components/EventHub.tsx')).default
+  VenueDiscovery = (await server.ssrLoadModule('/src/Components/Homepage/components/VenueDiscovery.tsx')).default
   NotFound = (await server.ssrLoadModule('/src/Components/Discovery/NotFound.tsx')).default
   PreferencesContext = (await server.ssrLoadModule('/src/Components/Auth/preferences.ts')).PreferencesContext
   SavedEventsProvider = (await server.ssrLoadModule('/src/Components/Discovery/SavedEventsProvider.tsx')).default
@@ -64,6 +71,7 @@ before(async () => {
   TicketsContext = (await server.ssrLoadModule('/src/Components/Tickets/ticketsContext.ts')).TicketsContext
   Confirmation = (await server.ssrLoadModule('/src/Components/Tickets/Confirmation.tsx')).default
   MyTickets = (await server.ssrLoadModule('/src/Components/Tickets/MyTickets.tsx')).default
+  WalletContents = (await server.ssrLoadModule('/src/Components/Tickets/MyTickets.tsx')).WalletContents
   TicketDetail = (await server.ssrLoadModule('/src/Components/Tickets/TicketDetail.tsx')).default
   TransferTicket = (await server.ssrLoadModule('/src/Components/Tickets/TransferTicket.tsx')).default
   RefundRequest = (await server.ssrLoadModule('/src/Components/Tickets/RefundRequest.tsx')).default
@@ -78,7 +86,7 @@ function render(path, lang = 'en', theme = 'light', savedIds = [], sessionState 
   let savedValue = JSON.stringify(savedIds)
   const storage = { getItem: () => savedValue, setItem: (_key, value) => { savedValue = value } }
   const session = { ...sessionState, acceptUser() {}, updateUser() {}, async refresh() {}, async signOut() {} }
-  const bookingValue = { state: booking.state ?? emptyBooking(), now: booking.now ?? Date.now(), names: booking.names ?? {}, storageAvailable: true, act() {}, setAttendee() {} }
+  const bookingValue = { state: booking.state ?? emptyBooking(), now: booking.now ?? Date.now(), names: booking.names ?? {}, storageAvailable: true, restoration: booking.restoration ?? 'ready', retryRestore() {}, act() {}, setAttendee() {} }
   const ticketsValue = { state: wallet.state ?? createSampleWallet(), now: wallet.now ?? Date.parse('2026-10-20T12:00:00Z'), storageAvailable: wallet.storageAvailable ?? true, completeOrder() {}, transferTicket() {}, requestRefund() {}, resendTicket() {}, resetSamples() {} }
   return renderToStaticMarkup(h(EventsClientContext.Provider, { value: null }, h(PreferencesContext.Provider, { value },
     h(SessionContext.Provider, { value: session }, h(SavedEventsProvider, { storage }, h(BookingContext.Provider, { value: bookingValue }, h(TicketsContext.Provider, { value: ticketsValue }, h(MemoryRouter, { initialEntries: [path] }, h(Routes, null,
@@ -91,6 +99,7 @@ function render(path, lang = 'en', theme = 'light', savedIds = [], sessionState 
         h(Route, { path: '/checkout', element: h(Checkout) }),
         h(Route, { path: '/orders/:orderRef/confirmation', element: h(Confirmation) }),
         h(Route, { path: '/my-tickets', element: h(MyTickets) }),
+        h(Route, { path: '/wallet-content', element: h(WalletContents, { tickets: wallet.liveTickets ?? [] }) }),
         h(Route, { path: '/my-tickets/:ticketId', element: h(TicketDetail) }),
         h(Route, { path: '/my-tickets/:ticketId/transfer', element: h(TransferTicket) }),
         h(Route, { path: '/my-tickets/:ticketId/refund', element: h(RefundRequest) }),
@@ -127,7 +136,8 @@ test('API details render actual inventory, unknown prices, and missing informati
       h(SavedEventsProvider, { storage: { getItem() { return null }, setItem() {} } }, h(MemoryRouter, null, h(DetailContent, mapped)))))
     assert.ok(html.includes(lang === 'en' ? 'Price unavailable' : 'السعر غير متاح'))
     assert.ok(html.includes(lang === 'en' ? 'has not published event policies' : 'لم ينشر المنظّم سياسات'))
-    assert.ok(html.includes(lang === 'en' ? 'Ticket selection for catalogue events is not connected yet' : 'اختيار تذاكر فعاليات الدليل غير متصل بعد'))
+    assert.ok(html.includes(lang === 'en' ? 'Payments are currently simulated' : 'الدفع حاليًا بالمحاكاة'))
+    assert.ok(html.includes('Cairo Jazz Band'))
     assert.doesNotMatch(html, /Hafletna Experiences|seven days|30 minutes|sample organiser/)
     assert.doesNotMatch(html, /href="\/events\/[^"]+\/tickets"/)
     assert.match(html, /google.com\/maps\?q=30.0424%2C31.2244/)
@@ -135,10 +145,9 @@ test('API details render actual inventory, unknown prices, and missing informati
   }
 })
 
-test('all five after-buying routes render English and Arabic in both themes', () => {
+test('sample after-buying routes render English and Arabic in both themes', () => {
   const routes = [
     ['/orders/DEMO-A1B2C3D4/confirmation', 'tickets-confirm-hero'],
-    ['/my-tickets', 'tickets-wallet-grid'],
     ['/my-tickets/DEMO-A1B2C3D4-1', 'tickets-pass'],
     ['/my-tickets/DEMO-A1B2C3D4-1/transfer', 'transfer-recipient-email'],
     ['/my-tickets/DEMO-A1B2C3D4-1/refund', 'refund-quote-title'],
@@ -154,15 +163,44 @@ test('all five after-buying routes render English and Arabic in both themes', ()
   }
 })
 
-test('wallet links and tabs separate upcoming from past experiences', () => {
-  const upcoming = render('/my-tickets')
+test('wallet content groups only the supplied account tickets into upcoming and past', () => {
+  const wallet = { liveTickets: createSampleWallet().tickets }
+  const upcoming = render('/wallet-content', 'en', 'dark', [], undefined, {}, wallet)
   assert.match(upcoming, /href="\/my-tickets\/DEMO-A1B2C3D4-1"/)
   assert.doesNotMatch(upcoming, /href="\/my-tickets\/DEMO-C1D2E3F4-1"/)
   assert.match(upcoming, /id="tickets-tab-upcoming"[^>]*aria-selected="true"/)
-  const past = render('/my-tickets?view=past')
+  const past = render('/wallet-content?view=past', 'en', 'dark', [], undefined, {}, wallet)
   assert.match(past, /href="\/my-tickets\/DEMO-C1D2E3F4-1"/)
   assert.doesNotMatch(past, /href="\/my-tickets\/DEMO-A1B2C3D4-1"/)
   assert.match(past, /id="tickets-tab-past"[^>]*aria-selected="true"/)
+})
+
+test('guest, loading and unavailable sessions never show sample tickets from browser storage', () => {
+  for (const status of ['guest', 'loading', 'unavailable']) for (const lang of ['en', 'ar']) for (const theme of ['light', 'dark']) {
+    const html = render('/my-tickets?view=past', lang, theme, [], { status, user: null })
+    assert.match(html, /id="wallet-access-title"/)
+    assert.doesNotMatch(html, /DEMO-|Sample ticket wallet|محفظة تذاكر تجريبية|wallet-stats|tickets-wallet-card|Load sample|تحميل تذاكر تجريبية|Cairo After Dark/)
+    if (status !== 'loading') assert.match(html, /href="\/login\?returnTo=%2Fmy-tickets"/)
+    else assert.doesNotMatch(html, /href="\/login\?returnTo=/)
+    assert.ok(html.includes(lang === 'ar' ? 'تذاكري' : 'My Tickets'))
+  }
+})
+
+test('authenticated wallet waits for its API response without flashing samples or an empty account', () => {
+  const session = { status: 'authenticated', user: { id: 'real-user', fullName: 'Real Member', email: 'real@example.com', role: 'customer' } }
+  for (const lang of ['en', 'ar']) for (const theme of ['light', 'dark']) {
+    const html = render('/my-tickets', lang, theme, [], session)
+    assert.ok(html.includes(lang === 'ar' ? 'جارٍ تحميل تذاكرك' : 'Loading your tickets'))
+    assert.doesNotMatch(html, /DEMO-|tickets-wallet-card|Sample ticket wallet|No upcoming sample|example wallet/)
+  }
+})
+
+test('an account without tickets shows a real empty state without any load-samples action', () => {
+  for (const lang of ['en', 'ar']) for (const theme of ['light', 'dark']) {
+    const html = render('/wallet-content', lang, theme, [], undefined, {}, { liveTickets: [] })
+    assert.ok(html.includes(lang === 'ar' ? 'ليس لديك تذاكر قادمة' : 'You have no upcoming tickets'))
+    assert.doesNotMatch(html, /DEMO-|tickets-wallet-card|Sample ticket wallet|example wallet|Load sample/)
+  }
 })
 
 test('confirmation is scoped to the requested order and recovers unknown references', () => {
@@ -226,7 +264,7 @@ test('listing routes render bounded pages and URL-selected filters in both langu
 test('account routes require sign-in without offering a sample profile', () => {
   for (const path of ['/profile', '/profile/settings']) for (const query of ['', '?preview=1']) {
     const html = render(`${path}${query}`)
-    assert.match(html, /Your space at Hafletna/)
+    assert.match(html, /Sign in to your account/)
     assert.doesNotMatch(html, /Try sample profile|preview=1|Youssef Hassan/)
     assert.doesNotMatch(html, /id="profile-name"|id="account-new-password"/)
     assert.ok(html.includes(`/login?returnTo=${encodeURIComponent(path)}`))
@@ -401,7 +439,7 @@ test('detail back links preserve the original listing filters and page', () => {
   assert.doesNotMatch(invalid, /href="https:\/\/example\.com"/)
 })
 
-test('homepage retains one filter bar and links into full event screens', () => {
+test('homepage retains its controls and themes without rendering fictional content before the API loads', () => {
   for (const lang of ['en', 'ar']) for (const theme of ['light', 'dark']) {
     const html = render('/', lang, theme)
     assert.equal((html.match(/class="home-search"/g) ?? []).length, 1)
@@ -409,11 +447,54 @@ test('homepage retains one filter bar and links into full event screens', () => 
     assert.doesNotMatch(html, /home-category-filters|home-recommendation-strip|id="recommendations"/)
     assert.match(html, /id="event-tab-for-you"/)
     assert.match(html, /id="venues"/)
-    assert.equal((html.match(/class="home-venue-card"/g) ?? []).length, 3)
-    assert.match(html, /href="\/events\/cairo-after-dark"/)
+    assert.equal((html.match(/class="home-venue-card"/g) ?? []).length, 0)
+    assert.doesNotMatch(html, /href="\/events\/cairo-after-dark"|The Garden Stage|Riverside Park/)
     assert.match(html, /href="\/events"/)
     assert.match(html, /href="\/login"/)
     assert.match(html, /href="\/register"/)
+    assert.match(html, /class="board-discovery-layout home-container"/)
+    assert.match(html, /class="board-feature"/)
+    const footer = html.match(/<footer class="board-footer">[\s\S]*?<\/footer>/)?.[0]
+    assert.ok(footer)
+    assert.doesNotMatch(footer, /href="\/login"|href="\/register"|href="\/cart"|home-navigation|hf-controls|hf-segmented/)
+    assert.ok(footer.includes(homeStrings[lang].help))
+    assert.ok(footer.includes(homeStrings[lang].privacy))
+  }
+})
+
+test('database homepage content keeps API order, bilingual venue fallbacks and valid detail links', () => {
+  const event = mapEventDetail(apiDetail()).event
+  const venues = parsePublicVenues([{ id: apiEventId, name: 'Database venue', nameAr: 'مكان من قاعدة البيانات', city: 'Cairo', type: 'SEATED' }])
+  for (const lang of ['en', 'ar']) for (const theme of ['light', 'dark']) {
+    const t = homeStrings[lang]
+    const resource = { key: 'loaded', events: [event], total: 1, loading: false, failed: false, hasMore: false, loadingMore: false, moreFailed: false, loadMore() {}, retry() {} }
+    const hubProps = { t, lang, draft: { query: '', city: '', category: '', date: '' }, setDraft() {}, resource, onSearch() {}, onClear() {}, active: false, view: 'trending', onViewChange() {}, preferences: { interests: [], city: '' }, onPreferencesChange() {}, onPersonalise() {} }
+    const html = renderToStaticMarkup(h(PreferencesContext.Provider, { value: { lang, theme, setLang() {}, setTheme() {} } }, h(SavedEventsProvider, { storage: { getItem() { return null }, setItem() {} } }, h(MemoryRouter, null, h('div', { 'data-theme': theme, dir: lang === 'ar' ? 'rtl' : 'ltr' },
+      h(HeroSection, { t, lang, event }), h(EventHub, hubProps), h(VenueDiscovery, { t, lang, resource: { status: 'success', data: venues, retry() {} } }),
+    )))))
+    assert.ok(html.includes(`/events/${apiEventId}`))
+    assert.match(html, /Cairo Jazz Night/)
+    assert.equal((html.match(/class="board-event-row"/g) ?? []).length, 1)
+    assert.match(html, /Cairo Jazz Band/)
+    assert.match(html, /class="board-event-date"/)
+    assert.match(html, /class="board-event-actions"/)
+    assert.ok(html.includes(lang === 'ar' ? 'مكان من قاعدة البيانات' : 'Database venue'))
+    assert.ok(html.includes(t.illustrativePhoto))
+    assert.match(html, /q=Database\+venue&amp;city=cairo/)
+    assert.doesNotMatch(html, /Sample event status|Sample events for preview|حالة الفعالية التجريبية/)
+  }
+})
+
+test('empty and failed homepage resources explain the state without sample substitutes', () => {
+  for (const lang of ['en', 'ar']) for (const failed of [false, true]) {
+    const t = homeStrings[lang]
+    const html = renderToStaticMarkup(h(MemoryRouter, null, h('div', null,
+      h(HeroSection, { t, lang, event: null, failed, onRetry() {} }),
+      h(VenueDiscovery, { t, lang, resource: { status: failed ? 'error' : 'success', data: failed ? null : [], retry() {} } }),
+    )))
+    assert.ok(html.includes(failed ? t.eventsError : t.catalogueEmpty))
+    assert.ok(html.includes(failed ? t.venuesError : t.venuesEmpty))
+    assert.doesNotMatch(html, /home-venue-card|cairo-after-dark|href="\/events\/undefined"|Invalid Date/)
   }
 })
 
@@ -496,7 +577,7 @@ test('cart renders attendee inputs, separate fees, remove controls and an access
 test('paid checkout offers sample payment methods, collapsed outcomes, and policy review in both languages and themes', () => {
   for (const lang of ['en', 'ar']) for (const theme of ['light', 'dark']) {
     const missing = render('/checkout', lang, theme, [], undefined, activeBooking(false))
-    assert.ok(missing.includes(lang === 'ar' ? 'لكل تذكرة اسم.' : 'Every ticket needs a name.'))
+    assert.ok(missing.includes(lang === 'ar' ? 'أسماء الحاضرين غير مكتملة' : 'Missing attendee names'))
     assert.match(missing, /href="\/cart"/)
     assert.doesNotMatch(missing, /name="sample-payment-outcome"/)
     const html = render('/checkout?preview=1', lang, theme, [], undefined, activeBooking())
@@ -593,13 +674,26 @@ test('autofill waits for an authenticated session and does not use an email disp
   assert.equal(missingName.match(/id="attendee-0"[^>]*value="([^"]*)"/)?.[1], '')
 })
 
+test('buying screens wait for reservation recovery instead of showing an empty cart or stale selection', () => {
+  for (const path of ['/cart', '/checkout', `/events/${apiEventId}/tickets`]) for (const lang of ['en', 'ar']) for (const theme of ['light', 'dark']) {
+    const html = render(path, lang, theme, [], undefined, { restoration: 'loading' })
+    assert.match(html, /role="status"/)
+    assert.ok(html.includes(lang === 'ar' ? 'جارٍ استعادة حجزك' : 'Restoring your reservation'))
+    assert.doesNotMatch(html, /booking-empty|booking-stepper|id="attendee-0"|sample-payment-outcome/)
+    const failed = render(path, lang, theme, [], undefined, { restoration: 'failed' })
+    assert.match(failed, /role="alert"/)
+    assert.ok(failed.includes(lang === 'ar' ? 'حاول مرة أخرى' : 'Try again'))
+    assert.doesNotMatch(failed, /booking-empty|sample-payment-outcome/)
+  }
+})
+
 test('booking handles empty, expired, replacement, sold-out, cancelled and invalid-event routes', () => {
-  assert.match(render('/cart'), /Your next experience is still out there/)
-  assert.match(render('/checkout'), /Your next experience is still out there/)
+  assert.match(render('/cart'), /Your cart is empty/)
+  assert.match(render('/checkout'), /Your cart is empty/)
   const expired = activeBooking()
   expired.state = { ...expired.state, items: [], expiresAt: null, expired: true }
-  assert.match(render('/cart', 'en', 'light', [], undefined, expired), /reservation couldn’t/)
-  assert.match(render('/events/next-perspectives/tickets', 'en', 'dark', [], undefined, activeBooking()), /A different night/)
+  assert.match(render('/cart', 'en', 'light', [], undefined, expired), /Reservation expired/)
+  assert.match(render('/events/next-perspectives/tickets', 'en', 'dark', [], undefined, activeBooking()), /Replace your current selection/)
   for (const id of ['creative-canvas', 'nile-nights']) {
     const html = render(`/events/${id}/tickets`)
     assert.match(html, /This event is unavailable for booking/)

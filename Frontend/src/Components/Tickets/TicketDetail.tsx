@@ -13,30 +13,32 @@ import TicketQr from './TicketQr'
 import { ticketsStrings, ticketRuleText } from './strings'
 import { useSession } from '../Auth/sessionContext'
 import { useLiveTickets } from './liveTickets'
+import TicketResendEmail from './TicketResendEmail'
+import TicketTransferAction from './TicketTransferAction'
 import './TicketDetail.css'
 
 const detailCopy = {
   en: {
-    eyebrow: 'THE TICKET / THE MOMENT', lead: 'The place, the people, and every little detail. Keep it all close.',
-    setting: 'THE EXPERIENCE', atAGlance: 'AT A GLANCE', personal: 'Made for the moment.',
-    personalLead: 'Your name. Your spot. Your part of the story.', logistics: 'A plan worth keeping.',
-    logisticsLead: 'Know the time, find the place, and enjoy the experience.', address: 'Venue address',
+    eyebrow: 'TICKET DETAILS', lead: 'View your ticket, entry code and event information.',
+    setting: 'VENUE', atAGlance: 'EVENT INFORMATION', personal: 'Ticket details',
+    personalLead: 'Attendee and ticket information.', logistics: 'Date and time',
+    logisticsLead: 'Check when the event and entry begin.', address: 'Venue address',
     map: 'Open in Google Maps', date: 'Event date', start: 'Starts', doors: 'Doors open',
-    details: 'TICKET DETAILS', admission: 'YOUR SAMPLE PASS', one: 'One ticket. One story.',
-    ticketId: 'TICKET REFERENCE', order: 'The details, together.', activity: 'THE PAPER TRAIL',
-    price: 'ORDER BREAKDOWN', prepare: 'A little before you go.',
-    transferTag: 'SHARE THE MOMENT', refundTag: 'WHEN PLANS CHANGE', resendTag: 'KEEP IT CLOSE',
+    details: 'TICKET DETAILS', admission: 'YOUR SAMPLE PASS', one: 'Ticket information',
+    ticketId: 'TICKET REFERENCE', order: 'Order summary', activity: 'TICKET ACTIVITY',
+    price: 'ORDER BREAKDOWN', prepare: 'Entry information',
+    transferTag: 'TRANSFER', refundTag: 'REFUND', resendTag: 'EMAIL',
   },
   ar: {
-    eyebrow: 'التذكرة / اللحظة', lead: 'المكان والأصحاب وكل التفاصيل الصغيرة. احتفظ بها بين يديك.',
-    setting: 'أجواء التجربة', atAGlance: 'في لمحة', personal: 'تفاصيل تخص لحظتك.',
-    personalLead: 'اسمك، مكانك، ودورك في الحكاية.', logistics: 'خطة تستحق الاحتفاظ بها.',
-    logisticsLead: 'اعرف الموعد، وحدد المكان، واستمتع بالتجربة.', address: 'عنوان المكان',
+    eyebrow: 'تفاصيل التذكرة', lead: 'اعرض تذكرتك ورمز الدخول ومعلومات الفعالية.',
+    setting: 'المكان', atAGlance: 'معلومات الفعالية', personal: 'تفاصيل التذكرة',
+    personalLead: 'بيانات الحاضر والتذكرة.', logistics: 'التاريخ والوقت',
+    logisticsLead: 'راجع موعد بداية الفعالية وفتح الأبواب.', address: 'عنوان المكان',
     map: 'فتح الموقع في خرائط Google', date: 'تاريخ الفعالية', start: 'تبدأ', doors: 'فتح الأبواب',
-    details: 'تفاصيل التذكرة', admission: 'تذكرتك التجريبية', one: 'تذكرة واحدة. وحكاية تخصك.',
-    ticketId: 'مرجع التذكرة', order: 'كل التفاصيل، معًا.', activity: 'سجل التفاصيل',
-    price: 'تفاصيل الطلب', prepare: 'قبل أن تنطلق.',
-    transferTag: 'شارك اللحظة', refundTag: 'عندما تتغير الخطط', resendTag: 'احتفظ بالتفاصيل',
+    details: 'تفاصيل التذكرة', admission: 'تذكرتك التجريبية', one: 'معلومات التذكرة',
+    ticketId: 'مرجع التذكرة', order: 'ملخص الطلب', activity: 'سجل التذكرة',
+    price: 'تفاصيل الطلب', prepare: 'معلومات الدخول',
+    transferTag: 'التحويل', refundTag: 'الاسترداد', resendTag: 'البريد الإلكتروني',
   },
 }
 
@@ -75,7 +77,7 @@ export default function TicketDetail() {
   return <TicketShell title={`${t.ticket}: ${ticket.event.title[lang]}`} lead={c.lead} appearance="detail" live={isLive} header={
     <header className="pass-page-heading">
       <div><p className="pass-eyebrow"><span aria-hidden="true" />{c.eyebrow}</p><h1 id="tickets-detail-event-title">{ticket.event.title[lang]}</h1><p>{c.lead}</p></div>
-      <div className="pass-heading-status"><TicketStatus ticket={ticket} /><span>{ticket.categoryName[lang]}</span></div>
+      <div className="pass-heading-status"><TicketStatus ticket={ticket} live={isLive} /><span>{ticket.categoryName[lang]}</span></div>
     </header>
   }>
     <div className="pass-detail-grid">
@@ -99,14 +101,19 @@ export default function TicketDetail() {
         </div>
       </div>
       <aside className="tickets-pass pass-collectible" aria-labelledby="tickets-pass-title">
-        <header className="pass-collectible-head"><div className="pass-brand-line"><span><Icon name="ticket" size={21} />{lang === 'ar' ? 'حفلتنا' : 'Hafletna'}</span>{!isLive && <span>{t.sampleFlow}</span>}</div><p className="pass-collectible-eyebrow">{isLive ? t.livePass : c.admission}</p><h2 id="tickets-pass-title">{ticket.event.title[lang]}</h2><TicketStatus ticket={ticket} /></header>
+        <header className="pass-collectible-head"><div className="pass-brand-line"><span><Icon name="ticket" size={21} />{lang === 'ar' ? 'حفلتنا' : 'Hafletna'}</span>{!isLive && <span>{t.sampleFlow}</span>}</div><p className="pass-collectible-eyebrow">{isLive ? t.livePass : c.admission}</p><h2 id="tickets-pass-title">{ticket.event.title[lang]}</h2><TicketStatus ticket={ticket} live={isLive} /></header>
         <div className="pass-collectible-body"><p className="tickets-pass-label">{isLive ? t.liveQrLead : t.qrLead}</p>{qrAvailable ? <div className="tickets-pass-qr"><TicketQr ticket={ticket} value={qrToken ?? undefined} /></div> : <div className="tickets-qr-placeholder"><Icon name="lock" size={38} /><p>{t.qrUnavailable}</p></div>}<p className="pass-serial-label">{c.ticketId}</p><strong className="tickets-pass-code" dir="ltr">{ticket.id}</strong><p className="tickets-pass-warning">{isLive ? t.liveQrWarning : t.qrWarning}</p></div>
         <div className="pass-collectible-stub"><div className="pass-stub-date"><strong>{day}</strong><span>{month}</span></div><div className="pass-stub-holder"><span>{t.attendee}</span><strong><bdi>{ticket.attendeeName || t.sampleNames}</bdi></strong><p>{ticket.categoryName[lang]}{ticket.seat && <> · {t.row} <bdi>{ticket.seat.row}</bdi> · {t.seat} {bookingNumber(ticket.seat.number, lang)}</>}</p><time dateTime={ticket.event.date}>{formatDate(ticket.event.date, lang, true)}</time></div></div>
         <footer className="pass-collectible-footer"><Icon name="lock" size={13} /><span>{isLive ? `${t.liveQrHeading} · ${t.liveNoCharge}` : `${t.qrHeading} · ${t.noCharge}`}</span></footer>
       </aside>
     </div>
     
-       {/* Transfer, refund, resend and the order breakdown still use the sample logic: hidden for real tickets for now */}
+    {isLive && <section className="pass-action-grid pass-live-actions" aria-label={t.orderDetails}>
+      <TicketTransferAction ticket={ticket} />
+      <TicketResendEmail key={`${session.user?.id}:${ticket.id}`} ticketId={ticket.id} available={qrAvailable} />
+      <article className="pass-action-card"><span className="pass-action-icon" aria-hidden="true"><Icon name="ticket" size={25} /></span><h3>{t.orderDetails}</h3><p>{t.liveOrderLead}</p><Link className="pass-action-link" to={`/orders/${encodeURIComponent(ticket.orderRef)}/confirmation`}>{t.orderDetails}<Icon name="arrow" size={17} /></Link></article>
+    </section>}
+    {/* Refund and the sample order breakdown remain separate previews. */}
     {!isLive && <><section className="pass-management" aria-labelledby="tickets-manage-title">
       <header className="pass-section-heading"><span className="pass-section-number" aria-hidden="true">03</span><div><p className="pass-eyebrow">{t.tickets}</p><h2 id="tickets-manage-title">{t.manage}</h2><p>{t.manageLead}</p></div></header>
       <div className="pass-action-grid">

@@ -7,11 +7,12 @@ import Icon from '../Homepage/components/Icon'
 import { useBooking } from './bookingContext'
 import { selectionTotals, validAttendee, type BookingError, type SampleReceipt } from './bookingModel'
 import { selectionPath, getBookingEvent, isLiveEvent } from './catalogue'
-import { payOnServer } from './liveCheckout'
+import { payOnServer, SeatMismatchError } from './liveCheckout'
 import { bookingMoney, bookingNumber } from './strings'
 import { useBookingStrings } from './liveStrings'
 import { BookingEmpty, BookingErrorMessage, BookingShell, OrderSummary, TicketDescription } from './BookingParts'
 import PolicyDialog from './PolicyDialog'
+import LiveBookingRestore from './LiveBookingRestore'
 import { resolveAttendeeNames } from './attendees'
 import { useTickets } from '../Tickets/ticketsContext'
 import { completeSampleOrder, type PaymentReceipt, type TicketRule } from '../Tickets/ticketsModel'
@@ -31,7 +32,12 @@ function CheckoutResult({ event, receipt, outcome }: { event: Event; receipt?: S
   </BookingShell>
 }
 
+// After a page refresh, a real event's cart is loaded again from the server first
 export default function Checkout() {
+  return <LiveBookingRestore><CheckoutContent /></LiveBookingRestore>
+}
+
+function CheckoutContent() {
   const { lang } = usePreferences()
   const t = useBookingStrings()
   const { state, names: enteredNames, act, now } = useBooking()
@@ -53,7 +59,6 @@ export default function Checkout() {
   const inFlight = useRef(false)
     // Made once per visit to this page: retrying the same checkout never creates a second order
   const idempotencyKey = useRef(crypto.randomUUID())
-  const [liveReceipt, setLiveReceipt] = useState<SampleReceipt | null>(null)
   const [serverError, setServerError] = useState('')
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current) }, [])
@@ -73,14 +78,13 @@ export default function Checkout() {
         // Real events: buy on the server instead of the local simulation
     if (isLiveEvent(state.eventId!)) {
       setServerError('')
-      const quantity = state.items.length
       payOnServer(state.eventId!, state.items, names, idempotencyKey.current, isFree ? 'success' : choice)
         .then((order) => {
-          if (order.status === 'PAID') setLiveReceipt({ reference: order.reference, eventId: order.eventId, quantity, total: Number(order.total) })
+          if (order.status === 'PAID' || order.status === 'PENDING') navigate(`/orders/${encodeURIComponent(order.id)}/confirmation`, { replace: true })
           else setOutcome(order.status === 'FAILED' ? 'declined' : 'timeout')
           act({ type: 'release' })
         })
-        .catch((error) => setServerError(error instanceof Error ? error.message : t.loadError))
+        .catch((error) => setServerError(error instanceof SeatMismatchError ? t.seatMismatch : error instanceof Error ? error.message : t.loadError))
         .finally(() => { inFlight.current = false; setProcessing(false) })
       return
     }
@@ -103,7 +107,6 @@ export default function Checkout() {
     }, 1200)
   }, [accepted, reviewed, state, names, act, choice, wallet, completeOrder, navigate, method, isFree, t])
 
-  if (liveReceipt && event) return <CheckoutResult event={event} receipt={liveReceipt} />
   if (state.receipt && wallet.orders.some((order) => order.reference === state.receipt!.reference)) return <Navigate to={`/orders/${encodeURIComponent(state.receipt.reference)}/confirmation`} replace />
   if (state.receipt && event) return <CheckoutResult event={event} receipt={state.receipt} />
   if (outcome && event) return <CheckoutResult event={event} outcome={outcome} />
