@@ -1,12 +1,14 @@
 import { useId, useRef, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { now } from '../../lib/adminTime'
 import { EVENTS } from '../../lib/ordersApi'
 import { isSelf, UserNotFoundError, usersApi, type UserDetail, type UserRole } from '../../lib/usersApi'
 import { ConfirmDialog, ModalDialog, Toast } from './AdminFeedback'
 import { AdminHero, AdminLayout, BackArrowIcon, ForwardArrowIcon, ResourceStatus, TicketIcon, UsersIcon } from './AdminLayout'
 import { useAdminActor } from './adminIdentity'
+import { plural } from './adminText'
 import { useErrorText } from './errorStrings'
-import { BlockIcon, HeroBadge, ReasonDialog, ShieldIcon } from './EventsParts'
+import { Badge, BlockIcon, HeroBadge, ReasonDialog, ShieldIcon } from './EventsParts'
 import { AlertIcon, InfoList, StatusBadge } from './OrdersParts'
 import { fillIn, useOrdersFormat, useOrdersStrings } from './ordersStrings'
 import { useUsersStrings, type UsersStrings } from './usersStrings'
@@ -54,7 +56,14 @@ export default function UserDetailPage() {
     )
   }
 
-  const { user, orders } = state.data
+  const { user, orders, tickets } = state.data
+  const holds = (email: string) => email.toLowerCase() === user.email.toLowerCase()
+  // What a block would refund: valid tickets they hold for events that haven't started (FR-ADM-21).
+  const atRisk = tickets.filter((k) => holds(k.holderEmail) && k.status === 'valid' && (EVENTS[k.eventKey]?.startsAt ?? '') > now()).length
+  // What they hold first, soonest event first; tickets they gave away last.
+  const ticketRows = [...tickets].sort(
+    (a, b) => Number(!holds(a.holderEmail)) - Number(!holds(b.holderEmail)) || (EVENTS[a.eventKey]?.startsAt ?? '').localeCompare(EVENTS[b.eventKey]?.startsAt ?? ''),
+  )
   const self = isSelf(user, actor)
   const selfHintId = 'user-self-hint'
 
@@ -202,6 +211,69 @@ export default function UserDetailPage() {
               </p>
             )}
           </section>
+
+          <section className="ad-card" aria-labelledby="tickets-title" data-scroll-reveal="">
+            <div className="ad-card-head ad-card-head--tight">
+              <h2 id="tickets-title" className="ad-card-h">
+                {t.currentTickets}
+              </h2>
+              <span className="ad-count">{f.num(user.tickets)}</span>
+            </div>
+            {ticketRows.length > 0 ? (
+              <>
+                <p className="ev-card-text ad-muted">{t.currentTicketsLead}</p>
+                <div className="ad-table-wrap">
+                  <table aria-labelledby="tickets-title" className="ad-table ad-table--rowheads">
+                    <thead>
+                      <tr>
+                        <th scope="col">{t.cTicket}</th>
+                        <th scope="col">{t.cEvent}</th>
+                        <th scope="col" className="ad-hide-sm">
+                          {t.cDate}
+                        </th>
+                        <th scope="col" className="ad-hide-sm">
+                          {t.cSeat}
+                        </th>
+                        <th scope="col">{t.cStatus}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ticketRows.map((k) => {
+                        const event = EVENTS[k.eventKey]
+                        const mine = holds(k.holderEmail)
+                        const last = k.transfers[k.transfers.length - 1]
+                        return (
+                          <tr key={k.code} className={mine ? undefined : 'ad-row-muted'}>
+                            <th scope="row">
+                              <Link className="ad-mono od-nowrap" to={`/admin/tickets/${k.code}`} aria-label={`${t.viewTicket} ${k.code}`}>
+                                {k.code}
+                              </Link>
+                              {last && (
+                                <span className="ev-received">{mine ? fillIn(t.receivedFrom, { name: last.from.name }) : fillIn(t.givenTo, { name: k.holder })}</span>
+                              )}
+                            </th>
+                            <td>{event ? <Link to={`/admin/events/${event.eventId}`}>{event.name}</Link> : k.eventKey}</td>
+                            <td className="od-nowrap ad-hide-sm">{event ? f.date(event.startsAt) : '—'}</td>
+                            <td className="ad-muted ad-hide-sm">
+                              {k.category} · {k.seat}
+                            </td>
+                            <td>{mine ? <StatusBadge status={k.status} t={ot} /> : <Badge tone="pending" label={t.transferredAway} />}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            ) : (
+              <p className="od-empty-note">
+                <span aria-hidden="true">
+                  <TicketIcon size={20} />
+                </span>
+                {t.noCurrentTickets}
+              </p>
+            )}
+          </section>
         </div>
 
         <aside className="ad-detail-side">
@@ -241,13 +313,22 @@ export default function UserDetailPage() {
           lead={t.blockLead}
           label={t.blockReason}
           errorText={t.blockReasonError}
+          warning={atRisk ? fillIn(t.blockRefund, { tickets: plural(f.lang, atRisk, t.ticketsCount, f.num(atRisk)) }) : t.blockNoTickets}
           icon={<BlockIcon />}
           confirmLabel={t.confirmBlock}
           busyLabel={t.blocking}
           cancelLabel={t.cancel}
           busy={busy}
           onCancel={() => setDialog(null)}
-          onConfirm={(reason) => act(() => usersApi.block(user.id, reason, actor), () => fillIn(t.toastBlocked, { name: user.fullName }))}
+          onConfirm={(reason) =>
+            act(
+              () => usersApi.block(user.id, reason, actor),
+              (d) =>
+                d.refunded?.tickets
+                  ? fillIn(t.toastBlockedRefund, { name: user.fullName, tickets: plural(f.lang, d.refunded.tickets, t.ticketsCount, f.num(d.refunded.tickets)), amount: f.money(d.refunded.amount) })
+                  : fillIn(t.toastBlocked, { name: user.fullName }),
+            )
+          }
         />
       )}
 

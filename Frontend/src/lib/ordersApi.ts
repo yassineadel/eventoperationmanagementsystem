@@ -9,12 +9,13 @@
 
 import { adminEventsApi } from './adminEventsApi.ts'
 import { AdminApiError } from './adminErrors.ts'
+import { actingAdmin, record } from './auditLog.ts'
 import { daysBetween, now } from './adminTime.ts'
 
 export type OrderStatus = 'paid' | 'pending' | 'refunded' | 'cancelled'
 export type TicketStatus = 'valid' | 'checked' | 'cancelled'
 export type RefundReason = 'customer' | 'eventChanged' | 'duplicate' | 'other'
-export type ReasonKey = RefundReason | 'paymentFailed' | 'eventCancelled'
+export type ReasonKey = RefundReason | 'paymentFailed' | 'eventCancelled' | 'userBlocked'
 
 /** Copy written by people (notes, who did it) comes in both languages. */
 export type Localized = { en: string; ar: string }
@@ -63,10 +64,19 @@ export type Order = {
   reason?: OrderReason
 }
 
+/** A ticket handed from one person to another (FR-MTK transfers); the newest is last. */
+export type TicketPerson = { name: string; email: string; userId?: string }
+export type TicketTransfer = { from: TicketPerson; to: TicketPerson; at: string }
+
 export type Ticket = {
   code: string
   orderId: string
+  /** The person who holds the ticket now: the buyer, or whoever it was last transferred to. */
   holder: string
+  holderEmail: string
+  /** The holder's account, when they have one. */
+  holderUserId?: string
+  transfers: TicketTransfer[]
   eventKey: string
   category: string
   seat: string
@@ -233,6 +243,9 @@ const ticket = (code: string, orderId: string, holder: string, eventKey: string,
   code,
   orderId,
   holder,
+  holderEmail: SEEDS.find((o) => o.id === orderId)?.customer.email ?? '',
+  holderUserId: SEEDS.find((o) => o.id === orderId)?.customer.userId,
+  transfers: [],
   eventKey,
   category,
   seat,
@@ -240,8 +253,17 @@ const ticket = (code: string, orderId: string, holder: string, eventKey: string,
   scans,
 })
 
+/** The ticket after its buyer handed it to someone else. */
+const transferred = (t: Ticket, to: TicketPerson, at: string): Ticket => ({
+  ...t,
+  holder: to.name,
+  holderEmail: to.email,
+  holderUserId: to.userId,
+  transfers: [...t.transfers, { from: { name: t.holder, email: t.holderEmail, userId: t.holderUserId }, to, at }],
+})
+
 let TICKETS: Ticket[] = [
-  ticket('HFT-7Q2K-91', 'HF-10241', 'Mariam Hassan', 'jazz', 'VIP', 'Orchestra · A7', 'valid'),
+  transferred(ticket('HFT-7Q2K-91', 'HF-10241', 'Mariam Hassan', 'jazz', 'VIP', 'Orchestra · A7', 'valid'), { name: 'Ahmed Sherif', email: 'ahmed.sherif@example.com', userId: '2e7d5c1f-3a8b-4f9c-9d0e-1f2a3b4c5d0b' }, '2026-10-16T14:20'),
   ticket('HFT-7Q2K-92', 'HF-10241', 'Mariam Hassan', 'jazz', 'VIP', 'Orchestra · A8', 'valid'),
   ticket('HFT-7Q2K-93', 'HF-10241', 'Mariam Hassan', 'jazz', 'Premium', 'Orchestra · D12', 'valid'),
   ticket('HFT-5M8D-41', 'HF-10239', 'Salma Adel', 'standup', 'Standard', 'Left wing · C3', 'checked', ['2026-10-16T20:41', '2026-10-16T20:44']),
@@ -249,7 +271,7 @@ let TICKETS: Ticket[] = [
   ticket('HFT-5M8D-43', 'HF-10239', 'Salma Adel', 'standup', 'Standard', 'Left wing · C5', 'checked', ['2026-10-16T20:43', '2026-10-16T20:46']),
   ticket('HFT-5M8D-44', 'HF-10239', 'Salma Adel', 'standup', 'Standard', 'Left wing · C6', 'valid'),
   ticket('HFT-3R6P-17', 'HF-10238', 'Youssef Tarek', 'jazz', 'Premium', 'Orchestra · E5', 'cancelled'),
-  ticket('HFT-9C1L-08', 'HF-10237', 'Habiba Mostafa', 'acoustic', 'General', 'Zone · General', 'valid'),
+  transferred(ticket('HFT-9C1L-08', 'HF-10237', 'Habiba Mostafa', 'acoustic', 'General', 'Zone · General', 'valid'), { name: 'Nour El-Din Ali', email: 'nour.ali@example.com', userId: '0c5b3a9d-1e6f-4d7a-9b8c-9d0e1f2a3be9' }, '2026-10-14T09:05'),
   ticket('HFT-9C1L-09', 'HF-10237', 'Habiba Mostafa', 'acoustic', 'General', 'Zone · General', 'valid'),
   ticket('HFT-2W4N-55', 'HF-10235', 'Laila Samir', 'standup', 'Standard', 'Right wing · B2', 'checked', ['2026-10-16T20:52']),
   ticket('HFT-2W4N-56', 'HF-10235', 'Laila Samir', 'standup', 'Standard', 'Right wing · B3', 'checked', ['2026-10-16T20:52']),
@@ -364,7 +386,7 @@ export const ordersApi = {
    * Refund the tickets on a paid order that still work; they stop working at the gate.
    * Open refund requests for those tickets are settled by this refund.
    */
-  async refund(id: string, input: { reason: RefundReason; note: string }, actor = 'Admin'): Promise<OrderDetail> {
+  async refund(id: string, input: { reason: RefundReason; note: string }, actor = actingAdmin()): Promise<OrderDetail> {
     await fetched(500)
     const order = findOrder(id)
     if (order.status !== 'paid') throw new AdminApiError('paid-only-refund')
@@ -383,13 +405,14 @@ export const ordersApi = {
     ORDERS = ORDERS.map((o) => (o.id === id ? refunded : o))
     TICKETS = TICKETS.map((t) => (voided.has(t.code) ? { ...t, status: 'cancelled' } : t))
     REQUESTS = REQUESTS.map((r) => (r.status === 'submitted' && voided.has(r.ticketCode) ? { ...r, status: 'approved', decidedAt: at, decidedBy: actor } : r))
+    record('refunded', { type: 'order', id, label: id }, { detail: note || undefined, amount: quote.amount, tickets: quote.count, actor })
     return detail(refunded)
   },
   /**
    * The event was cancelled: paid orders are refunded in full, fee included, and pending
    * orders are cancelled. Returns how many tickets were refunded.
    */
-  async cancelEvent(eventId: string, reason: string, actor = 'Admin'): Promise<number> {
+  async cancelEvent(eventId: string, reason: string, actor = actingAdmin()): Promise<number> {
     const key = eventKeyFor(eventId)
     if (!key) return 0
     const at = now()
@@ -400,7 +423,11 @@ export const ordersApi = {
     ORDERS = ORDERS.map((o) => {
       if (o.eventKey !== key) return o
       const reasonFor = { key: 'eventCancelled' as const, note, by: ADMIN_BY(actor), at }
-      if (o.status === 'paid') return { ...o, status: 'refunded', payment: { ...o.payment, refundedAt: at, refundAmount: o.total }, reason: reasonFor }
+      if (o.status === 'paid') {
+        // What is still valid comes back in full, fee included; earlier partial refunds stay as they were.
+        const back = refundQuote(o, TICKETS.filter((t) => t.orderId === o.id), 'eventChanged').amount
+        return { ...o, status: 'refunded', payment: { ...o.payment, refundedAt: at, refundAmount: (o.payment.refundAmount ?? 0) + back }, reason: reasonFor }
+      }
       if (o.status === 'pending') return { ...o, status: 'cancelled', payment: { ...o.payment, cancelledAt: at }, reason: reasonFor }
       return o
     })
@@ -411,6 +438,32 @@ export const ordersApi = {
         : r,
     )
     return refunded
+  },
+  /**
+   * Their holder was blocked (FR-ADM-21): every valid ticket they hold for an event that hasn't
+   * started is refunded in full, fee included, and stops working at the gate, whoever bought it.
+   * The money goes back to the order that paid for it. Returns how many tickets and how much.
+   */
+  async refundHeldTickets(email: string, actor = actingAdmin()): Promise<{ tickets: number; amount: number }> {
+    await fetched(300)
+    const at = now()
+    const held = TICKETS.filter((t) => t.status === 'valid' && t.holderEmail.toLowerCase() === email.toLowerCase() && EVENTS[t.eventKey].startsAt > at)
+    if (!held.length) return { tickets: 0, amount: 0 }
+    const codes = new Set(held.map((t) => t.code))
+    TICKETS = TICKETS.map((t) => (codes.has(t.code) ? { ...t, status: 'cancelled' } : t))
+    let total = 0
+    ORDERS = ORDERS.map((o) => {
+      const own = held.filter((t) => t.orderId === o.id)
+      if (!own.length) return o
+      const price = own.reduce((n, t) => n + priceOf(o, t.category), 0)
+      const amount = price + Math.round(price * SERVICE_FEE)
+      total += amount
+      const payment = { ...o.payment, refundedAt: at, refundAmount: (o.payment.refundAmount ?? 0) + amount }
+      const allGone = TICKETS.filter((t) => t.orderId === o.id).every((t) => t.status === 'cancelled')
+      return allGone ? { ...o, status: 'refunded', payment, reason: { key: 'userBlocked', by: ADMIN_BY(actor), at } } : { ...o, payment }
+    })
+    REQUESTS = REQUESTS.map((r) => (r.status === 'submitted' && codes.has(r.ticketCode) ? { ...r, status: 'approved', decidedAt: at, decidedBy: actor } : r))
+    return { tickets: held.length, amount: total }
   },
   async resendTickets(id: string): Promise<void> {
     await delay(400)
@@ -463,7 +516,7 @@ export const refundRequestsApi = {
     return REQUESTS.map(requestRow)
   },
   /** Approve: the ticket is cancelled and its price goes back to the customer. */
-  async approve(id: string, actor = 'Admin'): Promise<RefundRequestRow> {
+  async approve(id: string, actor = actingAdmin()): Promise<RefundRequestRow> {
     await fetched(400)
     const request = REQUESTS.find((r) => r.id === id)
     if (!request) throw new OrderNotFoundError()
@@ -482,9 +535,10 @@ export const refundRequestsApi = {
         : { ...o, payment }
     })
     REQUESTS = REQUESTS.map((r) => (r.id === id ? { ...r, status: 'approved', decidedAt: at, decidedBy: actor } : r))
+    record('approved', { type: 'refund', id, label: id }, { amount: row.amount, tickets: 1, actor })
     return requestRow(REQUESTS.find((r) => r.id === id)!)
   },
-  async reject(id: string, reason: string, actor = 'Admin'): Promise<RefundRequestRow> {
+  async reject(id: string, reason: string, actor = actingAdmin()): Promise<RefundRequestRow> {
     await delay(400)
     const request = REQUESTS.find((r) => r.id === id)
     if (!request) throw new OrderNotFoundError()
@@ -493,6 +547,7 @@ export const refundRequestsApi = {
     REQUESTS = REQUESTS.map((r) =>
       r.id === id ? { ...r, status: 'rejected', decidedAt: now(), decidedBy: actor, rejectReason: { en: text, ar: text } } : r,
     )
+    record('rejected', { type: 'refund', id, label: id }, { detail: text, actor })
     return requestRow(REQUESTS.find((r) => r.id === id)!)
   },
 }

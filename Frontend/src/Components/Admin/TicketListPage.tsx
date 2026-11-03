@@ -22,7 +22,7 @@ export default function TicketListPage() {
   const tickets = state.status === 'ready' ? state.data.tickets : []
   const eventIdOf = (k: Ticket) => EVENTS[k.eventKey].eventId
   const q = values.q.trim().toLowerCase()
-  const matchesText = (k: Ticket) => !q || `${k.code} ${k.holder}`.toLowerCase().includes(q)
+  const matchesText = (k: Ticket) => !q || `${k.code} ${k.holder} ${k.holderEmail}`.toLowerCase().includes(q)
   const matchesEvent = (k: Ticket, e = event) => e === 'all' || eventIdOf(k) === e
   const matchesStatus = (k: Ticket, s = status) => s === 'all' || k.status === s
   const rows = tickets.filter((k) => matchesText(k) && matchesEvent(k) && matchesStatus(k))

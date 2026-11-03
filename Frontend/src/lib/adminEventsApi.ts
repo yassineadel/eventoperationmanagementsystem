@@ -3,16 +3,32 @@
 // The admin console runs on sample data until its endpoints are wired: eight events across the
 // sample venues, shaped like the admin list and the Prisma Event model. Adding, editing,
 // publishing, cancelling and deleting change the sample data in memory until the page
-// reloads. When the console moves to the API, replace the bodies of `adminEventsApi.*`
-// with calls from './api'.
+// reloads. Photos chosen in the form are kept as data URLs; with the API they are uploaded
+// first and the event stores their URLs. When the console moves to the API, replace the
+// bodies of `adminEventsApi.*` with calls from './api'.
 
 import type { Category } from '../Components/Homepage/types'
 import { AdminApiError } from './adminErrors.ts'
+import { actingAdmin, record } from './auditLog.ts'
 import { minutesAfter, now, toWall } from './adminTime.ts'
 import { ordersApi, type Localized } from './ordersApi.ts'
 import { venuesApi, type Venue } from './venuesApi.ts'
 
 export type EventStatus = 'draft' | 'published' | 'cancelled'
+
+/**
+ * Event policies, keyed like the Event.policies JSON the customer event page reads
+ * (lib/eventsModel.ts): each key is one titled section on that page.
+ */
+export const POLICY_KEYS = ['ageRestrictions', 'entryConditions', 'prohibitedItems', 'refundPolicy', 'accessibility'] as const
+export type PolicyKey = (typeof POLICY_KEYS)[number]
+export type EventPolicies = Partial<Record<PolicyKey, string>>
+
+/** One frequently asked question, like the Event.faqs JSON ([{ question, answer }]). */
+export type EventFaq = { question: string; answer: string }
+
+/** The most photos an event can have; the first one is the cover. */
+export const MAX_EVENT_IMAGES = 8
 
 export type AdminEvent = {
   id: string
@@ -32,6 +48,10 @@ export type AdminEvent = {
   publishedAt?: string
   cancelledAt?: string
   cancellationReason?: Localized
+  /** Photo URLs; the first one is the cover on the website. */
+  images: string[]
+  policies: EventPolicies
+  faqs: EventFaq[]
   venueId: string
   venue: string
   city: string
@@ -87,13 +107,25 @@ export type EventForm = {
   durationMinutes: number
   salesOpenAt: string
   salesCloseAt: string
+  images: string[]
+  /** Every policy key, '' when the event has none. */
+  policies: Record<PolicyKey, string>
+  faqs: EventFaq[]
 }
 
 export const EVENT_CATEGORIES: Category[] = ['concerts', 'festivals', 'arts', 'sports', 'workshops', 'conferences']
 
 /* ----------------------------------------------------------- sample data */
 
-type Seed = Omit<AdminEvent, 'isPast' | 'sold' | 'capacity' | 'doorsOpenAt'> & { doorsBefore?: number }
+type Seed = Omit<AdminEvent, 'isPast' | 'sold' | 'capacity' | 'doorsOpenAt' | 'images' | 'policies' | 'faqs'> &
+  Partial<Pick<AdminEvent, 'images' | 'policies' | 'faqs'>> & { doorsBefore?: number }
+
+// Policies most events share, written the way an organiser would.
+const STANDARD_POLICIES: EventPolicies = {
+  entryConditions: 'Bring the QR code on your phone or printed. Each code lets one person in once.',
+  prohibitedItems: 'No outside food or drink, glass bottles, professional cameras or laser pointers.',
+  refundPolicy: 'Refunds can be requested from My tickets until 7 days before the event. The 3% service fee is not refunded.',
+}
 
 const VENUES = {
   nile: { venueId: '7c1e4b2a-91d3-4f0e-a6b5-2d8f3c9e1a07', venue: 'Nile Arena', city: 'Cairo' },
@@ -118,6 +150,12 @@ const SEEDS: Seed[] = [
     salesCloseAt: '2026-10-24T18:00',
     createdAt: '2026-09-12T11:20',
     publishedAt: '2026-09-18T09:00',
+    images: ['/event-images/concert.jpg', '/event-images/hero-concert.png'],
+    policies: { ...STANDARD_POLICIES, ageRestrictions: 'Ages 12 and up. Under 16s must come with an adult.', accessibility: 'Step-free entrance at Gate 2 and wheelchair spaces in row A.' },
+    faqs: [
+      { question: 'Is there parking?', answer: 'Yes, Nile Arena has paid parking next to Gate 1. It opens when the doors open.' },
+      { question: 'Can I change the name on my ticket?', answer: 'Transfer the ticket to the guest from My tickets; they get their own QR code.' },
+    ],
     ...VENUES.nile,
   },
   {
@@ -132,6 +170,9 @@ const SEEDS: Seed[] = [
     salesOpenAt: '2026-09-25T12:00',
     createdAt: '2026-09-15T14:05',
     publishedAt: '2026-09-24T16:30',
+    images: ['/event-images/festival.jpg', '/event-images/venue-riverside.jpg'],
+    policies: { ...STANDARD_POLICIES, ageRestrictions: 'Ages 18 and up. Bring your ID.' },
+    faqs: [{ question: 'What happens if it rains?', answer: 'The festival goes ahead; the main stage is covered.' }],
     ...VENUES.riverfront,
   },
   {
@@ -145,6 +186,8 @@ const SEEDS: Seed[] = [
     durationMinutes: 120,
     createdAt: '2026-09-01T10:00',
     publishedAt: '2026-09-03T12:00',
+    images: ['/event-images/art.jpg'],
+    policies: { ...STANDARD_POLICIES, ageRestrictions: 'Ages 16 and up; some material is for adults.' },
     ...VENUES.downtown,
   },
   {
@@ -160,6 +203,8 @@ const SEEDS: Seed[] = [
     salesCloseAt: '2026-11-14T16:00',
     createdAt: '2026-09-22T09:45',
     publishedAt: '2026-09-30T18:00',
+    images: ['/event-images/venue-garden.jpg', '/event-images/concert.jpg'],
+    policies: STANDARD_POLICIES,
     ...VENUES.garden,
   },
   {
@@ -178,6 +223,7 @@ const SEEDS: Seed[] = [
       en: 'The city did not renew the permit for the coastal road, so the run was cancelled and every ticket refunded.',
       ar: 'لم تجدد المدينة تصريح الطريق الساحلي، فأُلغي السباق واستُردت قيمة كل التذاكر.',
     },
+    images: ['/event-images/sports.jpg', '/event-images/venue-seafront.jpg'],
     ...VENUES.redSea,
   },
   {
@@ -190,6 +236,7 @@ const SEEDS: Seed[] = [
     startAt: '2026-12-05T19:00',
     durationMinutes: 180,
     createdAt: '2026-10-14T16:25',
+    images: ['/event-images/venue-seafront.jpg'],
     ...VENUES.seafront,
   },
   {
@@ -216,6 +263,8 @@ const SEEDS: Seed[] = [
     durationMinutes: 150,
     doorsBefore: 30,
     createdAt: '2026-10-18T12:15',
+    images: ['/event-images/workshop.jpg'],
+    faqs: [{ question: 'Do I need any experience?', answer: 'No. The workshop is for beginners and every tool is provided.' }],
     ...VENUES.garden,
   },
 ]
@@ -229,17 +278,17 @@ let CATEGORIES: Record<string, EventCategory[]> = {
   [SEEDS[0].id]: [
     cat('VIP', 'VIP', wave('Early bird', 1000, 20, 20), wave('Regular', 1500, 22, 18)),
     cat('PREMIUM', 'Premium', wave('Early bird', 600, 30, 30), wave('Regular', 900, 40, 21)),
-    single('STANDARD', 'Standard', 500, 96, 40),
+    single('STANDARD', 'Standard', 500, 92, 40),
     single('BALCONY', 'Balcony', 350, 78, 12),
   ],
   [SEEDS[1].id]: [
     cat('FRONT', 'Front standing', wave('Wave 1', 600, 100, 100), wave('Wave 2', 900, 200, 114)),
     cat('GA', 'General admission', wave('Wave 1', 350, 300, 300), wave('Wave 2', 450, 300, 88), wave('Final wave', 600, 300, 0)),
   ],
-  [SEEDS[2].id]: [single('VIP', 'VIP', 700, 48, 48), single('STANDARD', 'Standard', 400, 120, 117)],
+  [SEEDS[2].id]: [single('VIP', 'VIP', 700, 48, 48), single('STANDARD', 'Standard', 400, 116, 113), single('ACCESSIBLE', 'Accessible', 400, 4, 4)],
   [SEEDS[3].id]: [single('GOLD', 'Gold circle', 750, 200, 64), cat('GENERAL', 'General', wave('Early bird', 300, 150, 150), wave('Regular', 400, 550, 32))],
   [SEEDS[4].id]: [single('PIT', '10 km', 450, 500, 0), single('GA', '3 km family', 200, 1400, 0)],
-  [SEEDS[5].id]: [single('STANDARD', 'Festival pass', 600, 300, 0)],
+  [SEEDS[5].id]: [single('STANDARD', 'Festival pass', 600, 220, 0)],
   [SEEDS[6].id]: [],
   [SEEDS[7].id]: [cat('GENERAL', 'Workshop seat', wave('Early bird', 250, 15, 0), wave('Regular', 350, 25, 0))],
 }
@@ -248,6 +297,9 @@ function withTotals(seed: Seed | AdminEvent): AdminEvent {
   const cats = CATEGORIES[seed.id] ?? []
   const { doorsBefore, ...rest } = seed as Seed
   return {
+    images: [],
+    policies: {},
+    faqs: [],
     ...rest,
     doorsOpenAt: 'doorsOpenAt' in seed && seed.doorsOpenAt ? seed.doorsOpenAt : minutesAfter(seed.startAt, -(doorsBefore ?? 60)),
     isPast: seed.startAt < now(),
@@ -257,6 +309,17 @@ function withTotals(seed: Seed | AdminEvent): AdminEvent {
 }
 
 let EVENTS: AdminEvent[] = SEEDS.map(withTotals)
+
+/**
+ * How many tickets an event's categories may hold at its venue (FR-ADM-06). A seated venue's
+ * categories are its layout's categories, each up to its number of seats; a standing venue's
+ * categories are up to the admin and organiser, as long as together they fit the venue.
+ */
+export type VenueLimits = { kind: 'seated' | 'standing'; capacity: number; places: Record<string, { name: string; places: number }> }
+
+export function venueLimits(venue: Pick<Venue, 'kind' | 'totalCapacity'>, categories: { key: string; name: string; places: number }[]): VenueLimits {
+  return { kind: venue.kind, capacity: venue.totalCapacity, places: Object.fromEntries(categories.map((c) => [c.key, { name: c.name, places: c.places }])) }
+}
 
 /** Published, not started, and inside its sales window (FR-ADM-11). */
 export function isOnSale(e: Pick<AdminEvent, 'status' | 'startAt' | 'salesOpenAt' | 'salesCloseAt'>, at = now()) {
@@ -319,7 +382,15 @@ function fromForm(form: EventForm) {
     durationMinutes: form.durationMinutes,
     salesOpenAt: form.salesOpenAt || undefined,
     salesCloseAt: form.salesCloseAt || undefined,
+    images: form.images.slice(0, MAX_EVENT_IMAGES),
+    policies: Object.fromEntries(POLICY_KEYS.flatMap((k) => (form.policies[k]?.trim() ? [[k, form.policies[k].trim()]] : []))) as EventPolicies,
+    faqs: form.faqs.map((q) => ({ question: q.question.trim(), answer: q.answer.trim() })).filter((q) => q.question && q.answer),
   }
+}
+
+/** Every policy key, filled from the event's policies. */
+export function policyForm(policies: EventPolicies): Record<PolicyKey, string> {
+  return Object.fromEntries(POLICY_KEYS.map((k) => [k, policies[k] ?? ''])) as Record<PolicyKey, string>
 }
 
 // Deleted drafts are kept here so "Undo" can put them back where they were.
@@ -358,6 +429,9 @@ export const adminEventsApi = {
       durationMinutes: e.durationMinutes,
       salesOpenAt: toWall(e.salesOpenAt) ?? '',
       salesCloseAt: toWall(e.salesCloseAt) ?? '',
+      images: [...e.images],
+      policies: policyForm(e.policies),
+      faqs: e.faqs.map((q) => ({ ...q })),
     }
     return { form, status: e.status, isPast: e.startAt <= now(), name: e.name }
   },
@@ -374,10 +448,11 @@ export const adminEventsApi = {
     } as AdminEvent)
     CATEGORIES = { ...CATEGORIES, [id]: [] }
     EVENTS = [event, ...EVENTS]
+    record('created', { type: 'event', id, label: event.name })
     return event
   },
   /**
-   * Descriptive fields stay editable after publishing; the venue does not (FR-ADM-09).
+   * Descriptive fields (text, photos, policies, FAQs) stay editable after publishing; the venue does not (FR-ADM-09).
    * Cancelled events and events that have started are kept as they were.
    */
   async update(id: string, form: EventForm): Promise<AdminEvent> {
@@ -385,25 +460,29 @@ export const adminEventsApi = {
     const event = find(id)
     if (event.status === 'cancelled' || (event.status === 'published' && event.startAt <= now())) throw new AdminApiError('event-locked')
     if (event.status !== 'draft' && form.venueId !== event.venueId) throw new AdminApiError('venue-locked')
-    return replace({ ...event, ...fromForm(form), ...(await venueFields(form.venueId)) })
+    const saved = replace({ ...event, ...fromForm(form), ...(await venueFields(form.venueId)) })
+    record('updated', { type: 'event', id, label: saved.name })
+    return saved
   },
   async publish(id: string): Promise<EventDetail> {
     await delay(400)
     const event = find(id)
     if (event.status !== 'draft') throw new AdminApiError('draft-only-publish')
     if (event.startAt <= now()) throw new AdminApiError('start-past')
+    record('published', { type: 'event', id, label: event.name })
     return { event: replace({ ...event, status: 'published', publishedAt: now() }), categories: CATEGORIES[id] ?? [] }
   },
   /**
    * Published events are cancelled, never deleted, and kept for analysis (FR-ADM-12, BR-19).
    * Every ticket is refunded in full and pending orders are cancelled.
    */
-  async cancel(id: string, reason: string, actor = 'Admin'): Promise<EventDetail> {
+  async cancel(id: string, reason: string, actor = actingAdmin()): Promise<EventDetail> {
     await delay(500)
     const event = find(id)
     if (event.status !== 'published') throw new AdminApiError('published-only-cancel')
     const text = reason.trim()
-    await ordersApi.cancelEvent(id, text, actor)
+    const refunded = await ordersApi.cancelEvent(id, text, actor)
+    record('cancelled', { type: 'event', id, label: event.name }, { detail: text, tickets: refunded, actor })
     return {
       event: replace({ ...event, status: 'cancelled', cancelledAt: now(), cancellationReason: { en: text, ar: text } }),
       categories: CATEGORIES[id] ?? [],
@@ -418,6 +497,15 @@ export const adminEventsApi = {
     await delay(450)
     const event = find(id)
     if (event.status === 'cancelled' || event.startAt < now()) throw new AdminApiError('tickets-locked')
+    const { venue, layout } = await venuesApi.get(event.venueId)
+    const limits = venueLimits(venue, layout.categories)
+    const total = (f: CategoryForm) => f.waves.reduce((n, w) => n + w.capacity, 0)
+    if (limits.kind === 'seated') {
+      for (const f of forms) {
+        const seats = limits.places[f.key.trim().toUpperCase()]
+        if (!seats || total(f) > seats.places) throw new AdminApiError('venue-seats-exceeded')
+      }
+    } else if (forms.reduce((n, f) => n + total(f), 0) > limits.capacity) throw new AdminApiError('venue-over-capacity')
     const before = CATEGORIES[id] ?? []
     const oldWaves = new Map(before.flatMap((c) => c.waves.map((w) => [w.id, w] as const)))
     for (const c of before) {
@@ -437,6 +525,7 @@ export const adminEventsApi = {
       return summarise(f.key.trim().toUpperCase(), f.name.trim(), waves)
     })
     CATEGORIES = { ...CATEGORIES, [id]: next }
+    record('ticketsChanged', { type: 'event', id, label: event.name })
     return { event: replace(event), categories: next }
   },
   /** Only drafts can be deleted. */
@@ -448,6 +537,7 @@ export const adminEventsApi = {
     if (event.status !== 'draft') throw new AdminApiError('draft-only-delete')
     TRASH.set(id, { event, categories: CATEGORIES[id] ?? [], index })
     EVENTS = EVENTS.filter((e) => e.id !== id)
+    record('deleted', { type: 'event', id, label: event.name })
     return event
   },
   async restore(id: string): Promise<AdminEvent> {
@@ -457,6 +547,7 @@ export const adminEventsApi = {
     TRASH.delete(id)
     CATEGORIES = { ...CATEGORIES, [id]: item.categories }
     EVENTS = [...EVENTS.slice(0, item.index), item.event, ...EVENTS.slice(item.index)]
+    record('restored', { type: 'event', id, label: item.event.name })
     return item.event
   },
 }

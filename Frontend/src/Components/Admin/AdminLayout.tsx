@@ -5,6 +5,7 @@ import { usePreferences } from '../Auth/preferences'
 import { useSession } from '../Auth/sessionContext'
 import { useScrollReveal } from '../Homepage/useScrollReveal'
 import { AnnounceContext, type Announce } from './adminAnnounce'
+import { actAs } from '../../lib/auditLog'
 import { useAdminActor } from './adminIdentity'
 import { useAdminStrings } from './adminStrings'
 import type { ResourceState } from './useAdminResource'
@@ -56,6 +57,18 @@ export const CalendarIcon = ({ size = 18 }: { size?: number }) => (
   <Icon size={size}>
     <rect x="3" y="4" width="18" height="17" rx="2" />
     <path d="M16 2v4M8 2v4M3 10h18" />
+  </Icon>
+)
+
+export const LogIcon = ({ size = 18 }: { size?: number }) => (
+  <Icon size={size}>
+    <path d="M9 4h6a1 1 0 0 1 1 1v1H8V5a1 1 0 0 1 1-1ZM8 6H6.5A1.5 1.5 0 0 0 5 7.5v11A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5v-11A1.5 1.5 0 0 0 17.5 6H16M8.5 11h7M8.5 14.5h7M8.5 18h4" />
+  </Icon>
+)
+
+export const ChartIcon = ({ size = 18 }: { size?: number }) => (
+  <Icon size={size}>
+    <path d="M4 20h16M7 16v-5m5 5V7m5 9v-8" />
   </Icon>
 )
 
@@ -215,6 +228,9 @@ export function AdminLayout({ title, crumbs, children, revealCount = 0 }: AdminL
   const timers = useRef(new Set<number>())
   const actor = useAdminActor()
 
+  // The sample data writes the audit log; tell it who is signed in.
+  useEffect(() => actAs(actor.name), [actor.name])
+
   // Live regions stay mounted; clearing first makes a repeated message speak again.
   const announce = useCallback<Announce>((text, urgency = 'polite') => {
     const set = urgency === 'assertive' ? setAssertive : setPolite
@@ -266,6 +282,10 @@ export function AdminLayout({ title, crumbs, children, revealCount = 0 }: AdminL
             <HomeIcon />
             <span>{t.navOverview}</span>
           </NavLink>
+          <NavLink to="/admin/analytics" className="ad-nav-item">
+            <ChartIcon />
+            <span>{t.navAnalytics}</span>
+          </NavLink>
           <span className="ad-nav-label">{t.navManage}</span>
           <NavLink to="/admin/events" className="ad-nav-item">
             <CalendarIcon />
@@ -282,6 +302,10 @@ export function AdminLayout({ title, crumbs, children, revealCount = 0 }: AdminL
           <NavLink to="/admin/users" className="ad-nav-item">
             <UsersIcon />
             <span>{t.navUsers}</span>
+          </NavLink>
+          <NavLink to="/admin/activity" className="ad-nav-item">
+            <LogIcon />
+            <span>{t.navActivity}</span>
           </NavLink>
           <div className="ad-side-spacer" />
           <Account />

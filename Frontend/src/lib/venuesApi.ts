@@ -9,6 +9,7 @@
 
 import { adminEventsApi } from './adminEventsApi.ts'
 import { AdminApiError } from './adminErrors.ts'
+import { record } from './auditLog.ts'
 
 export type VenueKind = 'seated' | 'standing'
 
@@ -436,7 +437,9 @@ export const venuesApi = {
   },
   async create(form: VenueForm): Promise<Venue> {
     await delay(400)
-    return save(sampleId(`${form.name}:${Date.now()}`), form)
+    const venue = save(sampleId(`${form.name}:${Date.now()}`), form)
+    record('created', { type: 'venue', id: venue.id, label: venue.name })
+    return venue
   },
   /** A venue that events use can grow, but its type stays and no section, row, seat or zone goes. */
   async update(id: string, form: VenueForm): Promise<Venue> {
@@ -445,7 +448,9 @@ export const venuesApi = {
     if ((await adminEventsApi.countAtVenue(id)) > 0 && !keepsEveryPlace(LAYOUTS[id], layoutFromForm(id, form, LAYOUTS[id]))) {
       throw new AdminApiError('venue-layout-locked')
     }
-    return save(id, form)
+    const venue = save(id, form)
+    record('updated', { type: 'venue', id, label: venue.name })
+    return venue
   },
   /** Venues that events use can't be deleted. */
   async remove(id: string): Promise<Venue> {
@@ -456,6 +461,7 @@ export const venuesApi = {
     const venue = VENUES[index]
     TRASH.set(id, { venue, layout: LAYOUTS[id], index })
     VENUES = VENUES.filter((v) => v.id !== id)
+    record('deleted', { type: 'venue', id, label: venue.name })
     return venue
   },
   async restore(id: string): Promise<Venue> {
@@ -465,6 +471,7 @@ export const venuesApi = {
     TRASH.delete(id)
     LAYOUTS[id] = item.layout
     VENUES = [...VENUES.slice(0, item.index), item.venue, ...VENUES.slice(item.index)]
+    record('restored', { type: 'venue', id, label: item.venue.name })
     return item.venue
   },
   async get(id: string): Promise<VenueDetail> {

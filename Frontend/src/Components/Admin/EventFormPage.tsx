@@ -1,15 +1,15 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { adminEventsApi, EVENT_CATEGORIES, EventNotFoundError, type EventForm, type EventStatus } from '../../lib/adminEventsApi'
+import { adminEventsApi, EVENT_CATEGORIES, EventNotFoundError, MAX_EVENT_IMAGES, POLICY_KEYS, policyForm, type EventForm, type EventStatus, type PolicyKey } from '../../lib/adminEventsApi'
 import { minutesAfter, now } from '../../lib/adminTime'
 import { venuesApi, type Venue } from '../../lib/venuesApi'
 import { categoryNames } from '../Homepage/strings'
-import { ConfirmDialog } from './AdminFeedback'
+import { ConfirmDialog, PlusIcon, TrashIcon } from './AdminFeedback'
 import { AdminHero, AdminLayout, BackArrowIcon, CalendarIcon, Icon, LockIcon, MessagePanel, ResourceStatus } from './AdminLayout'
 import { useAdminStrings } from './adminStrings'
 import { parseWhole } from './adminText'
 import { useErrorText } from './errorStrings'
-import { displayStatus, EVENT_TONE, eventFormProblems, PROBLEM_FIELD, type EventProblem } from './eventRules'
+import { displayStatus, EVENT_TONE, eventFormProblems, incompleteFaqs, PROBLEM_FIELD, type EventProblem } from './eventRules'
 import { Badge } from './EventsParts'
 import { useEventsStrings, type EventToast } from './eventsStrings'
 import { fillIn, useOrdersFormat } from './ordersStrings'
@@ -28,6 +28,30 @@ const EMPTY: EventForm = {
   durationMinutes: 120,
   salesOpenAt: '',
   salesCloseAt: '',
+  images: [],
+  policies: policyForm({}),
+  faqs: [],
+}
+
+const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024
+
+/** A picked photo as a data URL; the API version uploads it and stores the returned URL instead. */
+function readPhoto(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(file)
+  })
+}
+
+const POLICY_LABEL: Record<PolicyKey, 'polAgeRestrictions' | 'polEntryConditions' | 'polProhibitedItems' | 'polRefundPolicy' | 'polAccessibility'> = {
+  ageRestrictions: 'polAgeRestrictions',
+  entryConditions: 'polEntryConditions',
+  prohibitedItems: 'polProhibitedItems',
+  refundPolicy: 'polRefundPolicy',
+  accessibility: 'polAccessibility',
 }
 
 type Loaded = { form: EventForm; status: EventStatus; isPast: boolean; name: string; venues: Venue[] }
@@ -112,6 +136,16 @@ function EventEditor({ mode, eventId, form: initial, status, isPast, name: origi
   const [tried, setTried] = useState(0)
   const [saving, setSaving] = useState(false)
   const [failure, setFailure] = useState<string | null>(null)
+  const [photoError, setPhotoError] = useState<string | null>(null)
+  const photoInput = useRef<HTMLInputElement>(null)
+
+  // Where focus goes after the next render: a new question, the control after a removal.
+  const focusAfter = useRef<string | null>(null)
+  useEffect(() => {
+    if (!focusAfter.current) return
+    document.getElementById(focusAfter.current)?.focus()
+    focusAfter.current = null
+  })
 
   const problems = eventFormProblems(form, { isNew: mode === 'add', now: now() })
   const dirty = !saving && JSON.stringify(form) !== JSON.stringify(initial)
@@ -125,7 +159,11 @@ function EventEditor({ mode, eventId, form: initial, status, isPast, name: origi
   useEffect(() => {
     if (!tried) return
     const first = problems[0]
-    if (first) document.getElementById(`event-${PROBLEM_FIELD[first]}`)?.focus()
+    if (first === 'faqs') {
+      const row = incompleteFaqs(form.faqs)[0]
+      const q = form.faqs[row]
+      document.getElementById(`event-faq-${row}-${q.question.trim() ? 'a' : 'q'}`)?.focus()
+    } else if (first) document.getElementById(`event-${PROBLEM_FIELD[first]}`)?.focus()
     // Only when the admin presses Save.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tried])
@@ -141,12 +179,59 @@ function EventEditor({ mode, eventId, form: initial, status, isPast, name: origi
       doorsOpenAt: t.errDoors,
       durationMinutes: t.errDuration,
       salesCloseAt: t.errSales,
+      faqs: t.errFaqs,
     }
     return text[p]
   }
 
   const patch = (changes: Partial<EventForm>) => setForm((current) => ({ ...current, ...changes }))
   const touch = (key: keyof EventForm) => setTouched((s) => (s.has(key) ? s : new Set(s).add(key)))
+
+  async function addPhotos(files: FileList | null) {
+    const picked = [...(files ?? [])]
+    if (photoInput.current) photoInput.current.value = ''
+    if (!picked.length) return
+    const room = MAX_EVENT_IMAGES - form.images.length
+    const usable = picked.filter((file) => PHOTO_TYPES.includes(file.type) && file.size <= MAX_PHOTO_BYTES)
+    const problem =
+      usable.length < picked.length
+        ? picked.some((file) => !PHOTO_TYPES.includes(file.type))
+          ? t.photoType
+          : t.photoSize
+        : usable.length > room
+          ? fillIn(t.photoLimit, { max: f.num(MAX_EVENT_IMAGES) })
+          : null
+    setPhotoError(problem)
+    try {
+      const urls = await Promise.all(usable.slice(0, Math.max(0, room)).map(readPhoto))
+      setForm((current) => ({ ...current, images: [...current.images, ...urls].slice(0, MAX_EVENT_IMAGES) }))
+    } catch {
+      setPhotoError(t.photoType)
+    }
+  }
+
+  function removePhoto(index: number) {
+    const next = form.images.length > 1 ? `event-photo-${Math.min(index, form.images.length - 2)}-remove` : 'event-add-photos'
+    focusAfter.current = next
+    patch({ images: form.images.filter((_, i) => i !== index) })
+  }
+
+  function makeCover(index: number) {
+    focusAfter.current = 'event-photo-0-remove'
+    patch({ images: [form.images[index], ...form.images.filter((_, i) => i !== index)] })
+  }
+
+  function addFaq() {
+    focusAfter.current = `event-faq-${form.faqs.length}-q`
+    patch({ faqs: [...form.faqs, { question: '', answer: '' }] })
+  }
+
+  function removeFaq(index: number) {
+    focusAfter.current = form.faqs.length > 1 ? `event-faq-${Math.min(index, form.faqs.length - 2)}-q` : 'event-add-faq'
+    patch({ faqs: form.faqs.filter((_, i) => i !== index) })
+  }
+
+  const badFaqs = new Set(tried > 0 ? incompleteFaqs(form.faqs) : [])
 
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -347,6 +432,179 @@ function EventEditor({ mode, eventId, form: initial, status, isPast, name: origi
               {field('salesOpenAt', t.fSalesOpen, when('salesOpenAt'))}
               {field('salesCloseAt', t.fSalesClose, when('salesCloseAt'))}
               <p className="ev-hint ad-field--wide">{t.salesHint}</p>
+            </div>
+          </section>
+
+          <section className="ad-card" aria-labelledby="step-photos">
+            <div className="ad-card-head ad-card-head--tight">
+              <div className="ad-card-title">
+                <span className="ad-step" aria-hidden="true">
+                  {f.num(4)}
+                </span>
+                <h2 id="step-photos" className="ad-card-h">
+                  {t.stepPhotos}
+                </h2>
+              </div>
+            </div>
+            <div className="ev-block">
+              <p id="event-photos-hint" className="ev-hint">
+                {fillIn(t.photosHint, { max: f.num(MAX_EVENT_IMAGES) })}
+              </p>
+              {form.images.length > 0 ? (
+                <ul className="ev-photos" aria-labelledby="step-photos">
+                  {form.images.map((src, i) => (
+                    <li key={`${i}:${src.slice(-24)}`} className="ev-photo">
+                      <img src={src} alt={fillIn(t.photoAlt, { n: f.num(i + 1), name: form.name || t.newEvent })} />
+                      {i === 0 && <span className="ev-photo-cover">{t.cover}</span>}
+                      <span className="ev-photo-actions">
+                        {i > 0 && (
+                          <button
+                            type="button"
+                            id={`event-photo-${i}-cover`}
+                            className="ad-icon-action"
+                            aria-label={fillIn(t.makeCover, { n: f.num(i + 1) })}
+                            title={fillIn(t.makeCover, { n: f.num(i + 1) })}
+                            onClick={() => makeCover(i)}
+                          >
+                            <Icon size={16}>
+                              <path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" />
+                            </Icon>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          id={`event-photo-${i}-remove`}
+                          className="ad-icon-action"
+                          aria-label={fillIn(t.removePhoto, { n: f.num(i + 1) })}
+                          title={fillIn(t.removePhoto, { n: f.num(i + 1) })}
+                          onClick={() => removePhoto(i)}
+                        >
+                          <TrashIcon size={16} />
+                        </button>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="od-empty-note">{t.noPhotos}</p>
+              )}
+              <input
+                ref={photoInput}
+                type="file"
+                accept={PHOTO_TYPES.join(',')}
+                multiple
+                hidden
+                onChange={(e) => void addPhotos(e.target.files)}
+              />
+              <button
+                type="button"
+                id="event-add-photos"
+                className="ad-tint-btn"
+                aria-describedby={['event-photos-hint', photoError && 'event-photos-error'].filter(Boolean).join(' ')}
+                aria-disabled={form.images.length >= MAX_EVENT_IMAGES || undefined}
+                onClick={() => (form.images.length >= MAX_EVENT_IMAGES ? setPhotoError(fillIn(t.photoLimit, { max: f.num(MAX_EVENT_IMAGES) })) : photoInput.current?.click())}
+              >
+                <PlusIcon />
+                {t.addPhotos}
+              </button>
+              {photoError && (
+                <p id="event-photos-error" className="ad-field-error" role="alert">
+                  {photoError}
+                </p>
+              )}
+            </div>
+          </section>
+
+          <section className="ad-card" aria-labelledby="step-policies">
+            <div className="ad-card-head ad-card-head--tight">
+              <div className="ad-card-title">
+                <span className="ad-step" aria-hidden="true">
+                  {f.num(5)}
+                </span>
+                <h2 id="step-policies" className="ad-card-h">
+                  {t.stepPolicies}
+                </h2>
+              </div>
+            </div>
+            <div className="ad-fields">
+              <p className="ev-hint ad-field--wide">{t.policiesHint}</p>
+              {POLICY_KEYS.map((key) => (
+                <div key={key} className="ad-field ad-field--wide">
+                  <label htmlFor={`event-policy-${key}`}>{t[POLICY_LABEL[key]]}</label>
+                  <textarea
+                    id={`event-policy-${key}`}
+                    rows={2}
+                    value={form.policies[key]}
+                    onChange={(e) => patch({ policies: { ...form.policies, [key]: e.target.value } })}
+                  />
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="ad-card" aria-labelledby="step-faqs">
+            <div className="ad-card-head ad-card-head--tight">
+              <div className="ad-card-title">
+                <span className="ad-step" aria-hidden="true">
+                  {f.num(6)}
+                </span>
+                <h2 id="step-faqs" className="ad-card-h">
+                  {t.stepFaqs}
+                </h2>
+              </div>
+            </div>
+            <div className="ev-block">
+              <p className="ev-hint">{t.faqsHint}</p>
+              {form.faqs.length === 0 && <p className="od-empty-note">{t.noFaqs}</p>}
+              {form.faqs.map((q, i) => {
+                const bad = badFaqs.has(i)
+                const error = bad ? `event-faq-${i}-error` : undefined
+                return (
+                  <fieldset key={i} className="ev-faq-row">
+                    <legend className="ad-sr-only">{fillIn(t.faqQuestion, { n: f.num(i + 1) })}</legend>
+                    <div className="ad-field">
+                      <label htmlFor={`event-faq-${i}-q`}>{fillIn(t.faqQuestion, { n: f.num(i + 1) })}</label>
+                      <input
+                        id={`event-faq-${i}-q`}
+                        type="text"
+                        value={q.question}
+                        aria-invalid={(bad && !q.question.trim()) || undefined}
+                        aria-describedby={error}
+                        onChange={(e) => patch({ faqs: form.faqs.map((x, k) => (k === i ? { ...x, question: e.target.value } : x)) })}
+                      />
+                    </div>
+                    <div className="ad-field">
+                      <label htmlFor={`event-faq-${i}-a`}>{fillIn(t.faqAnswer, { n: f.num(i + 1) })}</label>
+                      <textarea
+                        id={`event-faq-${i}-a`}
+                        rows={2}
+                        value={q.answer}
+                        aria-invalid={(bad && !q.answer.trim()) || undefined}
+                        aria-describedby={error}
+                        onChange={(e) => patch({ faqs: form.faqs.map((x, k) => (k === i ? { ...x, answer: e.target.value } : x)) })}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      className="ad-icon-action ev-faq-remove"
+                      aria-label={fillIn(t.removeFaq, { n: f.num(i + 1) })}
+                      title={fillIn(t.removeFaq, { n: f.num(i + 1) })}
+                      onClick={() => removeFaq(i)}
+                    >
+                      <TrashIcon size={16} />
+                    </button>
+                    {bad && (
+                      <p id={error} className="ad-field-error ev-faq-error">
+                        {t.errFaqs}
+                      </p>
+                    )}
+                  </fieldset>
+                )
+              })}
+              <button type="button" id="event-add-faq" className="ad-tint-btn" onClick={addFaq}>
+                <PlusIcon />
+                {t.addFaq}
+              </button>
             </div>
           </section>
         </div>

@@ -47,6 +47,9 @@ const EventDetailPage = lazy(() => import('./Components/Admin/EventDetailPage'))
 const EventAddPage = lazy(() => import('./Components/Admin/EventFormPage').then((m) => ({ default: m.EventAddPage })));
 const EventEditPage = lazy(() => import('./Components/Admin/EventFormPage').then((m) => ({ default: m.EventEditPage })));
 const EventTicketsPage = lazy(() => import('./Components/Admin/EventTicketsPage'));
+const EventGuestsPage = lazy(() => import('./Components/Admin/EventGuestsPage'));
+const AnalyticsPage = lazy(() => import('./Components/Admin/AnalyticsPage'));
+const ActivityLogPage = lazy(() => import('./Components/Admin/ActivityLogPage'));
 const UserListPage = lazy(() => import('./Components/Admin/UserListPage'));
 const UserDetailPage = lazy(() => import('./Components/Admin/UserDetailPage'));
 
@@ -94,11 +97,14 @@ function App() {
           {/* Admin console: admins only, loaded on demand */}
           <Route path="/admin" element={<RequireAdmin />}>
             <Route index element={<AdminHomePage />} />
+            <Route path="analytics" element={<AnalyticsPage />} />
+            <Route path="activity" element={<ActivityLogPage />} />
             <Route path="events" element={<EventListPage />} />
             <Route path="events/new" element={<EventAddPage />} />
             <Route path="events/:eventId" element={<EventDetailPage />} />
             <Route path="events/:eventId/edit" element={<EventEditPage />} />
             <Route path="events/:eventId/tickets" element={<EventTicketsPage />} />
+            <Route path="events/:eventId/guests" element={<EventGuestsPage />} />
             <Route path="venues" element={<VenueListPage />} />
             <Route path="venues/new" element={<VenueAddPage />} />
             <Route path="venues/:venueId" element={<VenueDetailPage />} />

@@ -93,7 +93,7 @@ function TicketDetailView({ code }: { code: string }) {
     setBusy(true)
     try {
       await ticketsApi.resend(ticket.code)
-      say('success', fillIn(t.sentTicket, { email: isolate(order.customer.email) }))
+      say('success', fillIn(t.sentTicket, { email: isolate(ticket.holderEmail) }))
     } catch (error) {
       say('error', errorText(error, t.failed))
     } finally {
@@ -173,8 +173,11 @@ function TicketDetailView({ code }: { code: string }) {
             </h2>
             <InfoList
               rows={[
-                { label: t.holder, value: <Link to={`/admin/users/${order.customer.userId}`}>{ticket.holder}</Link> },
-                { label: t.email, value: order.customer.email, ltr: true },
+                { label: t.holder, value: ticket.holderUserId ? <Link to={`/admin/users/${ticket.holderUserId}`}>{ticket.holder}</Link> : ticket.holder },
+                { label: t.email, value: ticket.holderEmail, ltr: true },
+                ...(ticket.transfers.length
+                  ? [{ label: t.boughtBy, value: <Link to={`/admin/users/${order.customer.userId}`}>{order.customer.name}</Link> }]
+                  : []),
                 { label: t.purchased, value: f.date(order.placedAt) },
                 {
                   label: t.orderRef,
@@ -188,6 +191,23 @@ function TicketDetailView({ code }: { code: string }) {
               ]}
             />
           </section>
+          {ticket.transfers.length > 0 && (
+            <section className="ad-card" aria-labelledby="transfers-title">
+              <h2 id="transfers-title" className="ad-card-h ad-card-h--bar">
+                {t.transfersTitle}
+              </h2>
+              <ol className="od-transfers">
+                {ticket.transfers.map((x) => (
+                  <li key={x.at}>
+                    <strong>{fillIn(t.transferLine, { from: x.from.name, to: x.to.name })}</strong>
+                    <span className="ad-muted">
+                      <span dir="ltr">{x.to.email}</span> · {f.date(x.at)}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
           <section className="ad-card" aria-labelledby="checkin-title">
             <div className="ad-card-head ad-card-head--tight">
               <h2 id="checkin-title" className="ad-card-h">

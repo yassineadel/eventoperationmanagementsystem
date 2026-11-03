@@ -23,6 +23,8 @@ export type AdminErrorCode =
   | 'event-locked'
   | 'start-past'
   | 'venue-layout-locked'
+  | 'venue-seats-exceeded'
+  | 'venue-over-capacity'
 
 export class AdminApiError extends Error {
   code: AdminErrorCode

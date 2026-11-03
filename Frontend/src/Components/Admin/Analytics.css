@@ -1,0 +1,381 @@
+/* Analytics page. Builds on Admin.css, Orders.css and Events.css. One series per chart, in the accent. */
+
+.ad-root {
+  --an-bar: #7200f5;
+  --an-bar-hover: #5c00c9;
+  --an-grid: #efe9e1;
+  --an-track: #ece6dc;
+}
+
+.ad-root[data-theme='dark'] {
+  --an-bar: #ad76ff;
+  --an-bar-hover: #c9a4ff;
+  --an-grid: #252a5c;
+  --an-track: #252a5c;
+}
+
+.an-period {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px 24px;
+  padding: 16px 22px;
+  overflow: visible;
+}
+
+.an-dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.an-dates label,
+.an-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ad-muted);
+}
+
+.an-dates input {
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--ad-input-line);
+  border-radius: 8px;
+  background: var(--ad-surface);
+  color: var(--ad-ink);
+  font: inherit;
+  font-weight: 600;
+}
+
+.an-range-error {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.an-select .ad-select {
+  min-width: 200px;
+}
+
+.an-lead {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--ad-muted);
+}
+
+.an-two {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.an-two--flat {
+  gap: 0;
+}
+
+.an-split {
+  margin: 0;
+}
+
+.an-split .an-split-strong dt,
+.an-split .an-split-strong dd {
+  font-weight: 800;
+  color: var(--ad-ink);
+}
+
+.an-split .an-split-sub dt {
+  padding-inline-start: 14px;
+}
+
+/* ------------------------------------------------------------ the chart */
+
+.an-chart-wrap {
+  padding: 4px 22px 18px;
+}
+
+.an-chart {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: 220px auto;
+  column-gap: 10px;
+}
+
+.an-yaxis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-end;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ad-muted);
+  transform: translateY(-0.5em);
+  height: calc(100% + 1em);
+}
+
+.an-plot {
+  position: relative;
+}
+
+.an-grid {
+  position: absolute;
+  inset-inline: 0;
+  height: 1px;
+  background: var(--an-grid);
+}
+
+.an-cols {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-items: end;
+}
+
+.an-col {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 100%;
+  padding-inline: 1px;
+}
+
+.an-bar {
+  display: block;
+  width: 100%;
+  max-width: 24px;
+  min-height: 2px;
+  border-radius: 4px 4px 0 0;
+  background: var(--an-bar);
+}
+
+.an-col.is-hover .an-bar {
+  background: var(--an-bar-hover);
+}
+
+.an-xaxis {
+  grid-column: 2;
+  display: grid;
+  padding-top: 8px;
+  font-size: 11px;
+  color: var(--ad-muted);
+  white-space: nowrap;
+}
+
+.an-xaxis span {
+  overflow: visible;
+}
+
+.an-tip {
+  position: absolute;
+  bottom: calc(100% - 8px);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 160px;
+  padding: 8px 10px;
+  border: 1px solid var(--ad-line);
+  border-radius: 8px;
+  background: var(--ad-surface);
+  box-shadow: 0 6px 20px rgba(10, 11, 35, 0.12);
+  font-size: 12px;
+  color: var(--ad-ink);
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+[dir='rtl'] .an-tip {
+  transform: translateX(50%);
+}
+
+.an-table {
+  margin-top: 14px;
+}
+
+.an-table summary {
+  width: fit-content;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ad-link);
+  cursor: pointer;
+}
+
+.an-table .ad-table {
+  min-width: 0;
+  margin-top: 10px;
+}
+
+/* -------------------------------------------------------------- tables */
+
+.an-events-table {
+  min-width: 980px;
+}
+
+.an-events-table tfoot th,
+.an-events-table tfoot td {
+  border-top: 1px solid var(--ad-line);
+  border-bottom: 0;
+}
+
+/* ---------------------------------------------------------- categories */
+
+.an-cats {
+  padding: 0 22px 20px;
+}
+
+.an-cats h3 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ad-muted);
+}
+
+.an-cats ol {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.an-cats li {
+  display: grid;
+  grid-template-columns: minmax(110px, 1fr) minmax(0, 1.4fr) auto;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.an-cat-name {
+  display: flex;
+  flex-direction: column;
+  font-weight: 700;
+}
+
+.an-cat-name .ad-muted {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.an-cat-track {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--an-track);
+}
+
+.an-cat-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--an-bar);
+}
+
+.an-cat-value {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------- attendance */
+
+.an-gate {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0 22px 20px;
+  list-style: none;
+}
+
+.an-gate li {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(0, 1.4fr) auto;
+  align-items: center;
+  gap: 14px;
+  font-size: 14px;
+}
+
+.an-gate-name,
+.an-gate-figure {
+  display: flex;
+  flex-direction: column;
+}
+
+.an-gate-name .ad-muted,
+.an-gate-figure .ad-muted {
+  font-size: 12px;
+}
+
+.an-gate-figure {
+  align-items: flex-end;
+}
+
+@media (max-width: 900px) {
+  .an-two {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .an-period {
+    padding: 14px 16px;
+  }
+
+  .an-select {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .an-chart-wrap {
+    padding-inline: 16px;
+  }
+
+  .an-chart {
+    grid-template-rows: 180px auto;
+  }
+
+  .an-cats li,
+  .an-gate li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .an-cat-track,
+  .an-gate-bar {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+
+/* Money lists: label on the start side, amount on the end side. */
+.an-split.od-totals {
+  align-items: stretch;
+}
+
+.an-split.od-totals > div {
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.an-split.od-totals dd {
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.an-events-table td.ad-num {
+  white-space: nowrap;
+}
+
+.an-select .ad-select {
+  display: inline-block;
+}
+
+.an-select .ad-select select {
+  width: 100%;
+}
+
+/* Room above the plot for the top axis number. */
+.an-chart-wrap {
+  padding-top: 16px;
+}

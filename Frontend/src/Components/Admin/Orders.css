@@ -602,3 +602,23 @@
     justify-content: center;
   }
 }
+
+/* Ticket transfers, newest last, on the ticket page. */
+.od-transfers {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 4px 22px 20px;
+  list-style: none;
+}
+
+.od-transfers li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 14px;
+}
+
+.od-transfers .ad-muted {
+  font-size: 12px;
+}

@@ -89,6 +89,8 @@ type ReasonProps = {
   label: string
   errorText: string
   warning?: string
+  /** Extra information under the warning, such as who gets an email. */
+  note?: string
   icon: ReactNode
   confirmLabel: string
   busyLabel: string
@@ -101,7 +103,7 @@ type ReasonProps = {
 }
 
 /** Destructive action that needs a written reason: cancelling an event, blocking a user, rejecting a refund. */
-export function ReasonDialog({ title, lead, label, errorText, warning, icon, confirmLabel, busyLabel, cancelLabel, busy, returnFocus, onCancel, onConfirm }: ReasonProps) {
+export function ReasonDialog({ title, lead, label, errorText, warning, note, icon, confirmLabel, busyLabel, cancelLabel, busy, returnFocus, onCancel, onConfirm }: ReasonProps) {
   const id = useId()
   const fieldRef = useRef<HTMLTextAreaElement>(null)
   const [reason, setReason] = useState('')
@@ -166,6 +168,7 @@ export function ReasonDialog({ title, lead, label, errorText, warning, icon, con
             <span>{warning}</span>
           </p>
         )}
+        {note && <p className="ev-hint ev-dialog-note">{note}</p>}
       </div>
       <div className="ad-dialog-actions">
         <button type="button" className="ad-secondary" onClick={() => !busy && onCancel()} aria-disabled={busy || undefined}>

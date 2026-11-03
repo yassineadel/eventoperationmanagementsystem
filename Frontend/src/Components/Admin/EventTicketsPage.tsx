@@ -1,13 +1,14 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { adminEventsApi, EventNotFoundError, type CategoryForm, type EventDetail } from '../../lib/adminEventsApi'
+import { adminEventsApi, EventNotFoundError, venueLimits, type CategoryForm, type EventDetail, type VenueLimits } from '../../lib/adminEventsApi'
+import { venuesApi } from '../../lib/venuesApi'
 import { ConfirmDialog, ModalDialog, PlusIcon, TrashIcon } from './AdminFeedback'
 import { AdminHero, AdminLayout, BackArrowIcon, CalendarIcon, Icon, LockIcon, ResourceStatus } from './AdminLayout'
 import { useAdminStrings } from './adminStrings'
 import { parseWhole, plural } from './adminText'
 import { useErrorText } from './errorStrings'
 import { useAnnounce } from './adminAnnounce'
-import { canMoveWave, displayStatus, hasTicketProblems, shownWaveStates, ticketProblems, WAVE_TONE, waveChanges, waveLabel, type WaveChange } from './eventRules'
+import { canMoveWave, displayStatus, hasTicketProblems, overCapacity, shownWaveStates, ticketProblems, WAVE_TONE, waveChanges, waveLabel, type WaveChange } from './eventRules'
 import { ArrowDownIcon, ArrowUpIcon, Badge } from './EventsParts'
 import { useEventsStrings, type EventsStrings, type EventToast } from './eventsStrings'
 import { AlertIcon } from './OrdersParts'
@@ -35,12 +36,19 @@ const toCode = (text: string) =>
 const toForms = (rows: CategoryRow[]): CategoryForm[] =>
   rows.map(({ key, name, waves }) => ({ key, name, waves: waves.map(({ id, name: n, price, capacity, sold }) => ({ id, name: n, price, capacity, sold })) }))
 
+/** The event and what its venue allows; a venue that can't be read leaves the categories unchecked here (saving still checks). */
+async function load(id: string) {
+  const detail = await adminEventsApi.get(id)
+  const venue = await venuesApi.get(detail.event.venueId).catch(() => null)
+  return { detail, limits: venue ? venueLimits(venue.venue, venue.layout.categories) : null }
+}
+
 export default function EventTicketsPage() {
   const { eventId = '' } = useParams()
   const t = useEventsStrings()
-  const { state, retry } = useAdminResource(eventId, () => adminEventsApi.get(eventId), (e) => e instanceof EventNotFoundError)
+  const { state, retry } = useAdminResource(eventId, () => load(eventId), (e) => e instanceof EventNotFoundError)
 
-  if (state.status === 'ready') return <TicketsEditor key={eventId} detail={state.data} />
+  if (state.status === 'ready') return <TicketsEditor key={eventId} detail={state.data.detail} limits={state.data.limits} />
 
   return (
     <AdminLayout title={t.ticketsTitle} crumbs={[{ label: t.listTitle, to: '/admin/events' }, { label: t.ticketsTitle }]}>
@@ -66,7 +74,7 @@ export default function EventTicketsPage() {
 
 /* ----------------------------------------------------------------- editor */
 
-function TicketsEditor({ detail }: { detail: EventDetail }) {
+function TicketsEditor({ detail, limits }: { detail: EventDetail; limits: VenueLimits | null }) {
   const { event, categories: initial } = detail
   const t = useEventsStrings()
   const a = useAdminStrings()
@@ -89,8 +97,13 @@ function TicketsEditor({ detail }: { detail: EventDetail }) {
 
   const readOnly = event.status === 'cancelled' || event.isPast
   const forms = toForms(rows)
-  const problems = ticketProblems(forms)
-  const invalid = hasTicketProblems(problems)
+  const problems = ticketProblems(forms, limits ?? undefined)
+  const over = overCapacity(forms, limits ?? undefined)
+  const invalid = hasTicketProblems(problems) || over > 0
+  const seated = limits?.kind === 'seated'
+  const unusedVenueCats = seated && limits ? Object.entries(limits.places).filter(([key]) => !rows.some((c) => c.key === key)) : []
+  const [pick, setPick] = useState('')
+  const capacityOf = (c: { waves: { capacity: number }[] }) => c.waves.reduce((n, w) => n + w.capacity, 0)
   const dirty = !saving && JSON.stringify(forms) !== JSON.stringify(toForms(initialRows(initial)))
   const guard = useUnsavedChanges(dirty && !readOnly)
   const soldKeys = new Set(initial.filter((c) => c.sold > 0).map((c) => c.key))
@@ -145,6 +158,16 @@ function TicketsEditor({ detail }: { detail: EventDetail }) {
     focusAfter.current = [`${row.rowId}-name`]
   }
 
+  /** Seated venues: one of the venue's own categories, with a first wave for all its seats. */
+  function addVenueCategory(key: string) {
+    const seats = limits?.places[key]
+    if (!seats) return
+    const row: CategoryRow = { rowId: rowId(), key, name: seats.name, waves: [{ rowId: rowId(), name: fillIn(t.newWave, { n: f.num(1) }), price: 0, capacity: seats.places, sold: 0 }] }
+    setRows((list) => [...list, row])
+    setPick('')
+    focusAfter.current = [`${row.waves[0].rowId}-name`]
+  }
+
   function removeCategory(ci: number) {
     const neighbour = rows[ci - 1] ?? rows[ci + 1]
     setRows((list) => list.filter((_, j) => j !== ci))
@@ -152,11 +175,13 @@ function TicketsEditor({ detail }: { detail: EventDetail }) {
   }
 
   function firstProblemId() {
+    if (!problems.some(hasOwnProblem) && over > 0) return rows[0]?.waves[0] ? `${rows[0].waves[0].rowId}-qty` : null
     for (let ci = 0; ci < problems.length; ci++) {
       const p = problems[ci]
       const row = rows[ci]
       if (p.name) return `${row.rowId}-name`
       if (p.code) return `${row.rowId}-code`
+      if (p.seats) return row.waves[0] ? `${row.waves[0].rowId}-qty` : `${row.rowId}-add`
       const wi = Number(Object.keys(p.waves)[0])
       if (!Number.isNaN(wi)) return `${row.waves[wi].rowId}-${p.waves[wi] === 'name' ? 'name' : 'qty'}`
       if (p.noWave) return `${row.rowId}-add`
@@ -216,6 +241,12 @@ function TicketsEditor({ detail }: { detail: EventDetail }) {
           {t.readOnlyTickets}
         </p>
       )}
+      {!readOnly && limits && (
+        <p className="ev-note" role="note">
+          <LockIcon />
+          {seated ? t.seatedHint : fillIn(t.standingHint, { capacity: f.num(limits.capacity) })}
+        </p>
+      )}
 
       <form className="ad-form-grid" onSubmit={submit} noValidate>
         <fieldset className="ad-form-main ev-fieldset" disabled={readOnly}>
@@ -235,6 +266,8 @@ function TicketsEditor({ detail }: { detail: EventDetail }) {
             const hasSales = soldKeys.has(c.key)
             const label = c.name || `${t.categoryWord} ${f.num(ci + 1)}`
             const lockedHint = `${c.rowId}-locked`
+            const seats = seated ? limits?.places[c.key] : undefined
+            const seatsError = showProblems && p.seats ? (seats ? fillIn(t.errSeats, { places: f.num(seats.places), used: f.num(capacityOf(c)) }) : t.errNotInVenue) : null
             return (
               <section className="ad-card" key={c.rowId} aria-labelledby={`${c.rowId}-title`}>
                 <div className="ad-card-head ad-card-head--tight">
@@ -272,7 +305,8 @@ function TicketsEditor({ detail }: { detail: EventDetail }) {
                     label={t.catCode}
                     value={c.key}
                     mono
-                    readOnly={hasSales}
+                    readOnly={hasSales || seated}
+                    hint={seated ? t.codeFromVenue : undefined}
                     error={showProblems && p.code ? t.errCatCode : null}
                     onChange={(v) => setCategory(ci, { key: v.toUpperCase().replace(/[^A-Z0-9_]/g, '') })}
                   />
@@ -410,20 +444,53 @@ function TicketsEditor({ detail }: { detail: EventDetail }) {
                   </div>
                 </div>
 
+                {seatsError && (
+                  <p id={`${c.rowId}-seats`} className="ad-field-error ev-seats-error" role="alert">
+                    {seatsError}
+                  </p>
+                )}
                 <div className="ad-card-foot">
                   {fillIn(t.catTotal, {
-                    tickets: plural(f.lang, c.waves.reduce((n, w) => n + w.capacity, 0), t.ticketsCount, f.num(c.waves.reduce((n, w) => n + w.capacity, 0))),
+                    tickets: plural(f.lang, capacityOf(c), t.ticketsCount, f.num(capacityOf(c))),
                     waves: plural(f.lang, c.waves.length, t.wavesCount, f.num(c.waves.length)),
                   })}
+                  {seats && <span className="ev-seats-used">{fillIn(t.seatsUsed, { used: f.num(capacityOf(c)), places: f.num(seats.places) })}</span>}
                 </div>
               </section>
             )
           })}
 
-          <button id="add-category" type="button" className="ad-add-row" onClick={addCategory}>
-            <PlusIcon size={16} />
-            {t.addCategory}
-          </button>
+          {seated ? (
+            unusedVenueCats.length > 0 ? (
+              <div className="ev-venue-add">
+                <label htmlFor="add-category">{t.venueCategory}</label>
+                <span className="ad-select">
+                  <select id="add-category" value={pick} onChange={(e) => setPick(e.target.value)}>
+                    <option value="">{t.addFromVenue}</option>
+                    {unusedVenueCats.map(([key, v]) => (
+                      <option key={key} value={key}>
+                        {v.name} · {fillIn(t.seatsUsed, { used: f.num(0), places: f.num(v.places) })}
+                      </option>
+                    ))}
+                  </select>
+                  <Icon size={16}>
+                    <path d="m6 9 6 6 6-6" />
+                  </Icon>
+                </span>
+                <button type="button" className="ad-add-row" aria-disabled={!pick || undefined} onClick={() => pick && addVenueCategory(pick)}>
+                  <PlusIcon size={16} />
+                  {t.addCategory}
+                </button>
+              </div>
+            ) : (
+              <p className="ev-hint">{t.allVenueCatsUsed}</p>
+            )
+          ) : (
+            <button id="add-category" type="button" className="ad-add-row" onClick={addCategory}>
+              <PlusIcon size={16} />
+              {t.addCategory}
+            </button>
+          )}
         </fieldset>
 
         <aside className="ad-form-side">
@@ -440,6 +507,12 @@ function TicketsEditor({ detail }: { detail: EventDetail }) {
                 <dt>{t.sTickets}</dt>
                 <dd>{f.num(allWaves.reduce((n, w) => n + w.capacity, 0))}</dd>
               </div>
+              {limits && (
+                <div>
+                  <dt>{t.sVenueHolds}</dt>
+                  <dd>{f.num(limits.capacity)}</dd>
+                </div>
+              )}
               <div>
                 <dt>{t.sSold}</dt>
                 <dd>{f.num(allWaves.reduce((n, w) => n + w.sold, 0))}</dd>
@@ -453,7 +526,7 @@ function TicketsEditor({ detail }: { detail: EventDetail }) {
               {showProblems && invalid && (
                 // Keyed by the attempt, so every failed save is announced again.
                 <p key={tried} className="ad-error-summary" role="alert">
-                  {t.errSummary}
+                  {over > 0 && limits ? fillIn(t.errOverCapacity, { capacity: f.num(limits.capacity), total: f.num(limits.capacity + over) }) : t.errSummary}
                 </p>
               )}
               {failure && (
@@ -497,10 +570,13 @@ function initialRows(initial: EventDetail['categories']): CategoryRow[] {
   return initial.map((c) => ({ rowId: '', key: c.key, name: c.name, waves: c.waves.map((w) => ({ ...w, rowId: '' })) }))
 }
 
+const hasOwnProblem = (p: ReturnType<typeof ticketProblems>[number]) => p.name || p.code || p.noWave || p.seats || Object.keys(p.waves).length > 0
+
 type FieldProps = {
   id: string
   label: string
   value: string
+  hint?: string
   error: string | null
   mono?: boolean
   readOnly?: boolean
@@ -508,7 +584,7 @@ type FieldProps = {
   onBlur?: () => void
 }
 
-function CategoryField({ id, label, value, error, mono, readOnly, onChange, onBlur }: FieldProps) {
+function CategoryField({ id, label, value, hint, error, mono, readOnly, onChange, onBlur }: FieldProps) {
   return (
     <div className="ad-field">
       <label htmlFor={id}>
@@ -527,10 +603,15 @@ function CategoryField({ id, label, value, error, mono, readOnly, onChange, onBl
         required
         readOnly={readOnly}
         aria-invalid={Boolean(error)}
-        aria-describedby={error ? `${id}-error` : undefined}
+        aria-describedby={[error && `${id}-error`, hint && `${id}-hint`].filter(Boolean).join(' ') || undefined}
         onChange={(e) => onChange(e.target.value)}
         onBlur={onBlur}
       />
+      {hint && (
+        <p id={`${id}-hint`} className="ev-hint">
+          {hint}
+        </p>
+      )}
       {error && (
         <p id={`${id}-error`} className="ad-field-error">
           {error}

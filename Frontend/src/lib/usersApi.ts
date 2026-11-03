@@ -8,8 +8,9 @@
 // the bodies of `usersApi.*` with calls from './api'.
 
 import { AdminApiError } from './adminErrors.ts'
+import { record } from './auditLog.ts'
 import { now } from './adminTime.ts'
-import { ordersApi, ticketsApi, type Localized, type Order } from './ordersApi.ts'
+import { ordersApi, ticketsApi, type Localized, type Order, type Ticket } from './ordersApi.ts'
 
 export type UserRole = 'user' | 'admin'
 
@@ -28,10 +29,23 @@ export type AdminUser = {
   blockedAt?: string
   /** Counted from the sample orders and tickets. */
   orders: number
+  /** Tickets they hold now and can still use: bought or received, not refunded, not given away. */
   tickets: number
 }
 
-export type UserDetail = { user: AdminUser; orders: Order[] }
+/**
+ * `tickets` lists what they hold now (bought or received by transfer) and the tickets they
+ * bought but handed to someone else, so support can see both sides of a transfer.
+ */
+export type UserDetail = {
+  user: AdminUser
+  orders: Order[]
+  tickets: Ticket[]
+  /** Set right after a block: the tickets that were refunded because of it (FR-ADM-21). */
+  refunded?: { tickets: number; amount: number }
+}
+
+const sameEmail = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
 
 /** Who is acting: the signed-in admin. Nobody can block themselves or change their own role. */
 export type Actor = { id: string; email: string; name: string }
@@ -106,8 +120,8 @@ async function withCounts(seeds: Seed[]): Promise<AdminUser[]> {
   const [orders, tickets] = await Promise.all([ordersApi.list(), ticketsApi.list()])
   return seeds.map((u) => {
     const own = orders.filter((o) => o.customer.userId === u.id)
-    // Refunded tickets don't count; the ones that still work or were used do.
-    const held = tickets.filter((t) => t.status !== 'cancelled' && own.some((o) => o.id === t.orderId))
+    // Refunded tickets don't count; the ones that still work or were used do. A transferred ticket counts for whoever has it now.
+    const held = tickets.filter((t) => t.status !== 'cancelled' && sameEmail(t.holderEmail, u.email))
     return { ...u, orders: own.length, tickets: held.length }
   })
 }
@@ -126,8 +140,11 @@ function find(id: string) {
 async function detail(id: string): Promise<UserDetail> {
   const seed = find(id)
   const [user] = await withCounts([seed])
-  const orders = (await ordersApi.list()).filter((o) => o.customer.userId === seed.id)
-  return { user, orders }
+  const [all, everyTicket] = await Promise.all([ordersApi.list(), ticketsApi.list()])
+  const orders = all.filter((o) => o.customer.userId === seed.id)
+  const bought = new Set(orders.map((o) => o.id))
+  const tickets = everyTicket.filter((t) => sameEmail(t.holderEmail, seed.email) || (bought.has(t.orderId) && t.transfers.length > 0))
+  return { user, orders, tickets }
 }
 
 export const usersApi = {
@@ -139,20 +156,26 @@ export const usersApi = {
   },
   async block(id: string, reason: string, actor: Actor): Promise<UserDetail> {
     await delay(400)
-    if (isSelf(find(id), actor)) throw new AdminApiError('self-block')
+    const seed = find(id)
+    if (isSelf(seed, actor)) throw new AdminApiError('self-block')
     const text = reason.trim()
+    // Their tickets for upcoming events are refunded and stop working now, so the gate never meets a blocked user (FR-ADM-20, 21).
+    const refunded = await ordersApi.refundHeldTickets(seed.email, actor.name)
     update(id, { isBlocked: true, blockedReason: { en: text, ar: text }, blockedBy: actor.name, blockedAt: now() })
-    return detail(id)
+    record('blocked', { type: 'user', id, label: seed.fullName }, { detail: text, tickets: refunded.tickets, amount: refunded.amount || undefined, actor: actor.name })
+    return { ...(await detail(id)), refunded }
   },
   async unblock(id: string): Promise<UserDetail> {
     await delay(300)
     update(id, { isBlocked: false, blockedReason: undefined, blockedBy: undefined, blockedAt: undefined })
+    record('unblocked', { type: 'user', id, label: find(id).fullName })
     return detail(id)
   },
   async setRole(id: string, role: UserRole, actor: Actor): Promise<UserDetail> {
     await delay(300)
     if (isSelf(find(id), actor)) throw new AdminApiError('self-role')
     update(id, { role })
+    record('roleChanged', { type: 'user', id, label: find(id).fullName }, { detail: role, actor: actor.name })
     return detail(id)
   },
 }

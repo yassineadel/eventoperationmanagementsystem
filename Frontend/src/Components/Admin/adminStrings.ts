@@ -156,6 +156,8 @@ const en = {
   loadingForm: 'Loading venue…',
 
   navOverview: 'Overview',
+  navAnalytics: 'Analytics',
+  navActivity: 'Activity log',
   skipToContent: 'Skip to content',
   breadcrumb: 'Breadcrumb',
   signOut: 'Sign out',
@@ -381,6 +383,8 @@ const ar: AdminStrings = {
   loadingForm: 'جارٍ تحميل المكان…',
 
   navOverview: 'نظرة عامة',
+  navAnalytics: 'التحليلات',
+  navActivity: 'سجل النشاط',
   skipToContent: 'تخطَّ إلى المحتوى',
   breadcrumb: 'مسار التنقل',
   signOut: 'تسجيل الخروج',

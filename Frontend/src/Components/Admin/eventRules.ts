@@ -1,6 +1,6 @@
 // Status, validation and change rules for the admin events pages. Pure functions, so the
 // tests in tests/admin.test.mjs can check them without a browser.
-import { waveStates, type AdminEvent, type CategoryForm, type EventCategory, type EventForm, type Wave, type WaveState } from '../../lib/adminEventsApi.ts'
+import { waveStates, type AdminEvent, type CategoryForm, type EventCategory, type EventForm, type VenueLimits, type Wave, type WaveState } from '../../lib/adminEventsApi.ts'
 import type { EventsStrings } from './eventsStrings'
 
 /** Colour of a status badge; reuses the order palette from Orders.css. */
@@ -57,7 +57,7 @@ export function initials(name: string) {
 
 /* ------------------------------------------------------------ event form */
 
-export type EventProblem = 'name' | 'description' | 'venueId' | 'startAt' | 'startPast' | 'doorsOpenAt' | 'durationMinutes' | 'salesCloseAt'
+export type EventProblem = 'name' | 'description' | 'venueId' | 'startAt' | 'startPast' | 'doorsOpenAt' | 'durationMinutes' | 'salesCloseAt' | 'faqs'
 
 /** Field each problem belongs to, for aria-invalid and focus. */
 export const PROBLEM_FIELD: Record<EventProblem, keyof EventForm> = {
@@ -69,9 +69,10 @@ export const PROBLEM_FIELD: Record<EventProblem, keyof EventForm> = {
   doorsOpenAt: 'doorsOpenAt',
   durationMinutes: 'durationMinutes',
   salesCloseAt: 'salesCloseAt',
+  faqs: 'faqs',
 }
 
-const ORDER: EventProblem[] = ['name', 'description', 'venueId', 'startAt', 'startPast', 'doorsOpenAt', 'durationMinutes', 'salesCloseAt']
+const ORDER: EventProblem[] = ['name', 'description', 'venueId', 'startAt', 'startPast', 'doorsOpenAt', 'durationMinutes', 'salesCloseAt', 'faqs']
 
 /** Doors can open at most this many minutes before the start. */
 export const MAX_DOORS_BEFORE = 12 * 60
@@ -94,16 +95,23 @@ export function eventFormProblems(form: EventForm, opts: { isNew: boolean; now: 
   if ((form.salesOpenAt && closesBy && form.salesOpenAt >= closesBy) || (form.salesCloseAt && form.startAt && form.salesCloseAt > form.startAt)) {
     found.add('salesCloseAt')
   }
+  if (incompleteFaqs(form.faqs).length) found.add('faqs')
   return ORDER.filter((p) => found.has(p))
+}
+
+/** FAQ rows with a question but no answer, or an answer but no question. Empty rows are dropped on save. */
+export function incompleteFaqs(faqs: EventForm['faqs'] = []) {
+  return faqs.flatMap((q, i) => (Boolean(q.question.trim()) !== Boolean(q.answer.trim()) ? [i] : []))
 }
 
 /* --------------------------------------------------------- ticket editor */
 
 export type WaveProblem = 'name' | 'capacity'
-export type CategoryProblems = { name: boolean; code: boolean; noWave: boolean; waves: Partial<Record<number, WaveProblem>> }
+/** `seats`: at a seated venue, more tickets than the category has seats (or a category the venue doesn't have). */
+export type CategoryProblems = { name: boolean; code: boolean; noWave: boolean; seats: boolean; waves: Partial<Record<number, WaveProblem>> }
 
 /** Problems per category and per wave, so each message sits next to its row. */
-export function ticketProblems(forms: CategoryForm[]): CategoryProblems[] {
+export function ticketProblems(forms: CategoryForm[], limits?: VenueLimits): CategoryProblems[] {
   const codes = forms.map((c) => c.key.trim().toUpperCase())
   return forms.map((c, i) => {
     const waves: CategoryProblems['waves'] = {}
@@ -111,17 +119,25 @@ export function ticketProblems(forms: CategoryForm[]): CategoryProblems[] {
       if (!w.name.trim()) waves[k] = 'name'
       else if (w.capacity < Math.max(1, w.sold)) waves[k] = 'capacity'
     })
+    const seats = limits?.kind === 'seated' ? limits.places[codes[i]] : undefined
     return {
       name: !c.name.trim(),
       code: !codes[i] || codes.indexOf(codes[i]) !== i,
       noWave: c.waves.length === 0,
+      seats: limits?.kind === 'seated' && (!seats || c.waves.reduce((n, w) => n + w.capacity, 0) > seats.places),
       waves,
     }
   })
 }
 
+/** At a standing venue, how many more people the categories hold than the venue does (0 when they fit). */
+export function overCapacity(forms: CategoryForm[], limits?: VenueLimits) {
+  if (limits?.kind !== 'standing') return 0
+  return Math.max(0, forms.reduce((n, c) => n + c.waves.reduce((m, w) => m + w.capacity, 0), 0) - limits.capacity)
+}
+
 export const hasTicketProblems = (problems: CategoryProblems[]) =>
-  problems.some((p) => p.name || p.code || p.noWave || Object.keys(p.waves).length > 0)
+  problems.some((p) => p.name || p.code || p.noWave || p.seats || Object.keys(p.waves).length > 0)
 
 /** A wave with no sales can move up or down, but never ahead of a wave that has sales. */
 export function canMoveWave(waves: CategoryForm['waves'], from: number, to: number) {

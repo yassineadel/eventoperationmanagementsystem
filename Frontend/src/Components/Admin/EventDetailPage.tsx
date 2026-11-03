@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { adminEventsApi, EventNotFoundError, type EventDetail } from '../../lib/adminEventsApi'
+import { adminEventsApi, EventNotFoundError, POLICY_KEYS, type EventDetail, type PolicyKey } from '../../lib/adminEventsApi'
 import { now } from '../../lib/adminTime'
-import { eventKeyFor, ticketsApi, type Ticket } from '../../lib/ordersApi'
+import { eventKeyFor, ordersApi, ticketsApi, type Order, type Ticket } from '../../lib/ordersApi'
 import { categoryNames } from '../Homepage/strings'
 import { ConfirmDialog, PencilIcon, Toast } from './AdminFeedback'
-import { AdminHero, AdminLayout, BackArrowIcon, CalendarIcon, ForwardArrowIcon, ResourceStatus, TicketIcon } from './AdminLayout'
+import { AdminHero, AdminLayout, BackArrowIcon, CalendarIcon, ForwardArrowIcon, ResourceStatus, TicketIcon, UsersIcon } from './AdminLayout'
 import { useAdminActor } from './adminIdentity'
 import { plural } from './adminText'
 import { useErrorText } from './errorStrings'
@@ -17,12 +17,32 @@ import { fillIn, useOrdersFormat } from './ordersStrings'
 import { useAdminResource } from './useAdminResource'
 import { useFlashToast } from './useFlashToast'
 
-type Loaded = EventDetail & { tickets: Ticket[] }
+type Loaded = EventDetail & { tickets: Ticket[]; orders: Order[] }
 
 async function load(id: string): Promise<Loaded> {
-  const [detail, tickets] = await Promise.all([adminEventsApi.get(id), ticketsApi.list()])
+  const [detail, tickets, orders] = await Promise.all([adminEventsApi.get(id), ticketsApi.list(), ordersApi.list()])
   const key = eventKeyFor(id)
-  return { ...detail, tickets: tickets.filter((k) => k.eventKey === key) }
+  return { ...detail, tickets: tickets.filter((k) => k.eventKey === key), orders: orders.filter((o) => o.eventKey === key) }
+}
+
+const POLICY_LABEL: Record<PolicyKey, 'polAgeRestrictions' | 'polEntryConditions' | 'polProhibitedItems' | 'polRefundPolicy' | 'polAccessibility'> = {
+  ageRestrictions: 'polAgeRestrictions',
+  entryConditions: 'polEntryConditions',
+  prohibitedItems: 'polProhibitedItems',
+  refundPolicy: 'polRefundPolicy',
+  accessibility: 'polAccessibility',
+}
+
+/** One entry per person holding the tickets, transferred tickets under whoever has them now. */
+function holdersOf(tickets: Ticket[]) {
+  const people = new Map<string, { name: string; email: string; userId?: string; tickets: number; transferred: boolean }>()
+  for (const k of tickets) {
+    const p = people.get(k.holderEmail) ?? { name: k.holder, email: k.holderEmail, userId: k.holderUserId, tickets: 0, transferred: false }
+    p.tickets += 1
+    p.transferred ||= k.transfers.length > 0
+    people.set(k.holderEmail, p)
+  }
+  return [...people.values()].sort((a, b) => a.name.localeCompare(b.name))
 }
 
 export default function EventDetailPage() {
@@ -64,7 +84,7 @@ export default function EventDetailPage() {
     )
   }
 
-  const { event, categories, tickets } = state.data
+  const { event, categories, tickets, orders } = state.data
   const shown = displayStatus(event)
   const catName = categoryNames[event.category]?.[f.lang] ?? event.category
   const canEdit = shown === 'draft' || shown === 'published'
@@ -74,6 +94,11 @@ export default function EventDetailPage() {
   const checkedIn = issued.filter((k) => k.status === 'checked').length
   const doorsOpen = event.doorsOpenAt <= now()
   const revenue = (price: number, sold: number) => price * sold
+  // Who a cancellation emails (FR-ADM-13): the current holder of every valid ticket.
+  const toTell = holdersOf(tickets.filter((k) => k.status === 'valid'))
+  const cancelledOrders = new Set(orders.filter((o) => o.reason?.key === 'eventCancelled').map((o) => o.id))
+  const told = holdersOf(tickets.filter((k) => cancelledOrders.has(k.orderId)))
+  const policies = POLICY_KEYS.filter((k) => event.policies[k])
 
   async function act(action: () => Promise<EventDetail>, kind: EventToast['kind']) {
     setBusy(true)
@@ -171,6 +196,62 @@ export default function EventDetailPage() {
             <p className="ev-description">{event.description || t.noDescription}</p>
           </section>
 
+          <section className="ad-card" aria-labelledby="photos-title" data-scroll-reveal="">
+            <h2 id="photos-title" className="ad-card-h ad-card-h--bar">
+              {t.photosTitle}
+            </h2>
+            {event.images.length > 0 ? (
+              <ul className="ev-photos ev-photos--view" aria-labelledby="photos-title">
+                {event.images.map((src, i) => (
+                  <li key={`${i}:${src.slice(-24)}`} className="ev-photo">
+                    <img src={src} alt={fillIn(t.photoAlt, { n: f.num(i + 1), name: event.name })} loading="lazy" />
+                    {i === 0 && <span className="ev-photo-cover">{t.cover}</span>}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="ev-card-text ad-muted">{t.noPhotosYet}</p>
+            )}
+          </section>
+
+          <div className="ev-two">
+            <section className="ad-card" aria-labelledby="policies-title" data-scroll-reveal="">
+              <h2 id="policies-title" className="ad-card-h ad-card-h--bar">
+                {t.policiesTitle}
+              </h2>
+              {policies.length > 0 ? (
+                <dl className="ev-policies">
+                  {policies.map((k) => (
+                    <div key={k}>
+                      <dt>{t[POLICY_LABEL[k]]}</dt>
+                      <dd>{event.policies[k]}</dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : (
+                <p className="ev-card-text ad-muted">{t.noPoliciesYet}</p>
+              )}
+            </section>
+
+            <section className="ad-card" aria-labelledby="faqs-title" data-scroll-reveal="">
+              <h2 id="faqs-title" className="ad-card-h ad-card-h--bar">
+                {t.faqsTitle}
+              </h2>
+              {event.faqs.length > 0 ? (
+                <div className="ev-faqs">
+                  {event.faqs.map((q) => (
+                    <details key={q.question}>
+                      <summary>{q.question}</summary>
+                      <p>{q.answer}</p>
+                    </details>
+                  ))}
+                </div>
+              ) : (
+                <p className="ev-card-text ad-muted">{t.noFaqsYet}</p>
+              )}
+            </section>
+          </div>
+
           <section className="ad-card" aria-labelledby="cats-title" data-scroll-reveal="">
             <div className="ad-card-head ad-card-head--tight">
               <h2 id="cats-title" className="ad-card-h">
@@ -183,6 +264,10 @@ export default function EventDetailPage() {
                 </Link>
                 <Link className="od-link" to={`/admin/tickets?event=${event.id}`}>
                   {t.viewTickets}
+                  <ForwardArrowIcon />
+                </Link>
+                <Link className="od-link" to={`/admin/events/${event.id}/guests`}>
+                  {t.guestList}
                   <ForwardArrowIcon />
                 </Link>
                 {!ticketsLocked && (
@@ -318,6 +403,38 @@ export default function EventDetailPage() {
             </section>
           )}
 
+          {event.status === 'cancelled' && (
+            <section className="ad-card" aria-labelledby="told-title">
+              <h2 id="told-title" className="ad-card-h ad-card-h--bar">
+                {t.notifiedTitle}
+              </h2>
+              {told.length > 0 ? (
+                <>
+                  <p className="ev-card-text">{t.notifiedLead}</p>
+                  <ul className="ev-told">
+                    {told.map((p) => (
+                      <li key={p.email}>
+                        <UsersIcon size={16} />
+                        <span>
+                          {p.userId ? <Link to={`/admin/users/${p.userId}`}>{p.name}</Link> : p.name}
+                          <span className="ad-block ad-muted" dir="ltr">
+                            {p.email}
+                          </span>
+                        </span>
+                        <span className="ad-muted">
+                          {plural(f.lang, p.tickets, t.ticketsCount, f.num(p.tickets))}
+                          {p.transferred && ` · ${t.notifiedTransferred}`}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : (
+                <p className="ev-card-text">{t.notifiedNone}</p>
+              )}
+            </section>
+          )}
+
           <section className="ad-card" aria-labelledby="venue-title">
             <h2 id="venue-title" className="ad-card-h ad-card-h--bar">
               {t.venue}
@@ -368,6 +485,16 @@ export default function EventDetailPage() {
           label={t.cancelReason}
           errorText={t.cancelReasonError}
           warning={fillIn(t.cancelWarning, { tickets: plural(f.lang, event.sold, t.ticketsCount, f.num(event.sold)) })}
+          note={
+            toTell.length
+              ? [
+                  fillIn(t.cancelNotify, { holders: plural(f.lang, toTell.length, t.peopleCount, f.num(toTell.length)) }),
+                  toTell.some((p) => p.transferred) ? plural(f.lang, toTell.filter((p) => p.transferred).length, t.cancelTransferred, f.num(toTell.filter((p) => p.transferred).length)) : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')
+              : undefined
+          }
           icon={<BlockIcon />}
           confirmLabel={t.confirmCancel}
           busyLabel={t.cancelling}
