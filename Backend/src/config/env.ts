@@ -23,6 +23,19 @@ const envSchema = z.object({
   PAYMENT_PROVIDER: z.enum(['simulator', 'stripe']).default('simulator'),
   STRIPE_SECRET_KEY: z.string().startsWith('sk_').optional(),
   STRIPE_WEBHOOK_SECRET: z.string().startsWith('whsec_').optional(),
+  // public key the website uses to show Stripe's card form; safe to share
+  STRIPE_PUBLISHABLE_KEY: z.string().startsWith('pk_').optional(),
+  // Chatbot (Google Gemini). Optional: without a key the backend still starts and the
+  // assistant reports itself unavailable, so teammates who don't work on it need no key.
+  // an empty GEMINI_API_KEY= line (as in .env.example) counts as no key
+  GEMINI_API_KEY: z.string().optional().transform((key) => key?.trim() || undefined),
+  GEMINI_CHAT_MODEL: z.string().min(1).default('gemini-3.8-flash'),
+  // Tried in order when the chat model is overloaded or rate-limited (free-tier 503 / 429)
+  GEMINI_CHAT_FALLBACK_MODELS: z
+    .string()
+    .default('gemini-3.6-flash,gemini-3.5-flash-lite')
+    .transform((list) => list.split(',').map((model) => model.trim()).filter(Boolean)),
+  GEMINI_EMBEDDING_MODEL: z.string().min(1).default('gemini-embedding-2'),
 }).refine(
   (e) => e.PAYMENT_PROVIDER !== 'stripe' || (e.STRIPE_SECRET_KEY && e.STRIPE_WEBHOOK_SECRET),
   { message: 'PAYMENT_PROVIDER=stripe needs STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET', path: ['PAYMENT_PROVIDER'] },

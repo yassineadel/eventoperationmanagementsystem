@@ -1,0 +1,64 @@
+{
+  "slug": "cairo-stadium-indoor-hall",
+  "name": "Cairo Stadium Indoor Halls — Hall 1",
+  "type": "STANDING",
+  "address": "Al Ahram Street, Nasr City",
+  "city": "Cairo",
+  "country": "Egypt",
+  "latitude": 30.0697,
+  "longitude": 31.3123,
+  "capacity": 5000,
+  "image": "/event-images/venues/cairo-stadium-indoor-hall.jpg",
+  "stage": {
+    "position": "top"
+  },
+  "categories": [
+    {
+      "key": "FRONT_STAGE",
+      "label": "Front Stage",
+      "color": "#C9A227"
+    },
+    {
+      "key": "GENERAL",
+      "label": "General Admission",
+      "color": "#2E86AB"
+    },
+    {
+      "key": "BACK",
+      "label": "Back Area",
+      "color": "#6C757D"
+    }
+  ],
+  "zones": [
+    {
+      "key": "FRONT",
+      "label": "Front Stage",
+      "category": "FRONT_STAGE",
+      "capacity": 800,
+      "x": 20,
+      "y": 10,
+      "width": 60,
+      "height": 20
+    },
+    {
+      "key": "GA",
+      "label": "General Admission",
+      "category": "GENERAL",
+      "capacity": 3000,
+      "x": 5,
+      "y": 32,
+      "width": 90,
+      "height": 40
+    },
+    {
+      "key": "BACK",
+      "label": "Back Area",
+      "category": "BACK",
+      "capacity": 1200,
+      "x": 5,
+      "y": 74,
+      "width": 90,
+      "height": 21
+    }
+  ]
+}

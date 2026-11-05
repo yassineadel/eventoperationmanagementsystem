@@ -66,7 +66,11 @@ export type Order = {
   createdAt: string
 }
 
-export type CheckoutResult = { order: Order; payment: { providerTxId: string } | null }
+// clientSecret is only sent with Stripe: it opens Stripe's card form for this order
+export type CheckoutResult = { order: Order; payment: { providerTxId: string; clientSecret?: string } | null }
+
+// Which payment provider the server uses. publishableKey is Stripe's public key (null for the simulator).
+export type PaymentConfig = { provider: 'simulator' | 'stripe'; testMode: boolean; publishableKey: string | null }
 
 export type OrderDetail = Order & {
   items: { ticketCategoryId: string; quantity: number; unitPrice: string; serviceFeePercent: string; serviceFeeAmount: string }[]
@@ -150,6 +154,8 @@ export const checkout = (input: {
   attendees: { holdId: string; names: string[] }[]
 }) => postJson<CheckoutResult>('/api/orders/checkout', input)
 
+export const getPaymentConfig = (signal?: AbortSignal) => getJson<PaymentConfig>('/api/payments/config', { signal })
+
 // Development only: tell the payment simulator what should happen
 export const simulatePayment = (providerTxId: string, outcome: SimulatedOutcome) =>
   postJson<{ message: string }>(`/api/payments/simulator/${encodeURIComponent(providerTxId)}`, { outcome })
@@ -196,8 +202,9 @@ export const getMyTicket = (ticketId: string, signal?: AbortSignal) =>
   getJson<ApiTicket>(`/api/tickets/${encodeURIComponent(ticketId)}`, { signal })
 
 export type TicketTransferResult = { transferCount: number; transfersLeft: number; attendeeName?: string }
-export const transferTicketToAccount = (ticketId: string, email: string, signal?: AbortSignal) =>
-  postJson<TicketTransferResult>(`/api/tickets/${encodeURIComponent(ticketId)}/transfer`, { email }, { signal })
+// attendeeName: the name printed on the ticket for the new holder; empty uses their account name
+export const transferTicketToAccount = (ticketId: string, email: string, signal?: AbortSignal, attendeeName?: string) =>
+  postJson<TicketTransferResult>(`/api/tickets/${encodeURIComponent(ticketId)}/transfer`, { email, ...(attendeeName?.trim() ? { attendeeName: attendeeName.trim() } : {}) }, { signal })
 
 export const resendTicketEmail = (ticketId: string, signal?: AbortSignal) =>
   postJson<{ message: string }>(`/api/tickets/${encodeURIComponent(ticketId)}/resend`, {}, { signal })

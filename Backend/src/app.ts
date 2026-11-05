@@ -13,6 +13,7 @@ import inventoryRoutes from './modules/inventory/inventory.routes'
 import orderRoutes from './modules/orders/orders.routes'
 import paymentRoutes from './modules/payments/payments.routes'
 import { ticketRoutes, refundRoutes } from './modules/tickets/tickets.routes'
+import adminRoutes from './modules/admin/admin.routes'
 import './config/google'
 import gateRoutes from './modules/gate/gate.routes'
 
@@ -58,6 +59,7 @@ app.use('/api/payments', paymentRoutes)
 app.use('/api/tickets', ticketRoutes)
 app.use('/api/refunds', refundRoutes)
 app.use('/api/gate', gateRoutes)
+app.use('/api/admin', adminRoutes)
 
 // Unknown route
 app.use((req, res) => {

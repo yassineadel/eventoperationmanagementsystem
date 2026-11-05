@@ -8,9 +8,11 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "layouts:check": "ts-node src/scripts/check-layouts.ts",
+    "ai:check": "ts-node src/scripts/check-ai.ts",
     "seed:venues": "ts-node src/scripts/seed-venues.ts",
     "seed:staff": "ts-node src/scripts/seed-staff.ts",
     "seed:events": "ts-node src/scripts/seed-events.ts",
+    "seed:demo": "ts-node src/scripts/seed-demo.ts",
     "loadtest:holds": "ts-node src/scripts/load-test-holds.ts"
   },
   "keywords": [],
@@ -18,6 +20,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@google/genai": "^2.32.0",
     "@prisma/client": "^5.22.0",
     "bcrypt": "^6.0.0",
     "bullmq": "^5.81.5",

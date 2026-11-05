@@ -42,6 +42,7 @@ export default function Navbar({ t, onViewChange }: { t: HomeStrings; onViewChan
         <Link to="/events" aria-current={pathname === '/events' ? 'page' : undefined} onClick={() => setOpen(false)}>{t.events}</Link>
         <Link to="/#venues" aria-current={pathname === '/' && hash === '#venues' ? 'location' : undefined} onClick={() => setOpen(false)}>{t.venues}</Link>
         <Link to="/my-tickets" aria-current={pathname.startsWith('/my-tickets') || pathname.startsWith('/orders/') ? 'page' : undefined} onClick={() => setOpen(false)}>{lang === 'ar' ? 'تذاكري' : 'My Tickets'}</Link>
+        {user?.role?.toUpperCase() === 'ADMIN' && <Link className="home-admin-link" to="/admin" onClick={() => setOpen(false)}><Icon name="settings" size={16} />{lang === 'ar' ? 'لوحة الإدارة' : 'Admin dashboard'}</Link>}
       </nav>
       <div className="home-nav-actions"><PreferenceControls variant="main" /><AccountMenu key={`${pathname}${search}`} onNavigate={() => setOpen(false)} />{!user && <><Link className="home-signin" to="/login">{t.login}</Link><Link className="home-button home-button--small" to="/register">{t.register}</Link></>}</div>
     </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { usePreferences } from '../Auth/preferences'
+import { useSession } from '../Auth/sessionContext'
 import { events } from '../Homepage/data/events'
 import type { Event } from '../Homepage/types'
 import Icon from '../Homepage/components/Icon'
@@ -21,6 +22,7 @@ import LiveBookingRestore from './LiveBookingRestore'
 
 // onSeatsTaken (real seated events): reloads which seats are free, after a seat was taken by someone else
 function SelectionContent({ event, onSeatsTaken }: { event: Event; onSeatsTaken?: () => Promise<void> }) {
+  const session = useSession()
   const { lang } = usePreferences()
   const t = useBookingStrings(event.id)
   const { state, act, now } = useBooking()
@@ -116,6 +118,7 @@ function SelectionContent({ event, onSeatsTaken }: { event: Event; onSeatsTaken?
         {items.length ? <ul className="booking-selection-items">{items.map((item) => <li key={item.key}><div><TicketDescription item={item} eventId={event.id} /></div><button type="button" aria-label={`${t.remove}: ${item.seatId ? catalogue.seats.find((seat) => seat.id === item.seatId)?.row + ' ' + catalogue.seats.find((seat) => seat.id === item.seatId)?.number : catalogue.categories.find((category) => category.id === item.categoryId)?.name[lang]}`} onClick={() => select(items.filter((current) => current.key !== item.key))}><Icon name="close" size={16} /></button></li>)}</ul> : <div className="booking-summary-empty"><Icon name="ticket" size={26} /><h3>{t.selectionEmpty}</h3><p>{t.selectionEmptyLead}</p></div>}
 {serverError && <p className="booking-error" role="alert">{reservationLimitError ? t.errorLimit : serverError}</p>}
         {!items.length ? <button className="home-button booking-full-button" disabled>{t.continueCart}</button>
+          : isLiveEvent(event.id) && session.status === 'guest' ? <Link className="home-button booking-full-button" to={`/login?returnTo=${encodeURIComponent(`/events/${event.id}/tickets`)}`}>{t.signInToBuy}<Icon name="arrow" size={18} /></Link>
           : isLiveEvent(event.id) ? <button className="home-button booking-full-button" type="button" disabled={reserving} onClick={reserve}>{reserving ? t.reserving : t.continueCart}<Icon name="arrow" size={18} /></button>
           : <Link className="home-button booking-full-button" to="/cart">{t.continueCart}<Icon name="arrow" size={18} /></Link>}
       </OrderSummary>

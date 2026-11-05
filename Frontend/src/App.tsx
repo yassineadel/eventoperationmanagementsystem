@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
-import { lazy } from 'react';
+import { lazy, Suspense } from 'react';
 import './App.css'
 import Homepage from './Components/Homepage/Homepage';
 import PreferencesProvider from './Components/Auth/PreferencesProvider';
@@ -52,6 +52,24 @@ const AnalyticsPage = lazy(() => import('./Components/Admin/AnalyticsPage'));
 const ActivityLogPage = lazy(() => import('./Components/Admin/ActivityLogPage'));
 const UserListPage = lazy(() => import('./Components/Admin/UserListPage'));
 const UserDetailPage = lazy(() => import('./Components/Admin/UserDetailPage'));
+// The admin console (reads and writes the real database). Loaded only when an admin opens it.
+const ConsoleLayout = lazy(() => import('./Components/Console/ConsoleLayout'));
+const DashboardPage = lazy(() => import('./Components/Console/DashboardPage'));
+const ConsoleEvents = lazy(() => import('./Components/Console/EventsPage'));
+const ConsoleEvent = lazy(() => import('./Components/Console/EventPage'));
+const ConsoleEventForm = lazy(() => import('./Components/Console/EventFormPage'));
+const ConsoleOrders = lazy(() => import('./Components/Console/OrdersPages').then((m) => ({ default: m.OrdersPage })));
+const ConsoleOrder = lazy(() => import('./Components/Console/OrdersPages').then((m) => ({ default: m.OrderPage })));
+const ConsoleTickets = lazy(() => import('./Components/Console/TicketsPages').then((m) => ({ default: m.TicketsPage })));
+const ConsoleTicket = lazy(() => import('./Components/Console/TicketsPages').then((m) => ({ default: m.TicketPage })));
+const ConsoleRefunds = lazy(() => import('./Components/Console/RefundsPage'));
+const ConsoleUsers = lazy(() => import('./Components/Console/UsersPages').then((m) => ({ default: m.UsersPage })));
+const ConsoleUser = lazy(() => import('./Components/Console/UsersPages').then((m) => ({ default: m.UserPage })));
+const ConsoleVenues = lazy(() => import('./Components/Console/VenuesPages').then((m) => ({ default: m.VenuesPage })));
+const ConsoleVenue = lazy(() => import('./Components/Console/VenuesPages').then((m) => ({ default: m.VenuePage })));
+const ConsoleVenueForm = lazy(() => import('./Components/Console/VenuesPages').then((m) => ({ default: m.VenueFormPage })));
+const ConsoleStaff = lazy(() => import('./Components/Console/StaffActivityPages').then((m) => ({ default: m.StaffPage })));
+const ConsoleActivity = lazy(() => import('./Components/Console/StaffActivityPages').then((m) => ({ default: m.ActivityPage })));
 
 // The customer help chat stays off the admin console.
 function CustomerChatbot() {
@@ -94,8 +112,29 @@ function App() {
           <Route path="/reset-password" element={<ResetPassword />} />
           {/* The backend redirects here after Google sign-in */}
           <Route path="/auth/callback" element={<AuthCallback />} />
-          {/* Admin console: admins only, loaded on demand */}
-          <Route path="/admin" element={<RequireAdmin />}>
+          {/* Admin console: admins only, every page reads and writes the database */}
+          <Route path="/admin" element={<Suspense fallback={null}><ConsoleLayout /></Suspense>}>
+            <Route index element={<DashboardPage />} />
+            <Route path="events" element={<ConsoleEvents />} />
+            <Route path="events/new" element={<ConsoleEventForm />} />
+            <Route path="events/:eventId" element={<ConsoleEvent />} />
+            <Route path="events/:eventId/edit" element={<ConsoleEventForm />} />
+            <Route path="orders" element={<ConsoleOrders />} />
+            <Route path="orders/:orderId" element={<ConsoleOrder />} />
+            <Route path="tickets" element={<ConsoleTickets />} />
+            <Route path="tickets/:ticketId" element={<ConsoleTicket />} />
+            <Route path="refunds" element={<ConsoleRefunds />} />
+            <Route path="users" element={<ConsoleUsers />} />
+            <Route path="users/:userId" element={<ConsoleUser />} />
+            <Route path="venues" element={<ConsoleVenues />} />
+            <Route path="venues/new" element={<ConsoleVenueForm />} />
+            <Route path="venues/:slug" element={<ConsoleVenue />} />
+            <Route path="venues/:slug/edit" element={<ConsoleVenueForm />} />
+            <Route path="staff" element={<ConsoleStaff />} />
+            <Route path="activity" element={<ConsoleActivity />} />
+          </Route>
+          {/* The first admin console design (sample data), kept for reference */}
+          <Route path="/admin-preview" element={<RequireAdmin />}>
             <Route index element={<AdminHomePage />} />
             <Route path="analytics" element={<AnalyticsPage />} />
             <Route path="activity" element={<ActivityLogPage />} />

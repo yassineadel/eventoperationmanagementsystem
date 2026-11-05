@@ -41,3 +41,19 @@ Each zone has a `category`, a `capacity`, and a rectangle (`x`, `y`, `width`, `h
 4. No duplicate section keys, row labels within a section, or zone keys.
 5. Sum of seats / zone capacities equals `capacity`.
 6. `SEATED` files have `sections` and no `zones`; `STANDING` files the reverse.
+
+## Venue photos
+
+`image` points to a real photo of the venue in `Frontend/public/event-images/venues/`. Venues without
+one (Al Manara, El Gomhouria) show an "Illustrative photo" until a licensed photo is added.
+All photos are from Wikimedia Commons, resized to 1280 px wide:
+
+| Venue | Source file | Licence |
+|---|---|---|
+| Cairo Opera House | Cairo Opera House at evening 06.jpg | CC BY-SA 4.0 |
+| Sayed Darwish Theatre | Sayed Darwish Theatre in Alexandria, in Alexandria.JPG | CC BY-SA 4.0 |
+| Bibliotheca Alexandrina | Bibliotheca Alexandrina GLAM EGY 05.jpg | Public domain |
+| Giza Pyramids Plateau | Pyramid of Giza at night - panoramio.jpg | CC BY 3.0 |
+| Cairo Stadium Indoor Halls | Egypt x Germany. August 11, 2009.jpg | CC BY-SA 3.0 |
+| El Sawy Culturewheel | ZamalekSawyCultureWheel.jpg | CC BY-SA 4.0 |
+| Ewart Memorial Hall (AUC Tahrir) | American University in Cairo.JPG | CC BY-SA 3.0 |

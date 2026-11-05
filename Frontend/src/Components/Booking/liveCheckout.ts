@@ -1,4 +1,4 @@
-import { cancelOrder, checkout, getCart, getOrder, simulatePayment, type Order } from '../../lib/bookingApi'
+import { cancelOrder, checkout, getCart, getOrder, simulatePayment, type CheckoutResult, type Order } from '../../lib/bookingApi'
 import type { Selection } from './bookingModel'
 import { getBookingCatalogue, seatLabel } from './catalogue'
 
@@ -10,16 +10,15 @@ export class SeatMismatchError extends Error {}
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 /**
- * Buys the held tickets on the server: creates the order, pays with the simulator, and waits for the result.
- * Returns the order, whose status is PAID, FAILED or CANCELLED.
+ * Turns the held tickets into an order on the server (steps 1 to 3 below).
+ * Stripe pays from the returned clientSecret; the simulator is told the outcome by payOnServer.
  */
-export async function payOnServer(
+export async function createServerOrder(
   eventId: string,
   items: Selection[],
   names: Record<string, string>,
   idempotencyKey: string,
-  choice: PaymentChoice,
-): Promise<Order> {
+): Promise<CheckoutResult> {
   // 1. The server's holds for this event, with their ids
   const cart = await getCart(eventId)
 
@@ -53,7 +52,31 @@ export async function payOnServer(
   }))
 
   // 3. Create the order (the same idempotencyKey never creates a second order)
-  const { order, payment } = await checkout({ eventId, idempotencyKey, policyAccepted: true, attendees })
+  return checkout({ eventId, idempotencyKey, policyAccepted: true, attendees })
+}
+
+// Ask for the order until it is no longer PENDING. The server checks with Stripe each time, so a slow webhook doesn't matter.
+export async function waitForOrder(orderId: string, attempts = 10): Promise<Order> {
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const latest = await getOrder(orderId)
+    if (latest.status !== 'PENDING') return latest
+    await wait(1500)
+  }
+  return getOrder(orderId)
+}
+
+/**
+ * Buys the held tickets on the server with the payment simulator, and waits for the result.
+ * Returns the order, whose status is PAID, FAILED or CANCELLED.
+ */
+export async function payOnServer(
+  eventId: string,
+  items: Selection[],
+  names: Record<string, string>,
+  idempotencyKey: string,
+  choice: PaymentChoice,
+): Promise<Order> {
+  const { order, payment } = await createServerOrder(eventId, items, names, idempotencyKey)
 
   // An idempotent retry can return the saved result with no new payment session.
   if (['PAID', 'FAILED', 'CANCELLED'].includes(order.status)) return order
@@ -65,11 +88,6 @@ export async function payOnServer(
   }
   if (payment) await simulatePayment(payment.providerTxId, choice === 'declined' ? 'decline' : 'success')
 
-  // 5. Ask for the order until it is no longer PENDING (at most 10 seconds)
-  for (let attempt = 0; attempt < 10; attempt++) {
-    const latest = await getOrder(order.id)
-    if (latest.status !== 'PENDING') return latest
-    await wait(1000)
-  }
-  return getOrder(order.id)
+  // 5. Wait for the result
+  return waitForOrder(order.id)
 }

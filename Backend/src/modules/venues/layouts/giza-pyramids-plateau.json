@@ -1,0 +1,64 @@
+{
+  "slug": "giza-pyramids-plateau",
+  "name": "Giza Pyramids Plateau — Open Air Stage",
+  "type": "STANDING",
+  "address": "Al Haram, Giza Plateau",
+  "city": "Giza",
+  "country": "Egypt",
+  "latitude": 29.9773,
+  "longitude": 31.1325,
+  "capacity": 3300,
+  "image": "/event-images/venues/giza-pyramids-plateau.jpg",
+  "stage": {
+    "position": "top"
+  },
+  "categories": [
+    {
+      "key": "GOLDEN_CIRCLE",
+      "label": "Golden Circle",
+      "color": "#C9A227"
+    },
+    {
+      "key": "GENERAL",
+      "label": "General Admission",
+      "color": "#2E86AB"
+    },
+    {
+      "key": "LOUNGE",
+      "label": "Lounge",
+      "color": "#6C757D"
+    }
+  ],
+  "zones": [
+    {
+      "key": "GOLDEN",
+      "label": "Golden Circle",
+      "category": "GOLDEN_CIRCLE",
+      "capacity": 500,
+      "x": 25,
+      "y": 10,
+      "width": 50,
+      "height": 18
+    },
+    {
+      "key": "GA",
+      "label": "General Admission",
+      "category": "GENERAL",
+      "capacity": 2500,
+      "x": 5,
+      "y": 30,
+      "width": 90,
+      "height": 45
+    },
+    {
+      "key": "LOUNGE",
+      "label": "Lounge",
+      "category": "LOUNGE",
+      "capacity": 300,
+      "x": 5,
+      "y": 77,
+      "width": 90,
+      "height": 18
+    }
+  ]
+}

@@ -2,7 +2,7 @@ import crypto from 'crypto'
 import { Prisma } from '@prisma/client'
 import prisma from '../../config/db'
 import { InventoryError, attachHoldsToOrder, getCheckoutHolds } from '../inventory/inventory.service'
-import { failOrder, getPaymentProvider, startPayment } from '../payments/payments.service'
+import { checkOrderPayment, failOrder, getPaymentProvider, providerFor, startPayment } from '../payments/payments.service'
 import { guardTx } from '../../utils/guardTx'
 
 export const PAYMENT_WINDOW_MINUTES = 15
@@ -171,10 +171,10 @@ export const checkout = async (userId: string, input: CheckoutInput) => {
 const resumeExisting = async (userId: string, order: { id: string; userId: string; status: string } & Record<string, unknown>) => {
   if (order.userId !== userId) throw new OrderError('This checkout key is already used', 409)
   const { userId: _, ...view } = order
-  const payment = await prisma.payment.findUnique({ where: { orderId: order.id }, select: { providerTxId: true } })
+  const payment = await prisma.payment.findUnique({ where: { orderId: order.id }, select: { providerTxId: true, provider: true } })
   const session =
     order.status === 'PENDING' && payment?.providerTxId
-      ? await getPaymentProvider().resumePayment(payment.providerTxId)
+      ? await providerFor(payment.provider).resumePayment(payment.providerTxId)
       : null
   return { order: view, payment: session }
 }
@@ -194,7 +194,7 @@ export const getMyOrders = async (userId: string) => {
  * One of the user's orders, with its tickets once paid
  */
 export const getMyOrder = async (userId: string, orderId: string) => {
-  const order = await prisma.order.findFirst({
+  const find = () => prisma.order.findFirst({
     where: { id: orderId, userId },
     select: {
       ...orderView,
@@ -202,7 +202,13 @@ export const getMyOrder = async (userId: string, orderId: string) => {
       payment: { select: { status: true, provider: true } },
     },
   })
+  let order = await find()
   if (!order) throw new OrderError('Order not found', 404)
+  if (order.status === 'PENDING') {
+    // don't wait for the webhook: ask the provider, so the buyer sees PAID as soon as it is true
+    await checkOrderPayment(order.id).catch((e) => console.error(`Payment check for order ${order!.id} failed:`, e))
+    order = (await find())!
+  }
   return order
 }
 
@@ -212,14 +218,14 @@ export const getMyOrder = async (userId: string, orderId: string) => {
 export const cancelMyOrder = async (userId: string, orderId: string) => {
   const order = await prisma.order.findFirst({
     where: { id: orderId, userId },
-    select: { status: true, payment: { select: { providerTxId: true } } },
+    select: { status: true, payment: { select: { providerTxId: true, provider: true } } },
   })
   if (!order) throw new OrderError('Order not found', 404)
   if (order.status !== 'PENDING') throw new OrderError('Only unpaid orders can be cancelled')
 
   const txId = order.payment?.providerTxId
   if (txId) {
-    const p = getPaymentProvider()
+    const p = providerFor(order.payment?.provider)
     await p.cancel(txId)
     if ((await p.getStatus(txId)) === 'SUCCEEDED') throw new OrderError('This order has already been paid', 409)
   }

@@ -8,7 +8,7 @@ import { bookingStrings, type BookingStrings } from './strings'
 // Every other text stays the same as the sample booking.
 const en: Partial<BookingStrings> = {
   demo: 'Test mode',
-  demoLead: 'Tickets, reservations and orders are real. Payments use a test simulator, so no money is taken.',
+  demoLead: 'Tickets, reservations and orders are real. Payments run in test mode, so no real money is taken.',
   maxNote: 'Up to 8 tickets per account for each event.',
   hold: 'Tickets reserved',
   expiryWarning: 'Less than one minute remains. Complete checkout or start a new selection.',
@@ -28,7 +28,7 @@ const en: Partial<BookingStrings> = {
   policyAccept: 'I have read and agree to the event policies.',
   pay: 'Pay now',
   processing: 'Processing your payment…',
-  paymentNote: 'Test mode: the payment is simulated and no money is taken.',
+  paymentNote: 'Test mode: no real money is taken.',
   successTitle: 'Booking confirmed',
   successLead: 'Your booking is confirmed. Your tickets have been emailed to you.',
   sampleReference: 'Booking reference',
@@ -45,7 +45,7 @@ const en: Partial<BookingStrings> = {
 
 const ar: Partial<BookingStrings> = {
   demo: 'وضع الاختبار',
-  demoLead: 'التذاكر والحجوزات والطلبات حقيقية. تتم المدفوعات عبر محاكي اختبار، لذلك لا يُخصم أي مبلغ.',
+  demoLead: 'التذاكر والحجوزات والطلبات حقيقية. تعمل المدفوعات في وضع الاختبار، لذلك لا يُخصم أي مبلغ حقيقي.',
   maxNote: 'حتى ٨ تذاكر لكل حساب في كل فعالية.',
   hold: 'تذاكر محجوزة',
   expiryWarning: 'تبقّى أقل من دقيقة. أكمل الدفع أو ابدأ اختيارًا جديدًا.',
@@ -65,7 +65,7 @@ const ar: Partial<BookingStrings> = {
   policyAccept: 'قرأت سياسات الفعالية وأوافق عليها.',
   pay: 'ادفع الآن',
   processing: 'جارٍ معالجة الدفع…',
-  paymentNote: 'وضع الاختبار: الدفع محاكى ولا يُخصم أي مبلغ.',
+  paymentNote: 'وضع الاختبار: لا يُخصم أي مبلغ حقيقي.',
   successTitle: 'تم تأكيد الحجز',
   successLead: 'تم تأكيد حجزك وأُرسلت تذاكرك إلى بريدك الإلكتروني.',
   sampleReference: 'رقم الحجز',

@@ -1,7 +1,7 @@
 import type { Language } from '../Homepage/types'
 
 const en = {
-    reserving: 'Reserving…', signInToReserve: 'Please sign in to reserve tickets.',
+    reserving: 'Reserving…', signInToReserve: 'Please sign in to reserve tickets.', signInToBuy: 'Sign in to buy tickets', signInLead: 'You need a Hafletna account to buy tickets. Sign in or create one, and you will come straight back here.',
     loading: 'Loading tickets…', loadError: 'We could not load the tickets.', retry: 'Try again',
   selection: 'Choose tickets', selectionLead: 'Select your seats and ticket quantities.',
   standingLead: 'Choose a standing zone and the number of tickets.', seated: 'Seated tickets', standing: 'Standing tickets',
@@ -51,7 +51,7 @@ const en = {
   seatMismatch: 'Your reserved seats no longer match your selection. Go back and choose your seats again.',
 }
 const ar: Record<keyof typeof en, string> = {
-    reserving: 'جارٍ الحجز…', signInToReserve: 'يرجى تسجيل الدخول لحجز التذاكر.',
+    reserving: 'جارٍ الحجز…', signInToReserve: 'يرجى تسجيل الدخول لحجز التذاكر.', signInToBuy: 'سجّل الدخول لشراء التذاكر', signInLead: 'تحتاج إلى حساب في حفلتنا لشراء التذاكر. سجّل الدخول أو أنشئ حسابًا وستعود إلى هنا مباشرةً.',
     loading: 'جارٍ تحميل التذاكر…', loadError: 'تعذّر تحميل التذاكر.', retry: 'حاول مرة أخرى',
   selection: 'اختيار التذاكر', selectionLead: 'اختر المقاعد وعدد التذاكر.',
   standingLead: 'اختر منطقة الوقوف وعدد التذاكر.', seated: 'فعالية بمقاعد محددة', standing: 'فعالية بمناطق وقوف',

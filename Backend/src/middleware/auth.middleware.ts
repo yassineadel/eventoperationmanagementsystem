@@ -35,24 +35,31 @@ export const protect = async (req: Request, res: Response, next: NextFunction): 
       return
     }
 
-    // Check if token is blacklisted (logged out)
-    const isBlacklisted = await redis.get(`blacklist:${token}`)
+    // Verify the token first (no network), then ask Redis "was this token logged out?" and the database
+    // "does the account still exist / is it blocked?" at the same time: one round trip instead of two
+    const decoded = jwt.verify(token, JWT_SECRET) as AuthUser
+    const [isBlacklisted, account] = await Promise.all([
+      redis.get(`blacklist:${token}`),
+      // The account may have been deleted (anonymised) after this token was made
+      prisma.user.findUnique({ where: { id: decoded.id }, select: { email: true, role: true, isBlocked: true } }),
+    ])
     if (isBlacklisted) {
       res.status(401).json({ message: 'Token is no longer valid. Please login again.' })
       return
     }
 
-    // Verify token and attach user to request
-    const decoded = jwt.verify(token, JWT_SECRET) as AuthUser
-
-    // The account may have been deleted (anonymised) after this token was made
-    const account = await prisma.user.findUnique({ where: { id: decoded.id }, select: { email: true } })
     if (!account || account.email.endsWith(DELETED_EMAIL_DOMAIN)) {
       res.status(401).json({ message: 'This account no longer exists.' })
       return
     }
+    // An administrator can block an account at any time: that applies at once, not at the next login
+    if (account.isBlocked) {
+      res.status(403).json({ message: 'This account has been blocked. Please contact support.' })
+      return
+    }
 
-    req.user = decoded
+    // The role is read from the database so an admin promotion or demotion applies at once
+    req.user = { ...decoded, role: account.role }
 
     // Continue to the next function
     next()

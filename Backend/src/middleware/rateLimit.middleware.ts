@@ -1,3 +1,4 @@
+import { env } from '../config/env'
 import { rateLimit } from 'express-rate-limit'
 
 /** For endpoints an attacker would brute-force: 10 tries per 15 min per IP */
@@ -44,10 +45,11 @@ export const emailLimiter = rateLimit({
   message: { message: 'Too many requests. Please try again later.' },
 })
 
-/** Everything else */
+/** Everything else. Development allows more: one person clicking through the admin console and the
+ *  website on localhost shares a single IP and would otherwise hit the limit while testing. */
 export const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 300,
+  limit: env.NODE_ENV === 'production' ? 300 : 3000,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   message: { message: 'Too many requests. Please slow down.' },

@@ -45,6 +45,12 @@ export function LiveTransferForm({ data, owner, onReload }: { data: LiveTicketDa
   const [stage, setStage] = useState<'recipient' | 'review' | 'done'>(data.status === 'TRANSFERRED_AWAY' ? 'done' : 'recipient')
   const [email, setEmail] = useState('')
   const [reviewedEmail, setReviewedEmail] = useState('')
+  // optional: the name printed on the ticket for the new holder (empty = their account name)
+  const [ticketName, setTicketName] = useState('')
+  const [nameError, setNameError] = useState(false)
+  const nameText = lang === 'ar'
+    ? { label: 'الاسم على التذكرة (اختياري)', hint: 'اتركه فارغًا لاستخدام اسم حساب المستلم. مثلًا: أرسلها إلى حساب أحد الوالدين باسم ابنه.', error: 'يجب أن يتكون الاسم من حرفين على الأقل.', review: 'الاسم على التذكرة', account: 'اسم حساب المستلم' }
+    : { label: 'Name on the ticket (optional)', hint: "Leave empty to use the recipient's account name. For example, send it to a parent's account with their child's name.", error: 'The name must be at least 2 characters.', review: 'Name on the ticket', account: "The recipient's account name" }
   const [acknowledged, setAcknowledged] = useState(false)
   const [issue, setIssue] = useState<TransferIssue | null>(null)
   const [busy, setBusy] = useState(false)
@@ -70,6 +76,7 @@ export function LiveTransferForm({ data, owner, onReload }: { data: LiveTicketDa
     if (unavailable) { setIssue(unavailable); return }
     const recipient = transferRecipient(email, owner.email)
     if (recipient.issue) { setIssue(recipient.issue); return }
+    if (ticketName.trim() && ticketName.trim().length < 2) { setNameError(true); return }
     setEmail(recipient.email); setReviewedEmail(recipient.email); setAcknowledged(false); setIssue(null); setStage('review')
   }
   async function confirm(event: FormEvent) {
@@ -81,7 +88,7 @@ export function LiveTransferForm({ data, owner, onReload }: { data: LiveTicketDa
     const controller = new AbortController()
     pending.current = controller; setBusy(true); setIssue(null)
     try {
-      const result = await eventRequest((signal) => transferTicketToAccount(ticket.id, reviewedEmail, signal), controller.signal)
+      const result = await eventRequest((signal) => transferTicketToAccount(ticket.id, reviewedEmail, signal, ticketName), controller.signal)
       if (controller.signal.aborted) return
       setCompleted(result); setStage('done')
     } catch (error) {
@@ -107,11 +114,12 @@ export function LiveTransferForm({ data, owner, onReload }: { data: LiveTicketDa
         : stage === 'recipient' ? <section className="tickets-panel ta-form-panel ta-recipient" aria-labelledby="live-transfer-recipient-title"><header className="tickets-panel-header"><p className="tickets-eyebrow">01 / {t.recipient}</p><h2 id="live-transfer-recipient-title">{t.recipientTitle}</h2><p>{t.recipientLead}</p></header>
           <details className="ta-how"><summary><Icon name="conferences" size={18} />{t.how}</summary><p>{t.howLead}</p></details>
           <form noValidate onSubmit={review}><div className="tickets-field"><label htmlFor="live-transfer-email">{t.email}</label><input className="tickets-input" id="live-transfer-email" type="email" inputMode="email" autoComplete="off" dir="ltr" maxLength={254} value={email} disabled={busy || needsRefresh} onChange={(event) => { setEmail(event.target.value); setIssue(null) }} aria-invalid={issue === 'invalid' || issue === 'self' || issue === 'recipientMissing' || issue === 'recipientBlocked'} aria-describedby={`live-transfer-email-hint${issue ? ' live-transfer-error' : ''}`} /><p id="live-transfer-email-hint">{t.emailHint}</p></div>
+            <div className="tickets-field"><label htmlFor="live-transfer-name">{nameText.label}</label><input className="tickets-input" id="live-transfer-name" type="text" autoComplete="off" maxLength={200} value={ticketName} disabled={busy || needsRefresh} onChange={(event) => { setTicketName(event.target.value); setNameError(false) }} aria-invalid={nameError} aria-describedby="live-transfer-name-hint" /><p id="live-transfer-name-hint">{nameError ? <span className="tickets-error" role="alert">{nameText.error}</span> : nameText.hint}</p></div>
             {feedback}<div className="tickets-action-footer">{needsRefresh ? <button className="home-button" type="button" onClick={onReload}>{t.checkStatus}</button> : <button className="home-button" type="submit">{t.reviewButton}<Icon name="arrow" size={18} /></button>}<Link className="home-outline-button" to={detailPath}>{t.back}</Link></div>
           </form></section>
         : <section className="tickets-panel ta-form-panel ta-review" aria-labelledby="live-transfer-review-title"><header className="tickets-panel-header"><p className="tickets-eyebrow">02 / {t.review}</p><h2 id="live-transfer-review-title" ref={stageRef} tabIndex={-1}>{t.reviewTitle}</h2><p>{t.reviewLead}</p></header>
           <div className="ta-ownership"><div><span>{t.from}</span><strong><bdi>{owner.name}</bdi></strong><bdi dir="ltr">{owner.email}</bdi></div><Icon name="arrow" size={21} /><div><span>{t.to}</span><strong><bdi dir="ltr">{reviewedEmail}</bdi></strong></div></div>
-          <dl className="tickets-review-list"><div><dt>{t.transferCount}</dt><dd>{number(ticket.transferCount)} / {number(ticket.transferCount + data.transfersLeft)}</dd></div></dl><p className="tickets-notice"><Icon name="lock" size={19} />{t.important}</p><p>{t.policy}</p>
+          <dl className="tickets-review-list"><div><dt>{nameText.review}</dt><dd><bdi>{ticketName.trim() || nameText.account}</bdi></dd></div><div><dt>{t.transferCount}</dt><dd>{number(ticket.transferCount)} / {number(ticket.transferCount + data.transfersLeft)}</dd></div></dl><p className="tickets-notice"><Icon name="lock" size={19} />{t.important}</p><p>{t.policy}</p>
           <form noValidate onSubmit={(event) => void confirm(event)} aria-busy={busy}><label className="tickets-checkbox"><input type="checkbox" checked={acknowledged} disabled={busy || needsRefresh} onChange={(event) => { setAcknowledged(event.target.checked); setIssue(null) }} aria-describedby={issue ? 'live-transfer-error' : undefined} />{t.acknowledge}</label>{feedback}
             <div className="tickets-action-footer">{needsRefresh ? <button className="home-button" type="button" onClick={onReload}>{t.checkStatus}</button> : <button className="home-button" type="submit" disabled={busy}>{busy ? t.sending : t.confirm}<Icon name="arrow" size={18} /></button>}<button className="home-outline-button" type="button" disabled={busy || needsRefresh} onClick={() => { setStage('recipient'); setIssue(null); setAcknowledged(false) }}>{t.edit}</button></div>
           </form></section>}

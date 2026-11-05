@@ -27,7 +27,9 @@ export function normaliseSessionUser(value: unknown): SessionUser {
 }
 
 export function accountReturnPath(value: string | null): string {
-  return value === '/profile' || value === '/profile/settings' || value === '/my-tickets' ? value : '/'
+  if (value === '/profile' || value === '/profile/settings' || value === '/my-tickets' || value === '/cart' || value === '/checkout') return value
+  // a buyer who signed in to buy tickets goes back to that event's ticket page
+  return value && /^\/events\/[A-Za-z0-9-]{1,64}\/tickets$/.test(value) ? value : '/'
 }
 
 const returnKey = 'hafletna.auth-return'

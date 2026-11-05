@@ -39,8 +39,8 @@ export const resend = handle(async (req) => {
   return { message: 'Your ticket is on its way to your email' }
 })
 
-/** POST /api/tickets/:id/transfer { email } */
-export const transfer = handle((req) => transferTicket(req.user!.id, id(req), req.body?.email))
+/** POST /api/tickets/:id/transfer { email, attendeeName? } */
+export const transfer = handle((req) => transferTicket(req.user!.id, id(req), req.body?.email, req.body?.attendeeName))
 
 /** GET /api/tickets/:id/refund-quote */
 export const refundQuote = handle((req) => getRefundQuote(req.user!.id, id(req)))
