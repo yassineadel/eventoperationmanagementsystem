@@ -173,6 +173,9 @@ model Event {
   staffAssignments StaffEventAssignment[]
   scanRecords      ScanRecord[]
 
+  // chatbot retrieval layer: this event's description, FAQs and policies as searchable chunks
+  knowledgeChunks KnowledgeChunk[]
+
   @@index([status, startAt])
   @@index([category])
   @@index([venueId])
@@ -611,4 +614,40 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+// ─── Intelligence: chatbot knowledge (RAG) ─────────────────────────────────
+
+enum KnowledgeSource {
+  EVENT // an event's description and "about" text
+  EVENT_FAQ // one question and answer from an event's FAQs
+  EVENT_POLICY // an event's policies (age, entry, refunds…)
+  PLATFORM // Hafletna-wide rules: refunds, transfers, fees, how to buy
+}
+
+// Descriptive text the chatbot searches by meaning. Live facts (prices, seats left, dates,
+// a user's tickets) are never stored here: the chatbot reads those through functions.
+// The embedding column is a pgvector type Prisma cannot read or write, so every insert and
+// similarity search on this table is raw SQL (src/modules/intelligence/knowledge).
+model KnowledgeChunk {
+  id          String                     @id @default(uuid()) @db.Uuid
+  sourceType  KnowledgeSource            @map("source_type")
+  // the event id for event chunks; a stable key such as "refund-policy" for platform rules
+  sourceId    String                     @map("source_id") @db.VarChar(100)
+  eventId     String?                    @map("event_id") @db.Uuid
+  chunkIndex  Int                        @default(0) @map("chunk_index")
+  title       String                     @db.VarChar(300)
+  content     String
+  // SHA-256 of title + content: unchanged text is not sent to Gemini again
+  contentHash String                     @map("content_hash") @db.Char(64)
+  // 768 numbers from gemini-embedding-2 (EMBEDDING_DIMENSIONS in knowledge/vector.ts)
+  embedding   Unsupported("vector(768)")
+  createdAt   DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  event Event? @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceType, sourceId, chunkIndex])
+  @@index([eventId])
+  @@map("knowledge_chunks")
 }

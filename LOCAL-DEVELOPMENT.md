@@ -51,6 +51,16 @@ An optional MailDev inbox can be used during development instead of real deliver
 
 Never commit `.env`, app passwords, OAuth client secrets, database credentials, or database files. The example files contain placeholders only.
 
+## Chatbot (Google Gemini)
+
+The assistant uses Google Gemini's free tier and pgvector. If you don't work on it, leave `GEMINI_API_KEY` empty: the backend still starts and the assistant reports itself unavailable.
+
+To work on it, create a free key at https://aistudio.google.com/apikey and put it in `GEMINI_API_KEY` in `Backend/.env`. Run `npx prisma migrate deploy`, then `npm run ai:check` in `Backend`. The check confirms that Gemini answers, embeddings have the size the database expects, pgvector is enabled and a similarity search works.
+
+The migration `20261104120000_knowledge_chunks` enables pgvector. Supabase and the `pgvector/pgvector` Docker image include it; a plain local PostgreSQL needs pgvector installed first.
+
+Google may use free-tier requests to improve its products, so send it test data only.
+
 ## Prepare and start the frontend
 
 In `Frontend`, run `npm ci`. The frontend uses `http://localhost:3000` by default. If the backend uses another origin, copy `Frontend/.env.example` to `Frontend/.env`, adjust `VITE_API_URL`, and restart Vite.
