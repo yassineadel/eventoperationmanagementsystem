@@ -6,7 +6,7 @@ Use Node.js 24 and npm. Run commands from the repository root unless another fol
 
 1. In `Backend`, run `npm ci`.
 2. Copy `Backend/.env.example` to `Backend/.env` if it does not exist. Keep an existing configured `.env`.
-3. Set `DATABASE_URL`, `REDIS_URL`, a random `JWT_SECRET` of at least 32 characters, and the email/Google settings. Keep `FRONTEND_URL=http://localhost:5173` and `PORT=3000` for the default frontend configuration.
+3. Set `DATABASE_URL`, `DIRECT_URL`, `REDIS_URL`, a random `JWT_SECRET` of at least 32 characters, and the email/Google settings (see [Database connection](#database-connection) below). Keep `FRONTEND_URL=http://localhost:5173` and `PORT=3000` for the default frontend configuration.
 4. Start PostgreSQL and Redis. Then run these commands in `Backend`:
 
 ```powershell
@@ -27,6 +27,33 @@ Seeding creates test events in PostgreSQL. It is separate from the frontend's sa
 `seed:venues` loads the 9 venue layouts (and their photos) into the database. Re-run it after pulling a change to `Backend/src/modules/venues/layouts/`; it is safe to run again. `seed:demo` adds sample customers (password `Demo-1234`, `@demo.hafletna.test` addresses that never receive email), orders, transfers and refunds through the real purchase flow, using the payment simulator.
 
 After pulling, always run `npx prisma migrate deploy` in `Backend`: the migration `20261102120000_venue_admin_fields` adds the venue layout, photo and map link columns used by the admin console.
+
+## Database connection
+
+The backend reads two connection strings from `Backend/.env`. Both are required.
+
+- `DATABASE_URL` is used by the running app.
+- `DIRECT_URL` is used by the Prisma CLI (`npx prisma migrate deploy`, `migrate dev`, `studio`). Migrations need a connection of their own that is not shared with other clients.
+
+**Plain or local database** (Docker, local PostgreSQL, or Neon's direct connection string): put the same URL in both.
+
+```env
+DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/DBNAME"
+DIRECT_URL="postgresql://USER:PASSWORD@localhost:5432/DBNAME"
+```
+
+**Supabase**: copy both strings from the dashboard (**Connect** button) and add the options shown.
+
+```env
+# Transaction pooler, port 6543
+DATABASE_URL="postgresql://postgres.PROJECT_REF:PASSWORD@aws-0-REGION.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=15&sslmode=require"
+# Session pooler, port 5432 (or the direct connection, if your network supports IPv6)
+DIRECT_URL="postgresql://postgres.PROJECT_REF:PASSWORD@aws-0-REGION.pooler.supabase.com:5432/postgres?sslmode=require"
+```
+
+Why: on the free plan the Session pooler (port 5432) accepts only a few clients at once. When many buyers arrive together, Prisma opens more connections than that, and some requests fail with `EMAXCONNSESSION` instead of getting a normal "sold out" answer. The Transaction pooler (port 6543) lends a real database connection to a client only for the length of one transaction, so many more clients can share the same connections; extra requests wait their turn. `pgbouncer=true` makes Prisma stop using prepared statements, which the Transaction pooler does not support. `connection_limit` sets how many connections Prisma opens; 15 matches the free plan's pool size (see **Database → Settings → Connection pooling**).
+
+The app is safe on the Transaction pooler because everything it does that depends on the connection lasts only for one transaction: the hold functions use `pg_advisory_xact_lock`, `guardTx` sets its timeouts with `set_config(..., true)` (this transaction only), and there are no session-level `SET`, `LISTEN/NOTIFY`, session advisory locks or temporary tables. If you add one of those, it will not work through port 6543.
 
 ## Payments (Stripe test mode)
 

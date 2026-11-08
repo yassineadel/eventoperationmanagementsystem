@@ -8,7 +8,11 @@ export default defineConfig({
   migrations: {
     path: "prisma/migrations",
   },
+  // Note: Prisma 5.22 (our version) does not read this file at all. The CLI takes its connection
+  // from directUrl in prisma/schema.prisma. This only matters after an upgrade to a Prisma version
+  // that reads prisma.config.ts: then this url is the one `prisma migrate` uses, so it must be the
+  // direct connection, not the transaction pooler.
   datasource: {
-    url: process.env["DATABASE_URL"],
+    url: process.env["DIRECT_URL"],
   },
 });
