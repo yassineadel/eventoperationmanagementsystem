@@ -9,6 +9,7 @@
 import type { ToolDeclaration, ToolRunner } from '../llm'
 import { EVENT_CATEGORIES, eventFacts, recommendEvents, searchEvents, venueDetails, type EventSearch } from './event-facts'
 import { myOrders, myRefundQuote, myRefunds, myTickets } from './my-account'
+import { ADMIN_TOOL_NAMES, adminTools, runAdminTool, type AdminSeen } from './admin-tools'
 
 const isDay = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v))
 const text = (v: unknown, max = 100) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : undefined)
@@ -20,7 +21,15 @@ export type ToolContext = {
   events: Map<string, string>
   /** true once the user's own tickets, orders or refunds were read */
   usedAccount: boolean
+  /** what the admin functions returned (administrators only) */
+  admin: AdminSeen
 }
+
+export const newToolContext = (events: Map<string, string> = new Map()): ToolContext => ({
+  events,
+  usedAccount: false,
+  admin: { events: new Map(), orders: new Map(), customers: new Map(), usedRefunds: false },
+})
 
 const publicTools: ToolDeclaration[] = [
   {
@@ -122,14 +131,16 @@ const accountTools: ToolDeclaration[] = [
   },
 ]
 
-/** The functions offered for this question: account functions only to signed-in users */
-export const chatToolsFor = (signedIn: boolean): ToolDeclaration[] => (signedIn ? [...publicTools, ...accountTools] : publicTools)
+/** The functions offered for this question: account functions to customers, admin functions to administrators */
+export const chatToolsFor = (asker: 'customer' | 'admin' | 'visitor'): ToolDeclaration[] =>
+  asker === 'customer' ? [...publicTools, ...accountTools] : asker === 'admin' ? [...publicTools, ...adminTools] : publicTools
 
 /**
- * Runs the chat model's function calls. `userId` is the signed-in user, from the login; account
- * functions refuse without it. Everything returned is recorded in `context` for the reply's links.
+ * Runs the chat model's function calls. `userId` is the signed-in customer and `isAdmin` whether an
+ * administrator is asking, both from the login; account and admin functions refuse otherwise, even
+ * if the model calls them. Everything returned is recorded in `context` for the reply's links.
  */
-export const runChatTool = (context: ToolContext, userId?: string): ToolRunner => async ({ name, args }) => {
+export const runChatTool = (context: ToolContext, userId?: string, isAdmin = false): ToolRunner => async ({ name, args }) => {
   const remember = (events: { event_id: string; name?: string; event?: string }[]) => {
     for (const e of events) context.events.set(e.event_id, (e.name ?? e.event)!)
   }
@@ -177,6 +188,11 @@ export const runChatTool = (context: ToolContext, userId?: string): ToolRunner =
       for (const v of result.venues) remember(v.upcoming_events)
       return result.venues.length ? result : { venues: [], note: 'No venue has that name.' }
     }
+  }
+
+  if (ADMIN_TOOL_NAMES.has(name)) {
+    if (!isAdmin) return { error: 'Only administrators can use this.' }
+    return runAdminTool(name, args, context.admin)
   }
 
   // Account functions: only for the signed-in user, and only ever their own account

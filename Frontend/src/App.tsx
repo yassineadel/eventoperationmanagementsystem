@@ -71,10 +71,12 @@ const ConsoleVenueForm = lazy(() => import('./Components/Console/VenuesPages').t
 const ConsoleStaff = lazy(() => import('./Components/Console/StaffActivityPages').then((m) => ({ default: m.StaffPage })));
 const ConsoleActivity = lazy(() => import('./Components/Console/StaffActivityPages').then((m) => ({ default: m.ActivityPage })));
 
-// The customer help chat stays off the admin console.
+// The assistant is on every page, the admin console included: there it answers administrators'
+// questions about sales, orders, customers and refunds (read-only). The sample console design at
+// /admin-preview keeps it off, since its data is not the database's.
 function CustomerChatbot() {
   const { pathname } = useLocation();
-  return pathname.startsWith('/admin') ? null : <Chatbot />;
+  return pathname.startsWith('/admin-preview') ? null : <Chatbot />;
 }
 
 function App() {

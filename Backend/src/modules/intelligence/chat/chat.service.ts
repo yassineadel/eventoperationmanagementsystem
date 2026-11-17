@@ -11,7 +11,7 @@ import { getLlm, type ChatTurn } from '../llm'
 import { searchKnowledge, type KnowledgeHit } from '../knowledge/search'
 import { eventFacts } from './event-facts'
 import { systemPrompt, type Asker } from './prompt'
-import { chatToolsFor, runChatTool, type ToolContext } from './tools'
+import { chatToolsFor, newToolContext, runChatTool, type ToolContext } from './tools'
 
 export class ChatError extends Error {
   constructor(message: string, public status = 400) {
@@ -116,10 +116,21 @@ const linksFor = (reply: string, hits: KnowledgeHit[], context: ToolContext, ask
     if (!links.some((l) => l.to === link.to)) links.push(link)
   }
   const lower = reply.toLowerCase()
+  const arabic = ARABIC.test(reply)
+
+  if (asker === 'admin') {
+    // Administrators get the admin console pages of what the reply names
+    const { admin } = context
+    for (const [id, reference] of admin.orders) if (reply.toUpperCase().includes(reference)) add({ label: `Order ${reference}`, to: `/admin/orders/${id}` })
+    for (const [id, name] of [...admin.events, ...context.events]) if (lower.includes(name.toLowerCase())) add({ label: name, to: `/admin/events/${id}` })
+    for (const [id, name] of admin.customers) if (lower.includes(name.toLowerCase())) add({ label: name, to: `/admin/users/${id}` })
+    if (admin.usedRefunds) add(page('/admin/refunds', 'Refund requests', 'طلبات الاسترداد', arabic))
+    return links.slice(0, 3)
+  }
+
   for (const [id, name] of context.events) {
     if (lower.includes(name.toLowerCase())) add({ label: name, to: `/events/${id}` })
   }
-  const arabic = ARABIC.test(reply)
   if (context.usedAccount) add(page('/my-tickets', 'My Tickets', 'تذاكري', arabic))
   if (asker === 'visitor' && ASKS_TO_SIGN_IN.test(reply)) add(page('/login', 'Sign in', 'تسجيل الدخول', arabic))
   // Only the closest rules: a rule further down the list was not what the answer was about
@@ -133,7 +144,8 @@ const linksFor = (reply: string, hits: KnowledgeHit[], context: ToolContext, ask
 /**
  * Answers the latest question in the conversation.
  * `user` is the signed-in account from the login (req.user), or undefined for a visitor. Only a
- * customer account has tickets and orders, so only customers are offered the account functions.
+ * customer account has tickets and orders, so only customers get the account functions; only
+ * administrators get the (read-only) admin functions.
  */
 export const reply = async (request: ChatRequest, user?: { id: string; role: string }): Promise<ChatReply> => {
   const startedAt = Date.now()
@@ -143,17 +155,18 @@ export const reply = async (request: ChatRequest, user?: { id: string; role: str
   // Events the search found, closest first, with their live details from the database
   const eventIds = [...new Set(hits.map((h) => h.eventId).filter((id): id is string => id !== null))].slice(0, MAX_LIVE_EVENTS)
   const facts = await eventFacts(eventIds)
-  const context: ToolContext = { events: new Map(facts.map((f) => [f.id, f.name])), usedAccount: false }
+  const context = newToolContext(new Map(facts.map((f) => [f.id, f.name])))
   const asker: Asker = !user ? 'visitor' : user.role === 'USER' ? 'customer' : 'admin'
   const userId = asker === 'customer' ? user!.id : undefined
 
   const text = await getLlm().generate({
     system: systemPrompt({ knowledge: hits, facts, asker, now: new Date() }),
     turns,
-    maxOutputTokens: 800,
+    // administrators ask for summaries of many rows
+    maxOutputTokens: asker === 'admin' ? 1500 : 800,
     deadline: startedAt + REPLY_BUDGET_MS,
-    tools: chatToolsFor(asker === 'customer'),
-    runTool: runChatTool(context, userId),
+    tools: chatToolsFor(asker),
+    runTool: runChatTool(context, userId, asker === 'admin'),
   })
 
   const plain = toPlainText(text)

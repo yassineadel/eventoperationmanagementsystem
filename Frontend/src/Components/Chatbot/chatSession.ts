@@ -5,7 +5,9 @@ export const chatInputLimit = 600
 const historyLimit = 9
 export type ChatSnapshot = { messages: readonly ChatMessage[]; status: 'idle' | 'typing' | 'error'; error: 'timeout' | 'unavailable' | null }
 const initialSnapshot: ChatSnapshot = { messages: [], status: 'idle', error: null }
-const safeDestination = /^\/(?:events(?:\/[a-z0-9-]+(?:\/tickets)?)?|my-tickets|cart|checkout|login|register|profile(?:\/settings)?)(?:\?[^#\\\r\n]*)?(?:#[a-z0-9-]+)?$/
+// Website pages, plus the admin console pages the assistant links for administrators (only an
+// administrator can open those; the backend only sends them in replies to administrators)
+const safeDestination = /^\/(?:events(?:\/[a-z0-9-]+(?:\/tickets)?)?|my-tickets|cart|checkout|login|register|profile(?:\/settings)?|admin(?:\/(?:(?:events|orders|users)\/[a-z0-9-]+|events|orders|tickets|refunds|users|venues|staff|activity))?)(?:\?[^#\\\r\n]*)?(?:#[a-z0-9-]+)?$/
 
 function checkedReply(reply: ChatReply): ChatReply {
   if (!reply || typeof reply.text !== 'string' || !reply.text.trim() || reply.text.length > 8000) throw new Error('Invalid chat response')
