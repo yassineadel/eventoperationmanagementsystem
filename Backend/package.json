@@ -10,6 +10,7 @@
     "layouts:check": "ts-node src/scripts/check-layouts.ts",
     "ai:check": "ts-node src/scripts/check-ai.ts",
     "ai:index": "ts-node src/scripts/index-knowledge.ts",
+    "ai:chat": "ts-node src/scripts/chat-terminal.ts",
     "seed:venues": "ts-node src/scripts/seed-venues.ts",
     "seed:staff": "ts-node src/scripts/seed-staff.ts",
     "seed:events": "ts-node src/scripts/seed-events.ts",

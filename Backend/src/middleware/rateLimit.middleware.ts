@@ -45,6 +45,19 @@ export const emailLimiter = rateLimit({
   message: { message: 'Too many requests. Please try again later.' },
 })
 
+/**
+ * For the chatbot: every question costs Gemini requests, and the free tier allows only a few per
+ * minute for the whole project. 10 questions a minute per IP is plenty for a person and stops one
+ * visitor from using up everyone's quota.
+ */
+export const assistantLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { message: 'You are asking very quickly. Please wait a minute and try again.' },
+})
+
 /** Everything else. Development allows more: one person clicking through the admin console and the
  *  website on localhost shares a single IP and would otherwise hit the limit while testing. */
 export const generalLimiter = rateLimit({

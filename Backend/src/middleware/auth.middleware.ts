@@ -22,51 +22,64 @@ declare global {
   }
 }
 
+type Authentication = { user: AuthUser } | { status: 401 | 403; message: string }
+
 /**
- * Middleware to protect routes — user must be logged in
+ * Checks a token the way every protected route does: signature and expiry first (no network), then
+ * Redis "was this token logged out?" and the database "does the account still exist / is it
+ * blocked?" at the same time: one round trip instead of two.
  */
-export const protect = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+const authenticate = async (token: string): Promise<Authentication> => {
   try {
-    // Get token from headers
-    const token = req.cookies?.token || req.headers.authorization?.split(' ')[1]
-
-    if (!token) {
-      res.status(401).json({ message: 'Access denied. No token provided.' })
-      return
-    }
-
-    // Verify the token first (no network), then ask Redis "was this token logged out?" and the database
-    // "does the account still exist / is it blocked?" at the same time: one round trip instead of two
     const decoded = jwt.verify(token, JWT_SECRET) as AuthUser
     const [isBlacklisted, account] = await Promise.all([
       redis.get(`blacklist:${token}`),
       // The account may have been deleted (anonymised) after this token was made
       prisma.user.findUnique({ where: { id: decoded.id }, select: { email: true, role: true, isBlocked: true } }),
     ])
-    if (isBlacklisted) {
-      res.status(401).json({ message: 'Token is no longer valid. Please login again.' })
-      return
-    }
-
-    if (!account || account.email.endsWith(DELETED_EMAIL_DOMAIN)) {
-      res.status(401).json({ message: 'This account no longer exists.' })
-      return
-    }
+    if (isBlacklisted) return { status: 401, message: 'Token is no longer valid. Please login again.' }
+    if (!account || account.email.endsWith(DELETED_EMAIL_DOMAIN)) return { status: 401, message: 'This account no longer exists.' }
     // An administrator can block an account at any time: that applies at once, not at the next login
-    if (account.isBlocked) {
-      res.status(403).json({ message: 'This account has been blocked. Please contact support.' })
-      return
-    }
-
+    if (account.isBlocked) return { status: 403, message: 'This account has been blocked. Please contact support.' }
     // The role is read from the database so an admin promotion or demotion applies at once
-    req.user = { ...decoded, role: account.role }
-
-    // Continue to the next function
-    next()
-
-  } catch (error) {
-    res.status(401).json({ message: 'Invalid or expired token.' })
+    return { user: { ...decoded, role: account.role } }
+  } catch {
+    return { status: 401, message: 'Invalid or expired token.' }
   }
+}
+
+const tokenOf = (req: Request): string | undefined => req.cookies?.token || req.headers.authorization?.split(' ')[1]
+
+/**
+ * Middleware to protect routes — user must be logged in
+ */
+export const protect = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const token = tokenOf(req)
+  if (!token) {
+    res.status(401).json({ message: 'Access denied. No token provided.' })
+    return
+  }
+  const result = await authenticate(token)
+  if ('status' in result) {
+    res.status(result.status).json({ message: result.message })
+    return
+  }
+  req.user = result.user
+  next()
+}
+
+/**
+ * For routes open to everyone that do more for signed-in users (e.g. the chatbot answering
+ * "where are my tickets?"): sets req.user when a valid token is sent, and otherwise simply
+ * continues as a visitor, never rejecting the request.
+ */
+export const identifyUser = async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
+  const token = tokenOf(req)
+  if (token) {
+    const result = await authenticate(token)
+    if ('user' in result) req.user = result.user
+  }
+  next()
 }
 
 /**
