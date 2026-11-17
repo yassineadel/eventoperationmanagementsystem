@@ -219,3 +219,36 @@ test('empty or oversized adapter replies become retryable errors, not blank bubb
     assert.equal(recovered.messages.at(-1).text, 'A valid replacement.')
   }
 })
+
+test('each request carries the earlier conversation, without the question itself, also on retry', async (t) => {
+  const sent = []
+  let fail = false
+  const session = createChatSession(async (message, _signal, history) => {
+    sent.push({ message, history })
+    if (fail) throw new Error('busy')
+    return { text: `Answer to ${message}` }
+  })
+  t.after(() => session.cancel())
+  session.ask('Tell me about Art Gallery Opening')
+  await settled(session)
+  fail = true
+  session.ask('When do the doors open?')
+  await settled(session)
+  fail = false
+  session.retry()
+  await settled(session)
+  assert.deepEqual(sent[0].history, [])
+  const expected = [
+    { role: 'user', text: 'Tell me about Art Gallery Opening' },
+    { role: 'assistant', text: 'Answer to Tell me about Art Gallery Opening' },
+  ]
+  assert.deepEqual(sent[1], { message: 'When do the doors open?', history: expected })
+  assert.deepEqual(sent[2], { message: 'When do the doors open?', history: expected })
+  for (let index = 0; index < 8; index++) { session.ask(`Question ${index}`); await settled(session) }
+  session.ask('Last question')
+  await settled(session)
+  const last = sent.at(-1).history
+  assert.equal(last.length, 9)
+  assert.deepEqual(Object.keys(last[0]).sort(), ['role', 'text'])
+  assert.equal(last.at(-1).text, 'Answer to Question 7')
+})

@@ -3,7 +3,7 @@
 // Run with: npm run ai:chat
 // Remembers the conversation like the website does, so follow-up questions work.
 // Commands: /sources toggles showing which knowledge-base texts were found; /new starts over; /exit quits.
-//   /as someone@demo.hafletna.test   chat as that customer (to test "my tickets" questions; local testing only)
+//   /as someone@demo.hafletna.test   chat as that account (to test "my tickets" questions; local testing only)
 //   /as                              back to chatting as a visitor
 import readline from 'readline/promises'
 import prisma from '../config/db'
@@ -19,7 +19,7 @@ async function main() {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
   let messages: ChatRequest['messages'] = []
   let showSources = false
-  let asUser: { id: string; email: string } | undefined
+  let asUser: { id: string; email: string; role: string } | undefined
   console.log('Ask the Hafletna assistant anything. /sources shows what it found, /as <email> chats as a customer, /new starts over, /exit quits.\n')
 
   for (;;) {
@@ -39,11 +39,11 @@ async function main() {
         continue
       }
       const user = await prisma.user.findUnique({ where: { email }, select: { id: true, email: true, role: true } })
-      if (!user || user.role !== 'USER') console.log(`(no customer account uses ${email})\n`)
+      if (!user) console.log(`(no account uses ${email})\n`)
       else {
-        asUser = { id: user.id, email: user.email }
+        asUser = { id: user.id, email: user.email, role: user.role }
         messages = []
-        console.log(`(chatting as ${user.email}; new conversation)\n`)
+        console.log(`(chatting as ${user.email}${user.role === 'USER' ? '' : ` (${user.role.toLowerCase()})`}; new conversation)\n`)
       }
       continue
     }
@@ -60,7 +60,7 @@ async function main() {
         const userTexts = messages.filter((m) => m.role === 'user').slice(-2).map((m) => m.text).join('\n')
         for (const h of await searchKnowledge(userTexts)) console.log(`  · ${h.distance.toFixed(3)}  ${h.sourceType}  ${h.title}`)
       }
-      const answer = await reply({ messages: messages.slice(-10) }, asUser?.id)
+      const answer = await reply({ messages: messages.slice(-10) }, asUser)
       messages.push({ role: 'assistant', text: answer.text })
       console.log(`\nAssistant: ${answer.text}`)
       for (const link of answer.links ?? []) console.log(`  → ${link.label}: ${link.to}`)

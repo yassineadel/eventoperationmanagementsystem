@@ -14,9 +14,8 @@ export const chat = async (req: Request, res: Response) => {
     return
   }
   try {
-    // Only customers have tickets and orders; staff and administrators chat as visitors
-    const userId = req.user?.role === 'USER' ? req.user.id : undefined
-    res.json(await reply(parsed.data, userId))
+    // reply() tells customers, administrators and visitors apart; only customers have tickets
+    res.json(await reply(parsed.data, req.user ? { id: req.user.id, role: req.user.role } : undefined))
   } catch (error) {
     if (error instanceof ChatError) {
       res.status(error.status).json({ message: error.message })

@@ -2,8 +2,8 @@ import { useEffect, useId, useRef, useState, useSyncExternalStore, type FormEven
 import { Link } from 'react-router-dom'
 import { usePreferences } from '../Auth/preferences'
 import { createChatSession, chatInputLimit } from './chatSession'
-import { demoChatReply } from './chatService'
-import { chatStrings, promptQueries } from './strings'
+import { assistantChatReply } from './assistantApi'
+import { chatStrings } from './strings'
 import type { ChatSend } from './types'
 import './Chatbot.css'
 
@@ -19,12 +19,16 @@ function ChatIcon({ name }: { name: 'chat' | 'close' | 'reset' | 'send' | 'arrow
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>
 }
 
-// The service is injectable: future API integration does not need to change the UI.
-export default function Chatbot({ sendMessage = demoChatReply, defaultOpen = false }: { sendMessage?: ChatSend; defaultOpen?: boolean }) {
+// The live assistant waits on Gemini, which can take a while when busy; the backend stops starting
+// new attempts after 30 s, so wait a little longer than that before showing "took too long"
+const replyTimeoutMs = 45_000
+
+// The service is injectable: tests pass the local sample adapter (chatService.ts) instead.
+export default function Chatbot({ sendMessage = assistantChatReply, defaultOpen = false }: { sendMessage?: ChatSend; defaultOpen?: boolean }) {
   const { lang, theme } = usePreferences()
   const t = chatStrings[lang]
   const id = useId()
-  const [session] = useState(() => createChatSession(sendMessage))
+  const [session] = useState(() => createChatSession(sendMessage, replyTimeoutMs))
   const snapshot = useSyncExternalStore(session.subscribe, session.getSnapshot, session.getServerSnapshot)
   const [open, setOpen] = useState(defaultOpen)
   const [draft, setDraft] = useState('')
@@ -100,12 +104,12 @@ export default function Chatbot({ sendMessage = demoChatReply, defaultOpen = fal
       <div className="chat-body" ref={body} onScroll={(event) => { const element = event.currentTarget; followLatest.current = element.scrollHeight - element.scrollTop - element.clientHeight < 60 }}>
         {!snapshot.messages.length && <div className="chat-welcome">
           <p className="chat-eyebrow">{t.eyebrow}</p><h3>{t.welcome}</h3><p>{t.intro}</p>
-          <div className="chat-prompts">{promptQueries.map((query, index) => <button type="button" key={query} onClick={() => ask(query, t.prompts[index])}><span className="chat-prompt-icon"><ChatIcon name={index === 0 ? 'ticket' : 'arrow'} /></span>{t.prompts[index]}</button>)}</div>
+          <div className="chat-prompts">{t.prompts.map((prompt, index) => <button type="button" key={prompt} onClick={() => ask(prompt)}><span className="chat-prompt-icon"><ChatIcon name={index === 0 ? 'ticket' : 'arrow'} /></span>{prompt}</button>)}</div>
         </div>}
         <div className="chat-log" role="log" aria-label={t.conversation} aria-live="polite" aria-relevant="additions" aria-atomic="false">
           {snapshot.messages.map((message) => <div className={`chat-message is-${message.role}`} key={message.id}>
             <span className="chat-message-label">{message.role === 'user' ? t.you : t.assistant}</span>
-            <div className="chat-bubble" dir="auto" lang={message.role === 'assistant' ? 'en' : undefined}>{message.text}
+            <div className="chat-bubble" dir="auto">{message.text}
               {!!message.links?.length && <div className="chat-links">{message.links.map((link) => <Link to={link.to} key={link.to} onClick={close}>{link.label}<ChatIcon name="arrow" /></Link>)}</div>}
             </div>
           </div>)}

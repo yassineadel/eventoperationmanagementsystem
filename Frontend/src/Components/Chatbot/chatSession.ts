@@ -1,6 +1,8 @@
-import type { ChatMessage, ChatReply, ChatSend } from './types.ts'
+import type { ChatMessage, ChatReply, ChatSend, ChatTurn } from './types.ts'
 
 export const chatInputLimit = 600
+// Earlier messages sent with each question so follow-ups ("how much is it?") make sense
+const historyLimit = 9
 export type ChatSnapshot = { messages: readonly ChatMessage[]; status: 'idle' | 'typing' | 'error'; error: 'timeout' | 'unavailable' | null }
 const initialSnapshot: ChatSnapshot = { messages: [], status: 'idle', error: null }
 const safeDestination = /^\/(?:events(?:\/[a-z0-9-]+(?:\/tickets)?)?|my-tickets|cart|checkout|login|register|profile(?:\/settings)?)(?:\?[^#\\\r\n]*)?(?:#[a-z0-9-]+)?$/
@@ -11,7 +13,8 @@ function checkedReply(reply: ChatReply): ChatReply {
   return { text: reply.text.trim(), ...(links.length ? { links } : {}) }
 }
 
-// Session memory only. No account, booking, browser storage, or route data is read.
+// Session memory only. No account, booking, browser storage, or route data is read here; the
+// server recognises a signed-in user from the login cookie.
 export function createChatSession(send: ChatSend, timeoutMs = 12000) {
   let snapshot = initialSnapshot
   let sequence = 0
@@ -22,8 +25,15 @@ export function createChatSession(send: ChatSend, timeoutMs = 12000) {
   const listeners = new Set<() => void>()
   const publish = (next: ChatSnapshot) => { snapshot = next; listeners.forEach((listener) => listener()) }
 
+  // The conversation before the question being asked: the question is the last message (a retry
+  // re-asks it without adding it again), so everything before it is history
+  function historyBefore(): ChatTurn[] {
+    return snapshot.messages.slice(0, -1).slice(-historyLimit).map(({ role, text }) => ({ role, text }))
+  }
+
   async function run(query: string) {
     const requestId = ++sequence
+    const history = historyBefore()
     const requestController = new AbortController()
     controller = requestController
     let timedOut = false
@@ -34,7 +44,7 @@ export function createChatSession(send: ChatSend, timeoutMs = 12000) {
         cancelWait = () => reject(new Error('Cancelled'))
         timer = setTimeout(() => { timedOut = true; requestController.abort(); reject(new Error('Timed out')) }, timeoutMs)
       })
-      const reply = checkedReply(await Promise.race([send(query, requestController.signal), cancellation]))
+      const reply = checkedReply(await Promise.race([send(query, requestController.signal, history), cancellation]))
       if (requestId !== sequence) return
       lastRequest = null
       publish({ messages: [...snapshot.messages, { ...reply, id: ++messageId, role: 'assistant' }], status: 'idle', error: null })

@@ -10,7 +10,7 @@ import { z } from 'zod'
 import { getLlm, type ChatTurn } from '../llm'
 import { searchKnowledge, type KnowledgeHit } from '../knowledge/search'
 import { eventFacts } from './event-facts'
-import { systemPrompt } from './prompt'
+import { systemPrompt, type Asker } from './prompt'
 import { chatToolsFor, runChatTool, type ToolContext } from './tools'
 
 export class ChatError extends Error {
@@ -110,7 +110,7 @@ const ASKS_TO_SIGN_IN = /sign in|log in|signed in|logged in|سجل|تسجيل ا
  * answer was about (the rule it came from, the user's tickets, signing in). Built here from our own
  * data, never from the model's text, so a link can only ever point to a real page of the website.
  */
-const linksFor = (reply: string, hits: KnowledgeHit[], context: ToolContext, signedIn: boolean): ChatLink[] => {
+const linksFor = (reply: string, hits: KnowledgeHit[], context: ToolContext, asker: Asker): ChatLink[] => {
   const links: ChatLink[] = []
   const add = (link: ChatLink) => {
     if (!links.some((l) => l.to === link.to)) links.push(link)
@@ -121,7 +121,7 @@ const linksFor = (reply: string, hits: KnowledgeHit[], context: ToolContext, sig
   }
   const arabic = ARABIC.test(reply)
   if (context.usedAccount) add(page('/my-tickets', 'My Tickets', 'تذاكري', arabic))
-  if (!signedIn && ASKS_TO_SIGN_IN.test(reply)) add(page('/login', 'Sign in', 'تسجيل الدخول', arabic))
+  if (asker === 'visitor' && ASKS_TO_SIGN_IN.test(reply)) add(page('/login', 'Sign in', 'تسجيل الدخول', arabic))
   // Only the closest rules: a rule further down the list was not what the answer was about
   for (const h of hits.slice(0, 2)) {
     const rule = h.sourceType === 'PLATFORM' && h.distance <= PLATFORM_LINK_DISTANCE ? PLATFORM_LINKS[h.sourceId] : undefined
@@ -132,9 +132,10 @@ const linksFor = (reply: string, hits: KnowledgeHit[], context: ToolContext, sig
 
 /**
  * Answers the latest question in the conversation.
- * `userId` is the signed-in customer from the login, or undefined for a visitor.
+ * `user` is the signed-in account from the login (req.user), or undefined for a visitor. Only a
+ * customer account has tickets and orders, so only customers are offered the account functions.
  */
-export const reply = async (request: ChatRequest, userId?: string): Promise<ChatReply> => {
+export const reply = async (request: ChatRequest, user?: { id: string; role: string }): Promise<ChatReply> => {
   const startedAt = Date.now()
   const turns = toTurns(request.messages)
   const hits = await searchKnowledge(searchTextOf(turns))
@@ -143,18 +144,19 @@ export const reply = async (request: ChatRequest, userId?: string): Promise<Chat
   const eventIds = [...new Set(hits.map((h) => h.eventId).filter((id): id is string => id !== null))].slice(0, MAX_LIVE_EVENTS)
   const facts = await eventFacts(eventIds)
   const context: ToolContext = { events: new Map(facts.map((f) => [f.id, f.name])), usedAccount: false }
-  const signedIn = userId !== undefined
+  const asker: Asker = !user ? 'visitor' : user.role === 'USER' ? 'customer' : 'admin'
+  const userId = asker === 'customer' ? user!.id : undefined
 
   const text = await getLlm().generate({
-    system: systemPrompt({ knowledge: hits, facts, signedIn, now: new Date() }),
+    system: systemPrompt({ knowledge: hits, facts, asker, now: new Date() }),
     turns,
     maxOutputTokens: 800,
     deadline: startedAt + REPLY_BUDGET_MS,
-    tools: chatToolsFor(signedIn),
+    tools: chatToolsFor(asker === 'customer'),
     runTool: runChatTool(context, userId),
   })
 
   const plain = toPlainText(text)
-  const links = linksFor(plain, hits, context, signedIn)
+  const links = linksFor(plain, hits, context, asker)
   return links.length ? { text: plain, links } : { text: plain }
 }

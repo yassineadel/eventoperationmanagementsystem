@@ -1,13 +1,27 @@
 # Hafletna guide
 
-`App.tsx` mounts one floating assistant inside the router. It is available on every route; changing routes or minimising the panel retains this visit's conversation. Refreshing clears it. It does not read account, ticket, cart, or browser storage data.
+`App.tsx` mounts one floating assistant inside the router. It is available on every customer route; changing routes or minimising the panel retains this visit's conversation. Refreshing clears it. Nothing is kept in browser storage.
 
-Controls follow the shared English/Arabic and light/dark preferences. Replies are English only (FR-BOT-07). The default adapter is a local, deterministic sample guide; it does not call an AI or backend service. It reads fictional public event data and explains existing sample booking rules. It cannot change a booking or contact support.
+Controls follow the shared English/Arabic and light/dark preferences. The assistant replies in the language of the question, Arabic or English.
 
-## Connecting the service
+## The live assistant
 
-Implement the `ChatSend` type in `types.ts` and pass it as the `sendMessage` prop. The adapter receives only the user's current query and an `AbortSignal`, and returns plain `{ text, links?: [{ label, to }] }`. No account context is collected. Agree the API contract with the backend owner before adding an endpoint; never put service secrets in the frontend.
+`assistantApi.ts` is the default adapter. It calls `POST /api/assistant/chat` on the backend (owned by the intelligence module) with the question and up to nine earlier messages:
 
-Requests have a 12-second timeout, retry without duplicating the user's question, and cancellation on reset/unmount. Late replies are discarded. History is bounded to 40 messages. Responses render as escaped text; optional links are limited to three recognised local destinations. The panel is a non-modal dialog, supports Escape and focus restoration, and honours reduced motion.
+```json
+{ "messages": [{ "role": "user", "text": "Tell me about Art Gallery Opening" }, { "role": "assistant", "text": "…" }, { "role": "user", "text": "when do the doors open?" }] }
+```
+
+and receives `{ text, links?: [{ label, to }] }`. The request carries the login cookie, so a signed-in customer can ask about their own tickets, orders and refunds; the backend reads only that user's account and never changes anything. Visitors get public answers. The backend allows 10 questions per minute per visitor.
+
+Answers come from Google Gemini using Hafletna's live events, venues and policies. No service secret is ever in the frontend.
+
+## The sample adapter
+
+`chatService.ts` is the original local, deterministic sample guide. It no longer runs on the website; tests use it, and it can be passed as the `sendMessage` prop to work on the widget without the backend.
+
+## Behaviour
+
+Requests time out after 45 seconds (Gemini can be slow when busy; the backend stops trying new models after 30), retry without duplicating the user's question, and are cancelled on reset/unmount. Late replies are discarded. History is bounded to 40 messages. Responses render as escaped text; links are limited to three recognised local destinations. The panel is a non-modal dialog, supports Escape and focus restoration, and honours reduced motion.
 
 `npm test` includes catalogue guidance and async session tests. The adapter can be injected with a rejecting promise to exercise the visible error/retry state during integration tests.
