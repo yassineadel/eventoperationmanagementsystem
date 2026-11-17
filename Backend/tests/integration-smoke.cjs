@@ -17,7 +17,7 @@ const databaseName = `hafletna_qa_${Date.now()}`
 const databaseUrl = new URL(originalUrl); databaseUrl.pathname = `/${databaseName}`; databaseUrl.search = '?schema=public'
 const adminUrl = new URL(originalUrl); adminUrl.pathname = '/postgres'
 Object.assign(process.env, settings, {
-  NODE_ENV: 'test', PORT: '3002', FRONTEND_URL: 'http://127.0.0.1:5183', DATABASE_URL: databaseUrl.href,
+  NODE_ENV: 'test', PORT: '3002', FRONTEND_URL: 'http://127.0.0.1:5183', DATABASE_URL: databaseUrl.href, DIRECT_URL: databaseUrl.href,
   REDIS_URL: 'redis://127.0.0.1:6381', JWT_SECRET: randomBytes(48).toString('hex'), PAYMENT_PROVIDER: 'simulator',
   MAIL_USER: 'qa-sender@example.test', MAIL_PASS: 'local-test-only', MAIL_HOST: '127.0.0.1', MAIL_PORT: '1026', MAIL_AUTH: 'false', MAIL_SECURE: 'false',
   GOOGLE_CLIENT_ID: 'local-qa-client', GOOGLE_CLIENT_SECRET: 'local-qa-secret', GOOGLE_CALLBACK_URL: 'http://127.0.0.1:3002/api/auth/google/callback',

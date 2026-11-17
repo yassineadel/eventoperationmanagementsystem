@@ -5,7 +5,11 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(3000),
   FRONTEND_URL: z.url().default('http://localhost:5173'),
+  // App connection. On Supabase: the Transaction pooler (port 6543) with pgbouncer=true.
   DATABASE_URL: z.url(),
+  // Not used by the app itself; the Prisma CLI uses it for migrations (directUrl in schema.prisma).
+  // Checked here so a missing value gives a clear message at start-up.
+  DIRECT_URL: z.url(),
   REDIS_URL: z.url(),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
   JWT_EXPIRES_IN: z.string().default('15m'),
