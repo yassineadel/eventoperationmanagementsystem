@@ -4,6 +4,7 @@ import { startHoldExpiryWorker } from './modules/inventory/inventory.service'
 import { startPaymentWorker } from './modules/payments/payments.service'
 import { startEmailWorker } from './modules/platform/email.worker'
 import { startAccountDeletionWorker } from './modules/auth/account-deletion.worker'
+import { syncKnowledgeInBackground } from './modules/intelligence/knowledge/indexer'
 
 app.listen(env.PORT, () => {
   console.log(`Server running on port ${env.PORT} in ${env.NODE_ENV} mode`)
@@ -20,3 +21,6 @@ startEmailWorker()
 
 // Anonymise accounts 14 days after the user asked to delete them
 startAccountDeletionWorker()
+
+// Bring the chatbot's knowledge base up to date: new and edited events, finished ones removed
+syncKnowledgeInBackground()

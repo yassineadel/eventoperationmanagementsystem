@@ -9,6 +9,7 @@ import { sendTicketEmail } from '../tickets/ticket-mail'
 import { getAllVenues, getVenueCategories, getVenueLayout, saveVenue } from '../venues/venues.service'
 import { parseLayout, type VenueLayout } from '../venues/venues.layout'
 import { resolveMapLink } from './maps'
+import { refreshEventKnowledge } from '../intelligence/knowledge/indexer'
 
 export class AdminError extends Error {
   constructor(message: string, public status = 400) { super(message) }
@@ -223,6 +224,7 @@ export const updateAdminEvent = async (adminId: string, id: string, body: Record
     throw new AdminError(e instanceof Error ? e.message : 'Could not save the event')
   }
   await audit(adminId, 'EVENT_UPDATED', 'Event', id, { fields: Object.keys(data) })
+  refreshEventKnowledge(id)
   return getEvent(id)
 }
 
@@ -234,6 +236,7 @@ export const publishAdminEvent = async (adminId: string, id: string) => {
   if (event.startAt <= new Date()) throw new AdminError('The event date is in the past')
   await prisma.event.update({ where: { id }, data: { status: 'PUBLISHED', publishedAt: new Date() } })
   await audit(adminId, 'EVENT_PUBLISHED', 'Event', id)
+  refreshEventKnowledge(id)
   return getEvent(id)
 }
 
@@ -253,6 +256,7 @@ export const cancelAdminEvent = async (adminId: string, id: string, reason: stri
 
   const toRefund = await prisma.ticket.count({ where: { eventId: id, status: 'VALID' } })
   await audit(adminId, 'EVENT_CANCELLED', 'Event', id, { reason, ticketsToRefund: toRefund, ordersCancelled: pending.length })
+  refreshEventKnowledge(id)
   // A big event can have thousands of tickets, each refunded on Stripe and emailed: far longer than a web
   // request may take. The refunds run in the background; any that fail stay in the refund queue.
   void refundCancelledEvent(adminId, id, text(reason))
