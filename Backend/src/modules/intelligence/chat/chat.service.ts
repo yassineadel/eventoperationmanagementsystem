@@ -12,6 +12,7 @@ import { searchKnowledge, type KnowledgeHit } from '../knowledge/search'
 import { eventFacts } from './event-facts'
 import { systemPrompt, type Asker } from './prompt'
 import { chatToolsFor, newToolContext, runChatTool, type ToolContext } from './tools'
+import { recordMood, takeMood } from './mood'
 
 export class ChatError extends Error {
   constructor(message: string, public status = 400) {
@@ -142,12 +143,31 @@ const linksFor = (reply: string, hits: KnowledgeHit[], context: ToolContext, ask
 }
 
 /**
+ * What a question was about, for the mood statistics: the Hafletna rule it matched closely, the
+ * kind of function the model needed, or the event the reply named.
+ */
+const topicOf = (hits: KnowledgeHit[], context: ToolContext, eventLinked: boolean): string => {
+  const top = hits[0]
+  if (top?.sourceType === 'PLATFORM' && top.distance <= PLATFORM_LINK_DISTANCE) return top.sourceId
+  if (['get_my_tickets', 'get_my_orders', 'get_my_refunds', 'check_refund'].some((t) => context.used.has(t))) return 'my-account'
+  if (context.used.has('get_venue_details')) return 'venues'
+  if (context.used.has('search_events') || context.used.has('recommend_events')) return 'finding-events'
+  if (eventLinked || (top && top.sourceType !== 'PLATFORM')) return 'event'
+  return 'other'
+}
+
+/**
  * Answers the latest question in the conversation.
  * `user` is the signed-in account from the login (req.user), or undefined for a visitor. Only a
  * customer account has tickets and orders, so only customers get the account functions; only
  * administrators get the (read-only) admin functions.
  */
-export const reply = async (request: ChatRequest, user?: { id: string; role: string }): Promise<ChatReply> => {
+export const reply = async (
+  request: ChatRequest,
+  user?: { id: string; role: string },
+  /** for the terminal test chat: called with the mood the model read (never sent to the website) */
+  onMood?: (mood: string) => void,
+): Promise<ChatReply> => {
   const startedAt = Date.now()
   const turns = toTurns(request.messages)
   const hits = await searchKnowledge(searchTextOf(turns))
@@ -169,7 +189,23 @@ export const reply = async (request: ChatRequest, user?: { id: string; role: str
     runTool: runChatTool(context, userId, asker === 'admin'),
   })
 
-  const plain = toPlainText(text)
+  // The mood tag is for us: take it off before the user sees the reply
+  const { text: untagged, mood } = takeMood(text)
+  onMood?.(mood ?? 'unknown')
+  const plain = toPlainText(untagged)
+  if (!plain) throw new Error('The reply was empty once the mood tag was removed')
   const links = linksFor(plain, hits, context, asker)
+
+  // Customer mood statistics: no message text, no user id, and never administrators' questions
+  if (asker !== 'admin') {
+    const eventLink = links.find((l) => l.to.startsWith('/events/'))
+    recordMood({
+      mood,
+      asker,
+      arabic: ARABIC.test(turns[turns.length - 1].text),
+      topic: topicOf(hits, context, !!eventLink),
+      eventId: eventLink?.to.slice('/events/'.length),
+    })
+  }
   return links.length ? { text: plain, links } : { text: plain }
 }

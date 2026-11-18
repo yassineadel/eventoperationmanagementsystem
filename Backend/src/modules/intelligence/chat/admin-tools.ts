@@ -15,6 +15,7 @@ import { Prisma } from '@prisma/client'
 import prisma from '../../../config/db'
 import { getDashboard, getEvent, getOrder, getUser, listActivity, listAdminRefunds, listEvents, listOrders, listStaff, listUsers } from '../../admin/admin.service'
 import type { ToolDeclaration } from '../llm'
+import { moodReport } from './mood'
 
 const CAIRO = 'Africa/Cairo'
 const when = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: CAIRO })
@@ -144,6 +145,21 @@ export const adminTools: ToolDeclaration[] = [
       'Administrator only. Refunds by status with counts per status. SUBMITTED = waiting for review (oldest first, so requests ' +
       'near their event are not missed), APPROVED = money on its way, SETTLED = paid back, REJECTED = declined.',
     parameters: { type: 'object', properties: { status: { type: 'string', enum: ['SUBMITTED', 'APPROVED', 'REJECTED', 'SETTLED'] } } },
+  },
+  {
+    name: 'admin_customer_mood',
+    description:
+      'Administrator only. How customers felt when asking the chatbot over a period (default the last 30 days): counts and ' +
+      'percentages of calm, confused and frustrated questions, mood per day, the topics and events with the most confused or ' +
+      'frustrated questions, and the share in Arabic. No message text is kept. Use it for "how are customers feeling", ' +
+      '"what are people confused about", "is anyone frustrated about refunds".',
+    parameters: {
+      type: 'object',
+      properties: {
+        date_from: { type: 'string', description: 'First day, YYYY-MM-DD' },
+        date_to: { type: 'string', description: 'Last day, YYYY-MM-DD' },
+      },
+    },
   },
   {
     name: 'admin_staff',
@@ -409,6 +425,12 @@ export const runAdminTool = async (name: string, args: Record<string, unknown>, 
           rejection_message: r.rejectionReason ?? undefined,
         })),
       }
+    }
+
+    case 'admin_customer_mood': {
+      const report = await moodReport({ from: isDay(args.date_from) ? args.date_from : undefined, to: isDay(args.date_to) ? args.date_to : undefined })
+      for (const e of report.events_most_confused_or_frustrated) seen.events.set(e.event_id, e.name)
+      return report
     }
 
     case 'admin_staff': {

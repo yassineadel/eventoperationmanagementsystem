@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 import { ApiError } from '@google/genai'
 import { AssistantUnavailableError } from '../llm'
 import { ChatError, chatRequestSchema, reply } from './chat.service'
+import { moodReport } from './mood'
 
 /**
  * POST /api/assistant/chat — body: { messages: [{ role: 'user' | 'assistant', text }] }, newest last.
@@ -31,5 +32,18 @@ export const chat = async (req: Request, res: Response) => {
     res
       .status(busy ? 503 : 500)
       .json({ message: busy ? 'The assistant is busy. Please try again in a minute.' : 'Something went wrong' })
+  }
+}
+
+/**
+ * GET /api/assistant/mood?from=YYYY-MM-DD&to=YYYY-MM-DD — administrators only.
+ * Customer mood statistics for a period (default the last 30 days), for an admin console chart.
+ */
+export const mood = async (req: Request, res: Response) => {
+  try {
+    res.json(await moodReport({ from: req.query.from as string | undefined, to: req.query.to as string | undefined }))
+  } catch (error) {
+    console.error('[intelligence] mood report failed:', error instanceof Error ? error.message : error)
+    res.status(500).json({ message: 'Something went wrong' })
   }
 }

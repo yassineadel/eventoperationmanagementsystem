@@ -23,12 +23,15 @@ export type ToolContext = {
   usedAccount: boolean
   /** what the admin functions returned (administrators only) */
   admin: AdminSeen
+  /** names of the functions the model called, for the mood statistics' topic */
+  used: Set<string>
 }
 
 export const newToolContext = (events: Map<string, string> = new Map()): ToolContext => ({
   events,
   usedAccount: false,
   admin: { events: new Map(), orders: new Map(), customers: new Map(), usedRefunds: false },
+  used: new Set(),
 })
 
 const publicTools: ToolDeclaration[] = [
@@ -141,6 +144,7 @@ export const chatToolsFor = (asker: 'customer' | 'admin' | 'visitor'): ToolDecla
  * if the model calls them. Everything returned is recorded in `context` for the reply's links.
  */
 export const runChatTool = (context: ToolContext, userId?: string, isAdmin = false): ToolRunner => async ({ name, args }) => {
+  context.used.add(name)
   const remember = (events: { event_id: string; name?: string; event?: string }[]) => {
     for (const e of events) context.events.set(e.event_id, (e.name ?? e.event)!)
   }

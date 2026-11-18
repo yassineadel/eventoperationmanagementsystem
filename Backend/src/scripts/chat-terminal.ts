@@ -60,11 +60,12 @@ async function main() {
         const userTexts = messages.filter((m) => m.role === 'user').slice(-2).map((m) => m.text).join('\n')
         for (const h of await searchKnowledge(userTexts)) console.log(`  · ${h.distance.toFixed(3)}  ${h.sourceType}  ${h.title}`)
       }
-      const answer = await reply({ messages: messages.slice(-10) }, asUser)
+      let mood = 'unknown'
+      const answer = await reply({ messages: messages.slice(-10) }, asUser, (m) => (mood = m))
       messages.push({ role: 'assistant', text: answer.text })
       console.log(`\nAssistant: ${answer.text}`)
       for (const link of answer.links ?? []) console.log(`  → ${link.label}: ${link.to}`)
-      console.log(`  (${((Date.now() - started) / 1000).toFixed(1)} s)\n`)
+      console.log(`  (${((Date.now() - started) / 1000).toFixed(1)} s, mood: ${mood})\n`)
     } catch (error) {
       messages.pop()
       const message = error instanceof ChatError ? error.message : error instanceof Error ? error.message : String(error)
