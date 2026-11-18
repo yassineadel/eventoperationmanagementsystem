@@ -84,6 +84,22 @@ export function createChatSession(send: ChatSend, timeoutMs = 12000) {
       void run(lastRequest)
       return true
     },
+    /** Adds one spoken exchange from voice chat; the reply gets the same checks as typed replies */
+    addSpokenExchange(user: string, reply: ChatReply) {
+      let checked: ChatReply
+      try { checked = checkedReply(reply) } catch { return false }
+      const spoken = user.trim().slice(0, chatInputLimit)
+      const added: ChatMessage[] = [
+        ...(spoken ? [{ id: ++messageId, role: 'user' as const, text: spoken }] : []),
+        { ...checked, id: ++messageId, role: 'assistant' as const },
+      ]
+      publish({ ...snapshot, messages: [...snapshot.messages, ...added].slice(-40) })
+      return true
+    },
+    /** The conversation so far, for voice chat to continue it */
+    history(): ChatTurn[] {
+      return snapshot.messages.slice(-historyLimit).map(({ role, text }) => ({ role, text }))
+    },
     reset() { cancel(); lastRequest = null; publish(initialSnapshot) },
     cancel,
   }

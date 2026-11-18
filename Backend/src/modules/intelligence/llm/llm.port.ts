@@ -43,6 +43,40 @@ export type GenerateRequest = {
   runTool?: ToolRunner
 }
 
+/** What a live voice session reports back while it runs */
+export type VoiceEvents = {
+  /** The assistant's speech: raw 16-bit little-endian PCM, mono, 24 kHz */
+  onAudio(pcm: Buffer): void
+  /** A piece of the written transcript of what the user said */
+  onUserText(text: string): void
+  /** A piece of the written transcript of what the assistant said */
+  onAssistantText(text: string): void
+  /** The user spoke over the assistant: speech still queued for playback must be dropped */
+  onInterrupted(): void
+  /** The assistant finished its reply to the user's last turn */
+  onTurnComplete(): void
+  /** The session ended for good (not a reconnection); `reason` is for logs */
+  onClose(reason: string): void
+}
+
+export type VoiceSessionOptions = {
+  /** Standing instructions, as for typed chat */
+  system: string
+  tools: ToolDeclaration[]
+  runTool: ToolRunner
+  /** Functions the assistant calls without waiting or speaking about the result (e.g. recording the mood) */
+  silentTools?: string[]
+  events: VoiceEvents
+}
+
+/** A live, two-way voice conversation */
+export interface VoiceSession {
+  /** The user's microphone: raw 16-bit little-endian PCM, mono, 16 kHz */
+  sendAudio(pcm: Buffer): void
+  /** Ends the conversation */
+  close(): void
+}
+
 export interface LlmPort {
   /** Provider and model names, for logs and the health check. */
   readonly name: string
@@ -55,4 +89,7 @@ export interface LlmPort {
 
   /** Writes the assistant's next reply, running any function calls it makes on the way. */
   generate(request: GenerateRequest): Promise<string>
+
+  /** Opens a live voice conversation: the user talks, the assistant answers out loud. */
+  openVoice(options: VoiceSessionOptions): Promise<VoiceSession>
 }

@@ -3,6 +3,7 @@ import { ApiError } from '@google/genai'
 import { AssistantUnavailableError } from '../llm'
 import { ChatError, chatRequestSchema, reply } from './chat.service'
 import { moodReport } from './mood'
+import { issueVoiceTicket } from './voice'
 
 /**
  * POST /api/assistant/chat — body: { messages: [{ role: 'user' | 'assistant', text }] }, newest last.
@@ -44,6 +45,23 @@ export const mood = async (req: Request, res: Response) => {
     res.json(await moodReport({ from: req.query.from as string | undefined, to: req.query.to as string | undefined }))
   } catch (error) {
     console.error('[intelligence] mood report failed:', error instanceof Error ? error.message : error)
+    res.status(500).json({ message: 'Something went wrong' })
+  }
+}
+
+/**
+ * POST /api/assistant/voice-ticket — a one-time pass, valid for a minute, to open the voice
+ * WebSocket (see voice.ts). Carries who is signed in, so voice can answer account questions.
+ */
+export const voiceTicket = (req: Request, res: Response) => {
+  try {
+    res.json(issueVoiceTicket(req.user ? { id: req.user.id, role: req.user.role } : undefined))
+  } catch (error) {
+    if (error instanceof AssistantUnavailableError) {
+      res.status(503).json({ message: 'Voice chat is not available right now.' })
+      return
+    }
+    console.error('[intelligence] voice ticket failed:', error instanceof Error ? error.message : error)
     res.status(500).json({ message: 'Something went wrong' })
   }
 }

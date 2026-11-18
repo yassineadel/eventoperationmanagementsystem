@@ -80,7 +80,7 @@ const searchTextOf = (turns: ChatTurn[]) =>
     .map((t) => t.text)
     .join('\n')
 
-const ARABIC = /[؀-ۿ]/
+export const ARABIC = /[؀-ۿ]/
 
 /** Gemini sometimes writes Markdown; the website shows plain text, so remove the symbols */
 const toPlainText = (text: string) =>
@@ -111,7 +111,7 @@ const ASKS_TO_SIGN_IN = /sign in|log in|signed in|logged in|سجل|تسجيل ا
  * answer was about (the rule it came from, the user's tickets, signing in). Built here from our own
  * data, never from the model's text, so a link can only ever point to a real page of the website.
  */
-const linksFor = (reply: string, hits: KnowledgeHit[], context: ToolContext, asker: Asker): ChatLink[] => {
+export const linksFor = (reply: string, hits: KnowledgeHit[], context: ToolContext, asker: Asker): ChatLink[] => {
   const links: ChatLink[] = []
   const add = (link: ChatLink) => {
     if (!links.some((l) => l.to === link.to)) links.push(link)
@@ -146,7 +146,7 @@ const linksFor = (reply: string, hits: KnowledgeHit[], context: ToolContext, ask
  * What a question was about, for the mood statistics: the Hafletna rule it matched closely, the
  * kind of function the model needed, or the event the reply named.
  */
-const topicOf = (hits: KnowledgeHit[], context: ToolContext, eventLinked: boolean): string => {
+export const topicOf = (hits: KnowledgeHit[], context: ToolContext, eventLinked: boolean): string => {
   const top = hits[0]
   if (top?.sourceType === 'PLATFORM' && top.distance <= PLATFORM_LINK_DISTANCE) return top.sourceId
   if (['get_my_tickets', 'get_my_orders', 'get_my_refunds', 'check_refund'].some((t) => context.used.has(t))) return 'my-account'

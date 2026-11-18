@@ -1,6 +1,7 @@
 import { ApiError, GoogleGenAI, ThinkingLevel, type Content, type Part } from '@google/genai'
 import { EMBEDDING_DIMENSIONS } from '../knowledge/vector'
-import type { GenerateRequest, KnowledgeText, LlmPort } from './llm.port'
+import type { GenerateRequest, KnowledgeText, LlmPort, VoiceSession, VoiceSessionOptions } from './llm.port'
+import { openGeminiVoice } from './gemini-live'
 
 type GeminiOptions = {
   apiKey: string
@@ -8,6 +9,8 @@ type GeminiOptions = {
   /** Tried in order when the chat model is busy. Embeddings never fall back (see embed()). */
   fallbackChatModels: string[]
   embeddingModel: string
+  /** Gemini Live model for voice conversations */
+  liveModel: string
 }
 
 // gemini-embedding-2 takes the task as text in front of the input (it has no task_type field).
@@ -67,7 +70,7 @@ export class GeminiAdapter implements LlmPort {
 
   constructor(private readonly options: GeminiOptions) {
     this.chatModels = [...new Set([options.chatModel, ...options.fallbackChatModels])]
-    this.name = `gemini (chat: ${this.chatModels.join(' → ')}; embeddings: ${options.embeddingModel})`
+    this.name = `gemini (chat: ${this.chatModels.join(' → ')}; embeddings: ${options.embeddingModel}; voice: ${options.liveModel})`
     this.ai = new GoogleGenAI({
       apiKey: options.apiKey,
       // Defaults for work nobody waits on (indexing the knowledge base): a generous 60 s, because
@@ -189,6 +192,10 @@ export class GeminiAdapter implements LlmPort {
 
   private remaining(deadline?: number) {
     return deadline === undefined ? CHAT_ATTEMPT_MS : deadline - Date.now()
+  }
+
+  openVoice(options: VoiceSessionOptions): Promise<VoiceSession> {
+    return openGeminiVoice(this.ai, this.options.liveModel, options)
   }
 
   /**

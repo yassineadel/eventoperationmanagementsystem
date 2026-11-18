@@ -5,10 +5,14 @@ import { startPaymentWorker } from './modules/payments/payments.service'
 import { startEmailWorker } from './modules/platform/email.worker'
 import { startAccountDeletionWorker } from './modules/auth/account-deletion.worker'
 import { syncKnowledgeInBackground } from './modules/intelligence/knowledge/indexer'
+import { attachVoice } from './modules/intelligence/chat/voice'
 
-app.listen(env.PORT, () => {
+const server = app.listen(env.PORT, () => {
   console.log(`Server running on port ${env.PORT} in ${env.NODE_ENV} mode`)
 })
+
+// Voice chat: the WebSocket at /api/assistant/voice shares the API's port
+attachVoice(server)
 
 // Give expired checkout holds back to the pool (FR-TKT-10)
 startHoldExpiryWorker()

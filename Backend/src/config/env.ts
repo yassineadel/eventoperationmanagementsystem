@@ -40,6 +40,9 @@ const envSchema = z.object({
     .default('gemini-3.6-flash,gemini-3.5-flash-lite')
     .transform((list) => list.split(',').map((model) => model.trim()).filter(Boolean)),
   GEMINI_EMBEDDING_MODEL: z.string().min(1).default('gemini-embedding-2'),
+  // Voice chat (Gemini Live). Google retires Live models often: on 17 Nov 2026 the older ones were
+  // switched off and gemini-3.8-live replaced them. Change it here when Google names a successor.
+  GEMINI_LIVE_MODEL: z.string().min(1).default('gemini-3.8-live'),
 }).refine(
   (e) => e.PAYMENT_PROVIDER !== 'stripe' || (e.STRIPE_SECRET_KEY && e.STRIPE_WEBHOOK_SECRET),
   { message: 'PAYMENT_PROVIDER=stripe needs STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET', path: ['PAYMENT_PROVIDER'] },

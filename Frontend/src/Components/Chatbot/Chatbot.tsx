@@ -5,9 +5,11 @@ import { createChatSession, chatInputLimit } from './chatSession'
 import { assistantChatReply } from './assistantApi'
 import { chatStrings } from './strings'
 import type { ChatSend } from './types'
+import { voiceSupported } from './voiceAudio'
+import { createVoiceController, type VoiceDeps, type VoiceProblem, type VoiceState } from './voiceSession'
 import './Chatbot.css'
 
-function ChatIcon({ name }: { name: 'chat' | 'close' | 'reset' | 'send' | 'arrow' | 'ticket' }) {
+function ChatIcon({ name }: { name: 'chat' | 'close' | 'reset' | 'send' | 'arrow' | 'ticket' | 'mic' | 'stop' }) {
   const paths = {
     chat: <><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H5l-3 3V11.5A7.5 7.5 0 0 1 9.5 4h3A7.5 7.5 0 0 1 20 11.5Z" /><path d="M7 10h8M7 14h5" /></>,
     close: <path d="m6 6 12 12M18 6 6 18" />,
@@ -15,6 +17,8 @@ function ChatIcon({ name }: { name: 'chat' | 'close' | 'reset' | 'send' | 'arrow
     send: <><path d="m21 3-7 18-4-8-8-4 19-6ZM10 13l11-10" /></>,
     arrow: <path d="M4 12h15m-5-5 5 5-5 5" />,
     ticket: <><path d="M3 6h18v4a2 2 0 0 0 0 4v4H3v-4a2 2 0 0 0 0-4V6Z" /><path d="M15 6v3m0 3v1m0 3v2" /></>,
+    mic: <><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></>,
+    stop: <rect x="7" y="7" width="10" height="10" rx="2" />,
   }
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>
 }
@@ -24,7 +28,8 @@ function ChatIcon({ name }: { name: 'chat' | 'close' | 'reset' | 'send' | 'arrow
 const replyTimeoutMs = 45_000
 
 // The service is injectable: tests pass the local sample adapter (chatService.ts) instead.
-export default function Chatbot({ sendMessage = assistantChatReply, defaultOpen = false }: { sendMessage?: ChatSend; defaultOpen?: boolean }) {
+// voiceDeps: tests pass fake microphone, speaker and socket; null hides voice
+export default function Chatbot({ sendMessage = assistantChatReply, defaultOpen = false, voiceDeps }: { sendMessage?: ChatSend; defaultOpen?: boolean; voiceDeps?: VoiceDeps | null }) {
   const { lang, theme } = usePreferences()
   const t = chatStrings[lang]
   const id = useId()
@@ -38,8 +43,19 @@ export default function Chatbot({ sendMessage = assistantChatReply, defaultOpen 
   const body = useRef<HTMLDivElement>(null)
   const followLatest = useRef(true)
   const busy = snapshot.status === 'typing'
+  const [voiceState, setVoiceState] = useState<VoiceState>('idle')
+  const [captions, setCaptions] = useState({ user: '', assistant: '' })
+  const [voiceProblem, setVoiceProblem] = useState<VoiceProblem | null>(null)
+  // Voice chat: spoken exchanges join the same conversation as typed ones
+  const [voice] = useState(() => voiceDeps === null || (!voiceDeps && !voiceSupported()) ? null : createVoiceController({
+    onState: setVoiceState,
+    onCaptions: setCaptions,
+    onTurn: (user, reply) => { session.addSpokenExchange(user, reply) },
+    onProblem: setVoiceProblem,
+  }, voiceDeps ?? undefined))
+  const talking = voiceState !== 'idle'
 
-  useEffect(() => () => session.cancel(), [session])
+  useEffect(() => () => { session.cancel(); voice?.stop() }, [session, voice])
   useEffect(() => {
     const openHelp = () => setOpen(true)
     window.addEventListener('hafletna:open-help', openHelp)
@@ -53,6 +69,7 @@ export default function Chatbot({ sendMessage = assistantChatReply, defaultOpen 
   }, [open, snapshot])
 
   function close() {
+    voice?.stop()
     setOpen(false)
     launcher.current?.focus({ preventScroll: true })
   }
@@ -78,7 +95,16 @@ export default function Chatbot({ sendMessage = assistantChatReply, defaultOpen 
     }
   }
 
+  function toggleVoice() {
+    if (!voice) return
+    if (talking) { voice.stop(); return }
+    setVoiceProblem(null)
+    followLatest.current = true
+    void voice.start(session.history())
+  }
+
   function reset() {
+    voice?.stop()
     session.reset()
     setDraft('')
     setAnnouncement(t.reset)
@@ -117,9 +143,16 @@ export default function Chatbot({ sendMessage = assistantChatReply, defaultOpen 
         {busy && <div className="chat-typing" role="status"><span className="chat-typing-dots" aria-hidden="true"><span /><span /><span /></span>{t.typing}</div>}
         {snapshot.status === 'error' && <div className="chat-error" role="alert"><p>{snapshot.error === 'timeout' ? t.timeout : t.unavailable}</p><button type="button" onClick={() => { followLatest.current = true; session.retry() }}>{t.retry}</button></div>}
       </div>
+      {talking && <div className="chat-voice" role="status" aria-live="polite">
+        <p className="chat-voice-state"><span className={`chat-voice-dot is-${voiceState}`} aria-hidden="true" />{voiceState === 'connecting' ? t.voiceConnecting : voiceState === 'speaking' ? t.voiceSpeaking : t.voiceListening}</p>
+        {captions.user && <p className="chat-voice-caption" dir="auto"><strong>{t.you}:</strong> {captions.user}</p>}
+        {captions.assistant && <p className="chat-voice-caption" dir="auto"><strong>{t.assistant}:</strong> {captions.assistant}</p>}
+      </div>}
+      {voiceProblem && !talking && <p className="chat-voice-problem" role="alert">{t.voiceProblems[voiceProblem]}</p>}
       <form className="chat-composer" onSubmit={submit}>
-        <textarea ref={input} rows={2} aria-label={t.input} aria-describedby={`${id}-hint ${id}-privacy`} placeholder={t.placeholder} value={draft} maxLength={chatInputLimit} onChange={(event) => setDraft(event.target.value)} onKeyDown={onInputKey} dir="auto" />
-        <button type="submit" disabled={busy || !draft.trim()} aria-label={t.send} title={t.send}><ChatIcon name="send" /></button>
+        <textarea ref={input} rows={2} aria-label={t.input} aria-describedby={`${id}-hint ${id}-privacy`} placeholder={talking ? t.voicePlaceholder : t.placeholder} value={draft} maxLength={chatInputLimit} onChange={(event) => setDraft(event.target.value)} onKeyDown={onInputKey} dir="auto" disabled={talking} />
+        {voice && <button type="button" className={`chat-voice-button${talking ? ' is-on' : ''}`} onClick={toggleVoice} disabled={busy && !talking} aria-pressed={talking} aria-label={talking ? t.voiceStop : t.voiceStart} title={talking ? t.voiceStop : t.voiceStart}><ChatIcon name={talking ? 'stop' : 'mic'} /></button>}
+        <button type="submit" disabled={busy || talking || !draft.trim()} aria-label={t.send} title={t.send}><ChatIcon name="send" /></button>
       </form>
       <div className="chat-composer-note"><small id={`${id}-hint`}>{t.hint}</small><small aria-label={`${draft.length} / ${chatInputLimit} ${t.count}`}>{draft.length}/{chatInputLimit}</small></div>
       <p className="chat-privacy" id={`${id}-privacy`}>{t.privacy}</p>

@@ -2,7 +2,9 @@ import { env } from '../../../config/env'
 import { GeminiAdapter } from './gemini.adapter'
 import type { LlmPort } from './llm.port'
 
-export type { ChatTurn, GenerateRequest, KnowledgeText, LlmPort, ToolCall, ToolDeclaration, ToolRunner } from './llm.port'
+export type {
+  ChatTurn, GenerateRequest, KnowledgeText, LlmPort, ToolCall, ToolDeclaration, ToolRunner, VoiceEvents, VoiceSession, VoiceSessionOptions,
+} from './llm.port'
 
 /** Thrown when the assistant is asked to work but no AI provider is configured. */
 export class AssistantUnavailableError extends Error {
@@ -19,6 +21,7 @@ const llm: LlmPort | null = env.GEMINI_API_KEY
       chatModel: env.GEMINI_CHAT_MODEL,
       fallbackChatModels: env.GEMINI_CHAT_FALLBACK_MODELS,
       embeddingModel: env.GEMINI_EMBEDDING_MODEL,
+      liveModel: env.GEMINI_LIVE_MODEL,
     })
   : null
 

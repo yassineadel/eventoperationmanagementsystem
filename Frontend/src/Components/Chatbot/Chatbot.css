@@ -293,6 +293,19 @@
 }
 .chat-composer > button svg { width: 19px; height: 19px; }
 .chat-composer > button:disabled { border-color: var(--chat-line); color: var(--chat-muted); background: var(--chat-paper); }
+/* Voice chat: the microphone button is outlined; it fills while a conversation is on */
+.chat-composer > .chat-voice-button { border-color: var(--chat-line); color: var(--chat-purple); background: var(--chat-paper); }
+.chat-composer > .chat-voice-button.is-on { border-color: #b4235a; color: #fff; background: linear-gradient(135deg, #d3366f, #a3184d); }
+.chat-voice { flex-shrink: 0; padding: 10px 16px; border-top: 1px solid var(--chat-line); background: var(--chat-paper); font-size: 11px; line-height: 1.8; }
+.chat-voice p { margin: 0; overflow-wrap: anywhere; }
+.chat-voice-state { display: flex; align-items: center; gap: 8px; color: var(--chat-purple); font-weight: 700; }
+.chat-voice-caption { color: var(--chat-ink); }
+.chat-voice-caption strong { color: var(--chat-muted); font-weight: 700; }
+.chat-voice-dot { width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
+.chat-voice-dot.is-listening { background: #1f9d55; animation: chat-voice-pulse 1.4s ease-in-out infinite; }
+.chat-voice-dot.is-speaking { background: var(--chat-purple); animation: chat-voice-pulse .7s ease-in-out infinite; }
+.chat-voice-problem { flex-shrink: 0; margin: 0; padding: 8px 16px; border-top: 1px solid var(--chat-line); color: var(--chat-error); background: var(--chat-error-bg); font-size: 11px; line-height: 1.8; }
+@keyframes chat-voice-pulse { 50% { opacity: .35; transform: scale(.75); } }
 .chat-composer-note { display: flex; flex-shrink: 0; align-items: start; justify-content: space-between; gap: 10px; padding: 4px 17px 9px; color: var(--chat-muted); font-size: 9px; line-height: 1.8; }
 .chat-composer-note small { font: inherit; }
 .chat-composer-note > :last-child { flex-shrink: 0; font-variant-numeric: tabular-nums; }
