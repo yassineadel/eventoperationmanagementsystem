@@ -41,7 +41,7 @@ export default function RefundsPage() {
               <span className="cx-muted cx-small">{r.ticket.ticketCategory.name} · {r.ticket.attendeeName} · <span className="cx-mono">{r.ticket.orderItem.order.reference}</span></span>
               <span className="cx-muted cx-small">Event {date(r.ticket.event.startAt)}{daysLeft >= 0 ? ` · in ${daysLeft} days` : ' · past'}</span></span></td>
             <td style={{ maxWidth: 260 }}><span className="cx-two">
-              <span className="cx-small">{r.type === 'USER_REQUESTED' ? (r.reason ? `“${r.reason}”` : '—') : title(r.type)}</span>
+              <span className="cx-small">{r.type === 'USER_REQUESTED' ? (r.reason ? `“${r.reason}”` : '-') : title(r.type)}</span>
               <span className="cx-muted cx-small">Requested {dateTime(r.createdAt)}</span>
               {r.rejectionReason && <span className="cx-small" style={{ color: 'var(--cx-red)' }}>Your message: {r.rejectionReason}</span>}
               {r.reviewedBy && <span className="cx-muted cx-small">Reviewed by {r.reviewedBy.fullName}</span>}

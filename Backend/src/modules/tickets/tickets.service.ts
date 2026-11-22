@@ -233,7 +233,7 @@ const moveTicket = async (userId: string, ticketId: string, recipientEmail: stri
 }
 
 /**
- * Everyone who has held the ticket, in order — for administrators (FR-MTK-15)
+ * Everyone who has held the ticket, in order (for administrators) (FR-MTK-15)
  */
 export const getTransferChain = async (ticketId: string) => {
   const ticket = await prisma.ticket.findUnique({

@@ -47,7 +47,7 @@ export class StripeProvider implements PaymentProvider {
     try {
       await this.stripe.paymentIntents.cancel(providerTxId)
     } catch {
-      // already succeeded or cancelled — the caller re-checks the status
+      // already succeeded or cancelled; the caller re-checks the status
     }
   }
 

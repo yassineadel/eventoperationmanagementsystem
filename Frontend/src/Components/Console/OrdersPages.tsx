@@ -33,7 +33,7 @@ export function OrdersPage() {
             <td><span className="cx-two"><span>{o.user.fullName}</span><span className="cx-muted cx-small">{o.user.email}</span></span></td>
             <td>{o.event.name}</td>
             <td><Badge value={o.status} /></td>
-            <td className="cx-small cx-muted">{o.payment ? `${o.payment.provider === 'stripe' ? 'Stripe' : 'Test payment'}` : '—'}</td>
+            <td className="cx-small cx-muted">{o.payment ? `${o.payment.provider === 'stripe' ? 'Stripe' : 'Test payment'}` : '-'}</td>
             <td className="num">{num(o.tickets)}</td>
             <td className="num cx-strong">{egp(o.total)}</td>
           </tr>)}</tbody>
@@ -95,12 +95,12 @@ export function OrderPage() {
       </div>
       <div className="cx-stack">
         <Card title="Customer"><KeyValue items={[
-          ['Name', <Link to={`/admin/users/${o.user.id}`}>{o.user.fullName}</Link>], ['Email', o.user.email], ['Phone', o.user.phone ?? '—'],
+          ['Name', <Link to={`/admin/users/${o.user.id}`}>{o.user.fullName}</Link>], ['Email', o.user.email], ['Phone', o.user.phone ?? '-'],
         ]} /></Card>
         <Card title="Payment">{o.payment ? <KeyValue items={[
           ['Provider', o.payment.provider === 'stripe' ? 'Stripe (card)' : 'Payment simulator (test)'], ['Status', <Badge value={o.payment.status} />],
           ['Amount', egp(o.payment.amount)], ['Paid at', dateTime(o.payment.paidAt)],
-          ['Reference', <span className="cx-mono">{o.payment.providerTxId ?? '—'}</span>],
+          ['Reference', <span className="cx-mono">{o.payment.providerTxId ?? '-'}</span>],
         ]} /> : <Empty>No payment was started.</Empty>}</Card>
         <Card title="Timeline"><div className="cx-timeline">
           <div><span>Order created<br /><small className="cx-muted">{dateTime(o.createdAt)}</small></span></div>

@@ -87,7 +87,7 @@ export const getDashboard = async () => {
 // ─── Events ─────────────────────────────────────────────────────────────────
 
 const eventRowSelect = {
-  id: true, name: true, category: true, performer: true, status: true, startAt: true, createdAt: true, images: true,
+  id: true, name: true, category: true, performer: true, status: true, startAt: true, createdAt: true, images: true, featured: true,
   venue: { select: { id: true, name: true, city: true, type: true } },
   ticketCategories: { select: { capacity: true, soldCount: true, heldCount: true, price: true } },
 } satisfies Prisma.EventSelect
@@ -110,6 +110,7 @@ export const listEvents = async (q: Record<string, unknown>) => {
     ...(status && { status }),
     ...(category && { category }),
     ...(when && { startAt: when }),
+    ...((q.featured === 'true' || q.featured === '1') && { featured: true }),
     ...(text(q.venueId) && isUuid(text(q.venueId)) && { venueId: text(q.venueId) }),
     ...(search && { OR: [{ name: { contains: search, mode: 'insensitive' } }, { performer: { contains: search, mode: 'insensitive' } }] }),
   }
@@ -173,6 +174,10 @@ const eventInput = (body: Record<string, unknown>, creating: boolean): EventBody
   }
   for (const k of ['salesOpenAt', 'salesCloseAt'] as const) {
     if (body[k] !== undefined) out[k] = body[k] ? new Date(String(body[k])).toISOString() : null
+  }
+  if (body.featured !== undefined) {
+    if (typeof body.featured !== 'boolean') throw new AdminError('Choose whether the event is in the homepage carousel')
+    out.featured = body.featured
   }
   if (body.durationMinutes !== undefined) {
     const n = Number(body.durationMinutes)

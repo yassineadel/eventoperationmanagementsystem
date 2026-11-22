@@ -12,18 +12,18 @@ const page = (dark: boolean) => ({
   display: 'grid',
   placeItems: 'center',
   padding: 16,
-  background: dark ? '#090c20' : '#fbf8f3',
-  color: dark ? '#f8f3fb' : '#0a0b23',
+  background: dark ? '#17123a' : '#eef3ff',
+  color: dark ? '#eef3ff' : '#17123a',
   fontFamily: 'system-ui, sans-serif',
 })
 const box = { maxWidth: 440, textAlign: 'center' as const, display: 'grid', gap: 12 }
-const button = (dark: boolean) => ({
+const button = (_dark: boolean) => ({
   justifySelf: 'center',
   padding: '10px 18px',
   borderRadius: 7,
   border: 0,
-  background: dark ? '#ad76ff' : '#7200f5',
-  color: dark ? '#090c20' : '#ffffff',
+  background: '#4c7dff',
+  color: '#17123a',
   font: '700 15px system-ui, sans-serif',
   textDecoration: 'none',
   cursor: 'pointer',
@@ -38,7 +38,7 @@ function Gate({ title, text, action }: { title: string; text?: string; action?: 
         <h1 style={{ margin: 0, fontSize: 24 }} role={text ? undefined : 'status'}>
           {title}
         </h1>
-        {text && <p style={{ margin: 0, lineHeight: 1.55, color: dark ? '#c1bdd3' : '#59586c' }}>{text}</p>}
+        {text && <p style={{ margin: 0, lineHeight: 1.55, color: dark ? '#c1bdd3' : '#5b6478' }}>{text}</p>}
         {action?.(button(dark))}
       </div>
     </main>

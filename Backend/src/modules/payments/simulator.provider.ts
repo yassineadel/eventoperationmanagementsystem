@@ -9,8 +9,8 @@ export type SimulatedOutcome =
   | 'success' // pays and confirms
   | 'decline' // card declined
   | 'timeout' // the buyer never finishes; the order is cancelled at its deadline
-  | 'success_lost' // pays, but the confirmation never reaches us — reconciliation must find it (FR-PAY-05)
-  | 'success_twice' // pays and the confirmation arrives twice — must not issue tickets twice (FR-CHK-10)
+  | 'success_lost' // pays, but the confirmation never reaches us, so reconciliation must find it (FR-PAY-05)
+  | 'success_twice' // pays and the confirmation arrives twice, and tickets must not be issued twice (FR-CHK-10)
 
 type Notify = (providerTxId: string, outcome: PaymentOutcome) => Promise<void>
 

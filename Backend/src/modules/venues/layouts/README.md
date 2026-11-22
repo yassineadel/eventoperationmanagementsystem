@@ -4,7 +4,7 @@ Venue layouts are authored by the development team as JSON, not through an admin
 One file per venue. Adding a venue = adding a file here.
 
 The two launch venues are real Egyptian venues, but their layouts and capacities are **simplified
-for the project** — they are not the venues' official seat maps.
+for the project**. They are not the venues' official seat maps.
 
 | File | Type | Capacity |
 |---|---|---|
@@ -20,7 +20,7 @@ for the project** — they are not the venues' official seat maps.
 | `latitude`, `longitude` | Map pin (FR-EVT-02, FR-TKT-07). Approximate. |
 | `type` | `SEATED` or `STANDING`. Decides which of `sections` / `zones` is used. |
 | `capacity` | Total admissions. Must equal the sum of seats or zone capacities. |
-| `categories` | Category **keys** the venue offers. Prices are NOT here — the admin sets price and service fee per category when creating an event (FR-ADM-07). |
+| `categories` | Category **keys** the venue offers. Prices are NOT here: the admin sets price and service fee per category when creating an event (FR-ADM-07). |
 
 ## SEATED: `sections`
 

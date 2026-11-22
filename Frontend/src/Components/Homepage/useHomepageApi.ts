@@ -2,9 +2,15 @@ import { useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { API_URL, getJson } from '../../lib/api'
 import { EventsClientContext, useResource } from '../../lib/useEventsApi'
 import { eventRequest } from '../../lib/eventRequests'
-import { listingApiQuery, type EventsPage } from '../../lib/eventsModel'
+import { listingApiQuery, parseEventsPage, type EventsPage } from '../../lib/eventsModel'
 import { parseListingFilters, type ListingFilters } from '../Discovery/listing'
 import { parsePublicVenues } from '../../lib/homepageApi'
+
+/** Events an admin switched on for the homepage carousel (console: "Show in homepage carousel"). */
+export function useFeaturedEvents() {
+  const load = useCallback(async (signal: AbortSignal) => parseEventsPage(await getJson<unknown>('/api/events?featured=true&sort=soonest', { signal })), [])
+  return useResource('homepage-featured', load, true)
+}
 
 export function useHomepageVenues() {
   const load = useCallback(async (signal: AbortSignal) => parsePublicVenues(await getJson<unknown>('/api/venues', { signal }), API_URL), [])

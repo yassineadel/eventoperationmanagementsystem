@@ -51,7 +51,7 @@ const authenticate = async (token: string): Promise<Authentication> => {
 const tokenOf = (req: Request): string | undefined => req.cookies?.token || req.headers.authorization?.split(' ')[1]
 
 /**
- * Middleware to protect routes — user must be logged in
+ * Middleware to protect routes: the user must be logged in
  */
 export const protect = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const token = tokenOf(req)

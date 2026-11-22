@@ -23,7 +23,7 @@ export const Svg = ({ d, size = 18 }: { d: string; size?: number }) =>
 /** The admin console shell. Only administrators get in; the server checks the role on every request too. */
 export default function ConsoleLayout() {
   const session = useSession()
-  const { theme, setTheme } = usePreferences()
+  const { theme } = usePreferences()
   const { pathname } = useLocation()
   const [menu, setMenu] = useState(false)
 
@@ -39,7 +39,7 @@ export default function ConsoleLayout() {
 
   return <ToastProvider><div className="cx-root" data-theme={theme}>
     <aside className={`cx-side${menu ? ' is-open' : ''}`}>
-      <Link to="/admin" className="cx-brand" onClick={() => setMenu(false)}><span className="cx-brand-mark">H</span><span>Hafletna<small>Admin console</small></span></Link>
+      <Link to="/admin" className="cx-brand" onClick={() => setMenu(false)}><img className="cx-brand-mark" src="/favicon.svg" alt="" /><span>Hafletna<small>Admin console</small></span></Link>
       <nav>{NAV.map((n) => <NavLink key={n.to} to={n.to} end={n.end} onClick={() => setMenu(false)} className={({ isActive }) => (isActive ? 'is-active' : '')}><Svg d={n.icon} />{n.label}</NavLink>)}</nav>
       <div className="cx-side-foot">
         <Link to="/" className="cx-side-link"><Svg d="M10 19l-7-7 7-7M3 12h18" />Back to website</Link>
@@ -51,9 +51,6 @@ export default function ConsoleLayout() {
         <button className="cx-icon-btn cx-menu-btn" onClick={() => setMenu(!menu)} aria-label="Menu"><Svg d="M4 6h16M4 12h16M4 18h16" /></button>
         <span className="cx-crumb">{NAV.find((n) => (n.end ? pathname === n.to : pathname.startsWith(n.to)))?.label ?? 'Admin'}</span>
         <div className="cx-top-right">
-          <button className="cx-icon-btn" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} aria-label="Switch light or dark mode" title="Light / dark">
-            <Svg d={theme === 'dark' ? 'M12 3v2m0 14v2m9-9h-2M5 12H3m15.4-6.4-1.4 1.4M7 17l-1.4 1.4m12.8 0L17 17M7 7 5.6 5.6M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z' : 'M21 13a9 9 0 1 1-10-10 7 7 0 0 0 10 10Z'} />
-          </button>
           <div className="cx-me"><span className="cx-avatar">{user.fullName.charAt(0).toUpperCase()}</span><span><b>{user.fullName}</b><small>{user.email}</small></span></div>
           <button className="cx-btn is-ghost" onClick={() => session.signOut()}>Sign out</button>
         </div>

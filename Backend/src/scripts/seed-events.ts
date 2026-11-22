@@ -124,7 +124,7 @@ async function main() {
         name: e.name,
         category: e.category,
         performer: e.performer,
-        description: `${e.name} — a test event for the listing page.`,
+        description: `${e.name}: a test event for the listing page.`,
         startAt,
         doorsOpenAt: new Date(startAt.getTime() - 60 * 60 * 1000),
         durationMinutes: 120,

@@ -37,6 +37,10 @@ export default function EventPage() {
       sub={`${title(e.category)} · ${dateTime(e.startAt)} · ${e.venue.name}, ${e.venue.city}`}
       actions={<>
         {e.status === 'PUBLISHED' && <a className="cx-btn" href={`/events/${e.id}`} target="_blank" rel="noreferrer">View on website ↗</a>}
+        {!cancelled && <button className={`cx-btn${e.featured ? ' is-ghost' : ''}`} aria-pressed={e.featured}
+          onClick={() => run(() => api.put(`/events/${e.id}`, { featured: !e.featured }), e.featured ? 'Removed from the homepage carousel' : 'Added to the homepage carousel', reload)}>
+          {e.featured ? '★ In carousel · Remove' : '☆ Add to carousel'}
+        </button>}
         {!cancelled && <Link className="cx-btn" to={`/admin/events/${e.id}/edit`}>Edit details</Link>}
         {e.status === 'DRAFT' && <button className="cx-btn is-primary" onClick={() => setDialog('publish')}>Publish</button>}
         {e.status === 'PUBLISHED' && <button className="cx-btn is-danger" onClick={() => setDialog('cancel')}>Cancel event</button>}
@@ -45,6 +49,7 @@ export default function EventPage() {
 
     {cancelled && <div className="cx-note is-red" style={{ marginBottom: 16 }}><b>Cancelled.</b> {e.cancellationReason} Every ticket is refunded in full; refunds that could not be sent wait in Refunds.</div>}
     {e.status === 'DRAFT' && <div className="cx-note is-amber" style={{ marginBottom: 16 }}>This is a draft: customers cannot see it. Add at least one ticket type, then publish it.</div>}
+    {e.featured && e.status === 'DRAFT' && <div className="cx-note is-blue" style={{ marginBottom: 16 }}>Marked for the homepage carousel: it appears there as soon as you publish it.</div>}
 
     <div className="cx-stats">
       <Stat tone="purple" label="Revenue" value={egp(e.stats.revenue)} />
@@ -77,8 +82,8 @@ export default function EventPage() {
           <p style={{ marginTop: 0, lineHeight: 1.6 }}>{e.description}</p>
           {e.about && <p className="cx-muted" style={{ lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{e.about}</p>}
           {e.policies && <><div className="cx-divider" /><KeyValue items={[
-            ['Refund policy', e.policies.refundPolicy?.en ?? '—'],
-            ['Transfer policy', e.policies.transferPolicy?.en ?? '—'],
+            ['Refund policy', e.policies.refundPolicy?.en ?? '-'],
+            ['Transfer policy', e.policies.transferPolicy?.en ?? '-'],
             ...(e.policies.entryPolicy?.en ? [['Entry rules', e.policies.entryPolicy.en] as [string, string]] : []),
           ]} /></>}
         </Card>
@@ -90,7 +95,7 @@ export default function EventPage() {
           ['Starts', dateTime(e.startAt)], ['Doors open', dateTime(e.doorsOpenAt)], ['Duration', `${e.durationMinutes} min`],
           ['Venue', <Link to={`/admin/venues/${e.venue.slug}`}>{e.venue.name}</Link>],
           ['Sales window', e.salesOpenAt || e.salesCloseAt ? `${e.salesOpenAt ? dateTime(e.salesOpenAt) : 'Now'} → ${e.salesCloseAt ? dateTime(e.salesCloseAt) : 'event start'}` : 'Until the event starts'],
-          ['Created by', e.createdBy.fullName], ['Published', e.publishedAt ? dateTime(e.publishedAt) : '—'],
+          ['Created by', e.createdBy.fullName], ['Published', e.publishedAt ? dateTime(e.publishedAt) : '-'],
         ]} /></Card>
         <Card title="Shortcuts"><div className="cx-stack" style={{ gap: 8 }}>
           <Link className="cx-btn" to={`/admin/orders?eventId=${e.id}`}>Orders for this event</Link>

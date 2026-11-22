@@ -30,7 +30,7 @@ function describeEvent(event: Event, now: number): string {
 function publicSuggestions(list: Event[], lead: string, to: string): ChatReply {
   if (!list.length) return { text: `${lead}\nThere are no matching future sample events marked available. You can adjust the filters on the events page.`, links: [{ label: 'Browse events', to }] }
   return {
-    text: `${lead}\n${list.slice(0, 3).map((event) => `${event.title.en} — ${dayTime(event.date)} (Egypt time), ${event.venue.en}. ${money(event.price)}.`).join('\n')}\nThese are fictional sample suggestions, not live availability or recommendations based on your account.`,
+    text: `${lead}\n${list.slice(0, 3).map((event) => `${event.title.en}: ${dayTime(event.date)} (Egypt time), ${event.venue.en}. ${money(event.price)}.`).join('\n')}\nThese are fictional sample suggestions, not live availability or recommendations based on your account.`,
     links: [...list.slice(0, 3).map(eventLink), { label: 'Browse matching events', to }],
   }
 }

@@ -103,7 +103,7 @@ async function main() {
     const verdict = pass1 && pass2 ? 'PASS' : 'FAIL'
 
     const report = [
-      `## ${new Date().toISOString()} — ${verdict}`,
+      `## ${new Date().toISOString()}: ${verdict}`,
       '',
       `Database: ${new URL(process.env['DATABASE_URL']!).hostname.replace(/^[^.]+/, '***')}`,
       '',

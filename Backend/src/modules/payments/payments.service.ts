@@ -78,7 +78,7 @@ export const handlePaymentResult = async (providerTxId: string, outcome: Payment
 }
 
 /**
- * Payment succeeded: order PAID, holds become sold, tickets issued — all or nothing.
+ * Payment succeeded: order PAID, holds become sold, tickets issued, all or nothing.
  */
 export const fulfilOrder = async (orderId: string): Promise<'PAID' | 'ALREADY_PAID' | 'REFUNDED'> => {
   try {

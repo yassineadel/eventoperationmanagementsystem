@@ -45,7 +45,7 @@ type Definition = {
 }
 
 export function LayoutPreview({ layout }: { layout: Pick<Layout, 'categories' | 'sections' | 'zones'> }) {
-  const color = (key: string) => layout.categories.find((c) => c.key === key)?.color ?? '#7200f5'
+  const color = (key: string) => layout.categories.find((c) => c.key === key)?.color ?? '#4c7dff'
   return <>
     {layout.sections && <div className="cx-seatmap"><div className="cx-stage">STAGE</div>
       {layout.sections.map((s) => <div key={s.key} className="cx-seat-section"><b>{s.label}</b>
@@ -54,7 +54,7 @@ export function LayoutPreview({ layout }: { layout: Pick<Layout, 'categories' | 
     {layout.zones && <><div className="cx-stage">STAGE</div><div className="cx-zones">
       {layout.zones.map((z) => <div key={z.key} className="cx-zone" style={{ left: `${z.x}%`, top: `${z.y - 8}%`, width: `${z.width}%`, height: `${z.height}%`, background: color(z.categoryKey) }}>{z.label}<br />{num(z.capacity)}</div>)}
     </div></>}
-    <div className="cx-legend" style={{ marginTop: 12 }}>{layout.categories.map((c) => <span key={c.key}><i style={{ background: c.color ?? '#7200f5' }} />{c.label} · {num(c.capacity)}</span>)}</div>
+    <div className="cx-legend" style={{ marginTop: 12 }}>{layout.categories.map((c) => <span key={c.key}><i style={{ background: c.color ?? '#4c7dff' }} />{c.label} · {num(c.capacity)}</span>)}</div>
   </>
 }
 
@@ -209,7 +209,7 @@ export function VenueFormPage() {
     <form onSubmit={submit} className="cx-stack">
       <div className="cx-grid cx-grid-2">
         <Card title="Venue"><div className="cx-form">
-          <Field label="Name" wide><input className="cx-input" required value={f.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. Cairo Opera House — Main Hall" /></Field>
+          <Field label="Name" wide><input className="cx-input" required value={f.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. Cairo Opera House - Main Hall" /></Field>
           <Field label="Address" wide><input className="cx-input" required value={f.address} onChange={(e) => set('address', e.target.value)} placeholder="Street, district" /></Field>
           <Field label="City"><select className="cx-input" value={f.city} onChange={(e) => set('city', e.target.value)} style={{ width: '100%' }}>{['Cairo', 'Giza', 'Alexandria'].map((c) => <option key={c}>{c}</option>)}</select></Field>
           <Field label="Type"><select className="cx-input" value={f.type} disabled={!!locked} onChange={(e) => set('type', e.target.value as VenueForm['type'])} style={{ width: '100%' }}>

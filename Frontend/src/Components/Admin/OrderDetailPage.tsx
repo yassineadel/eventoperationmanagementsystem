@@ -381,7 +381,7 @@ function timeline({ order, event }: OrderDetail, t: OrdersStrings, date: (iso: s
         { label: t.tEvent, at: date(event.startsAt), kind: event.startsAt < now() ? 'done' : 'todo' },
       ]
     case 'pending':
-      return [placed, { label: t.tWaiting, at: date(pay.dueBy!), kind: 'now' }, { label: t.tIssueAfter, at: '—', kind: 'todo' }]
+      return [placed, { label: t.tWaiting, at: date(pay.dueBy!), kind: 'now' }, { label: t.tIssueAfter, at: '-', kind: 'todo' }]
     case 'refunded':
       return [
         placed,

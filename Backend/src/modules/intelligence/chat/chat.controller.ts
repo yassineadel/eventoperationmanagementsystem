@@ -6,7 +6,7 @@ import { moodReport } from './mood'
 import { issueVoiceTicket } from './voice'
 
 /**
- * POST /api/assistant/chat — body: { messages: [{ role: 'user' | 'assistant', text }] }, newest last.
+ * POST /api/assistant/chat: body: { messages: [{ role: 'user' | 'assistant', text }] }, newest last.
  * Open to everyone; a signed-in customer can also ask about their own tickets, orders and refunds.
  */
 export const chat = async (req: Request, res: Response) => {
@@ -37,7 +37,7 @@ export const chat = async (req: Request, res: Response) => {
 }
 
 /**
- * GET /api/assistant/mood?from=YYYY-MM-DD&to=YYYY-MM-DD — administrators only.
+ * GET /api/assistant/mood?from=YYYY-MM-DD&to=YYYY-MM-DD: administrators only.
  * Customer mood statistics for a period (default the last 30 days), for an admin console chart.
  */
 export const mood = async (req: Request, res: Response) => {
@@ -50,7 +50,7 @@ export const mood = async (req: Request, res: Response) => {
 }
 
 /**
- * POST /api/assistant/voice-ticket — a one-time pass, valid for a minute, to open the voice
+ * POST /api/assistant/voice-ticket: a one-time pass, valid for a minute, to open the voice
  * WebSocket (see voice.ts). Carries who is signed in, so voice can answer account questions.
  */
 export const voiceTicket = (req: Request, res: Response) => {

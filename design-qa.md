@@ -34,7 +34,7 @@ Comparison state: signed out, English, light theme, Upcoming events selected, th
 - Final content QA found an unrelated running-track photo for Esports Cup Final. Added a topic-specific gaming-stage photo, inspected the raster asset and verified the loaded image in the live page. The final live evidence includes both corrected subjects.
 - The source comparison contains the original footer controls; their removal from the implementation is the explicit user-requested difference, not missing functionality.
 
-## Required fidelity surfaces — final assessment
+## Required fidelity surfaces: final assessment
 
 - Fonts/typography: existing DM Serif Display headings and Plus Jakarta Sans UI match the selected direction. Metadata, search type and row hierarchy were corrected. Arabic uses Cairo, with RTL alignment and wrapping. Long live venue names wrap without clipping.
 - Spacing/layout: one unified search bar, dated horizontal rows, right featured panel, two wide venue images and compact footer. Tablet stacks the feature; mobile uses compact rows and horizontally scrollable venues. No page-level horizontal overflow in the checked desktop/mobile states.
@@ -67,7 +67,7 @@ Comparison state: signed out, English, light theme, Upcoming events selected, th
 - [x] Check live backend, console, build, lint and relevant tests.
 - [x] Replace the real Esports event's unrelated athletics fallback with a relevant gaming-stage photo and verify it in the live page.
 
-## Requested venue-photo revision — 29 October 2026
+## Requested venue-photo revision (29 October 2026)
 
 - Replaced the generated Opera and Manara architectural images with real, unretouched photographs. This is an explicit user-requested departure from the selected mockup's imagery.
 - Opera: Daniel Csörföly's public-domain daylight exterior photo. Manara: the actual concert-stage/audience photograph used in TicketsMarche's Al Manara Arena listing. Sources and status are recorded in `Frontend/src/Components/Homepage/data/ASSETS.md`.

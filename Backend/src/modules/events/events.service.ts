@@ -16,6 +16,7 @@ export interface EventInput {
   faqs?: Prisma.InputJsonValue
   salesOpenAt?: string | null
   salesCloseAt?: string | null
+  featured?: boolean
 }
 
 const toDate = (v: string | null | undefined) => (v === undefined ? undefined : v === null ? null : new Date(v))
@@ -36,6 +37,7 @@ const toData = (data: EventInput) => ({
   faqs: data.faqs,
   salesOpenAt: toDate(data.salesOpenAt),
   salesCloseAt: toDate(data.salesCloseAt),
+  featured: data.featured,
 })
 
 // ─── Public listing (FR-LST-01 to FR-LST-12) ────────────────────────────────
@@ -55,6 +57,7 @@ export interface ListingQuery {
   price?: 'free' | 'paid'
   sort?: SortOrder
   page?: number
+  featured?: boolean // only events an admin put in the homepage carousel
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -67,6 +70,7 @@ const listingSelect = {
   performer: true,
   images: true,
   startAt: true,
+  featured: true,
   venue: { select: { name: true, city: true } },
   ticketCategories: { select: { price: true, capacity: true, heldCount: true, soldCount: true } },
 } satisfies Prisma.EventSelect
@@ -80,6 +84,7 @@ const toSummary = (e: ListingRow) => ({
   performer: e.performer,
   image: e.images[0] ?? null,
   startAt: e.startAt,
+  featured: e.featured,
   venue: e.venue,
   // the cheapest ticket, shown as "from 300 EGP"
   priceFrom: e.ticketCategories.length ? Math.min(...e.ticketCategories.map((c) => Number(c.price))) : null,
@@ -89,7 +94,7 @@ const toSummary = (e: ListingRow) => ({
   popularity: e.ticketCategories.reduce((n, c) => n + c.soldCount + c.heldCount, 0),
 })
 
-export const listEvents = async ({ q, categories, city, from, to, price, sort = 'soonest', page = 1 }: ListingQuery) => {
+export const listEvents = async ({ q, categories, city, from, to, price, sort = 'soonest', page = 1, featured }: ListingQuery) => {
   const search = q?.trim()
 
   // Each filter is added only when it was sent; together they combine with AND (FR-LST-08)
@@ -116,6 +121,9 @@ export const listEvents = async ({ q, categories, city, from, to, price, sort = 
   // Free = every ticket category costs 0; paid = at least one costs more (FR-LST-07)
   if (price === 'free') and.push({ ticketCategories: { some: {}, every: { price: 0 } } })
   if (price === 'paid') and.push({ ticketCategories: { some: { price: { gt: 0 } } } })
+
+  // Homepage carousel: only the events an admin switched on
+  if (featured) and.push({ featured: true })
 
   // Every filter except the category choice. The category counts below use this.
   const base: Prisma.EventWhereInput = {

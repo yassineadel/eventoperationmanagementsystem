@@ -36,6 +36,7 @@ export const getEvents = async (req: Request, res: Response) => {
       price,
       sort,
       page: Number(req.query.page) || 1,
+      featured: req.query.featured === 'true' || req.query.featured === '1',
     })
     res.status(200).json(result)
   } catch (error: any) {

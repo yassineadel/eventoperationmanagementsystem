@@ -253,7 +253,7 @@ export default function UserDetailPage() {
                               )}
                             </th>
                             <td>{event ? <Link to={`/admin/events/${event.eventId}`}>{event.name}</Link> : k.eventKey}</td>
-                            <td className="od-nowrap ad-hide-sm">{event ? f.date(event.startsAt) : '—'}</td>
+                            <td className="od-nowrap ad-hide-sm">{event ? f.date(event.startsAt) : '-'}</td>
                             <td className="ad-muted ad-hide-sm">
                               {k.category} · {k.seat}
                             </td>

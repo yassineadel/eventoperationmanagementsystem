@@ -46,6 +46,7 @@ export type EventRow = {
   id: string; name: string; category: string; performer: string | null; status: EventStatus; startAt: string; images: string[]
   venue: { id: string; name: string; city: string; type: 'SEATED' | 'STANDING' }
   sold: number; capacity: number; fromPrice: number | null; isPast: boolean
+  featured: boolean
 }
 export type TicketCategory = {
   id: string; categoryKey: string; name: string; description: string | null; price: string; serviceFeePercent: string; capacity: number; soldCount: number; heldCount: number

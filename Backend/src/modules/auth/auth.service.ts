@@ -58,7 +58,7 @@ export const registerUser = async (
  * Verifies the code and saves the user to the database
  */
 export const verifyEmail = async (email: string, code: string) => {
-  // Count failed attempts — max 5 per registration
+  // Count failed attempts (max 5 per registration)
   const attemptKey = `verify_attempts:${email}`
   const attempts = await redis.incr(attemptKey)
   if (attempts === 1) await redis.expire(attemptKey, 600)
@@ -82,7 +82,7 @@ export const verifyEmail = async (email: string, code: string) => {
   // Parse the user data
   const userData = JSON.parse(pendingUser)
 
-  // Now save the user to the database — the row existing is what "verified" means (FR-AUT-03)
+  // Now save the user to the database. The row existing is what "verified" means (FR-AUT-03)
   await prisma.user.create({
     data: {
       fullName: userData.fullName,
@@ -104,7 +104,7 @@ export const verifyEmail = async (email: string, code: string) => {
  * Logs in a user and returns a JWT token
  */
 export const loginUser = async (email: string, password: string) => {
-  // Ask for exactly the columns we need — nothing more
+  // Ask for exactly the columns we need, nothing more
   const user = await prisma.user.findUnique({
     where: { email },
     select: {
@@ -164,7 +164,7 @@ export const forgotPassword = async (email: string) => {
  * Resets the user's password after verifying the code
  */
 export const resetPassword = async (email: string, code: string, newPassword: string) => {
-  // Count failed attempts — max 5 per reset code
+  // Count failed attempts (max 5 per reset code)
   const attemptKey = `reset_attempts:${email}`
   const attempts = await redis.incr(attemptKey)
   if (attempts === 1) await redis.expire(attemptKey, 600)

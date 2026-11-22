@@ -111,13 +111,13 @@ function BrandMark({ size = 34 }: { size?: number }) {
     <svg width={size} height={(size * 36) / 42} viewBox="0 0 42 36" aria-hidden="true">
       <defs>
         <linearGradient id="adMarkFill" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#a78bfa" />
-          <stop offset="1" stopColor="#6d28d9" />
+          <stop offset="0" stopColor="#8fb0ff" />
+          <stop offset="1" stopColor="#4c7dff" />
         </linearGradient>
       </defs>
-      <rect x="13" y="3" width="26" height="19" rx="4" fill="#4c1d95" transform="rotate(-12 26 12)" />
+      <rect x="13" y="3" width="26" height="19" rx="4" fill="#2f5bd8" transform="rotate(-12 26 12)" />
       <rect x="3" y="11" width="30" height="21" rx="5" fill="url(#adMarkFill)" transform="rotate(-8 18 21)" />
-      <path d="M14 15v14" stroke="#0a0b2e" strokeWidth="2" strokeDasharray="2 2.5" transform="rotate(-8 18 21)" />
+      <path d="M14 15v14" stroke="#17123a" strokeWidth="2" strokeDasharray="2 2.5" transform="rotate(-8 18 21)" />
     </svg>
   )
 }
@@ -126,8 +126,7 @@ function BrandMark({ size = 34 }: { size?: number }) {
 
 function PreferenceControls() {
   const t = useAdminStrings()
-  const { lang, theme, setLang, setTheme } = usePreferences()
-  const dark = theme === 'dark'
+  const { lang, setLang } = usePreferences()
   return (
     <div className="ad-controls">
       <div className="ad-segmented" role="group" aria-label={t.langGroup}>
@@ -138,23 +137,6 @@ function PreferenceControls() {
           العربية
         </button>
       </div>
-      <button
-        type="button"
-        className="ad-icon-btn"
-        aria-label={dark ? t.toLight : t.toDark}
-        onClick={() => setTheme(dark ? 'light' : 'dark')}
-      >
-        {dark ? (
-          <Icon size={20}>
-            <circle cx="12" cy="12" r="4" />
-            <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-          </Icon>
-        ) : (
-          <Icon size={20}>
-            <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
-          </Icon>
-        )}
-      </button>
     </div>
   )
 }

@@ -64,6 +64,42 @@ export default function Chatbot({ sendMessage = assistantChatReply, defaultOpen 
   useEffect(() => {
     if (open) input.current?.focus({ preventScroll: true })
   }, [open])
+  // Keep the floating launcher off the page's own buttons: when it would cover one
+  // (e.g. "Choose tickets" in a sticky booking panel), it slides up just above it.
+  useEffect(() => {
+    const el = launcher.current
+    if (!el) return
+    let frame = 0
+    let lift = 0
+    const apply = (next: number) => { lift = next; el.style.setProperty('--chat-lift', `${next}px`) }
+    const check = () => {
+      frame = 0
+      if (open) return apply(0)
+      const box = el.getBoundingClientRect()
+      const top = box.top + lift
+      const bottom = box.bottom + lift
+      let needed = 0
+      document.querySelectorAll<HTMLElement>('button, a[href], input, select, textarea').forEach((control) => {
+        if (control.closest('.chat-root')) return
+        const r = control.getBoundingClientRect()
+        if (r.width < 60 || r.height < 30) return
+        if (r.right > box.left && r.left < box.right && r.bottom > top && r.top < bottom) needed = Math.max(needed, bottom - r.top + 12)
+      })
+      apply(Math.min(needed, 260))
+    }
+    const schedule = () => { if (!frame) frame = requestAnimationFrame(check) }
+    schedule()
+    window.addEventListener('scroll', schedule, { passive: true })
+    window.addEventListener('resize', schedule)
+    const observer = new MutationObserver(schedule)
+    observer.observe(document.body, { childList: true, subtree: true })
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener('scroll', schedule)
+      window.removeEventListener('resize', schedule)
+      observer.disconnect()
+    }
+  }, [open])
   useEffect(() => {
     if (open && followLatest.current && body.current) body.current.scrollTop = body.current.scrollHeight
   }, [open, snapshot])

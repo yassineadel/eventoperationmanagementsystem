@@ -176,7 +176,7 @@ export default function EventGuestsPage() {
                         </span>
                         {last && <span className="ev-received">{fillIn(t.gReceived, { name: last.from.name, date: f.date(last.at) })}</span>}
                       </td>
-                      <td className="ad-hide-sm">{buyer && buyer.email !== k.holderEmail ? <Link to={`/admin/users/${buyer.userId}`}>{buyer.name}</Link> : <span className="ad-muted">—</span>}</td>
+                      <td className="ad-hide-sm">{buyer && buyer.email !== k.holderEmail ? <Link to={`/admin/users/${buyer.userId}`}>{buyer.name}</Link> : <span className="ad-muted">-</span>}</td>
                       <td>
                         <Link className="ad-mono od-nowrap" to={`/admin/tickets/${k.code}`}>
                           {k.code}
@@ -187,7 +187,7 @@ export default function EventGuestsPage() {
                       <td>
                         <Badge tone={TONE[k.status]} label={label[k.status]} />
                       </td>
-                      <td className="ad-hide-sm od-nowrap">{k.scans[0] ? f.date(k.scans[0]) : <span className="ad-muted">—</span>}</td>
+                      <td className="ad-hide-sm od-nowrap">{k.scans[0] ? f.date(k.scans[0]) : <span className="ad-muted">-</span>}</td>
                     </tr>
                   )
                 })}

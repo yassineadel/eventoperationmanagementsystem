@@ -115,7 +115,7 @@ export default function AdminHomePage() {
             {sellingOut.map((s) => (
               <li key={`wave:${s.event.id}:${s.category}`}>
                 <AttentionRow
-                  label={`${t.aSellingOut}: ${s.event.name} · ${s.category} · ${s.wave} — ${fillIn(t.leftInWave, { left: f.num(s.left), cap: f.num(s.capacity) })}`}
+                  label={`${t.aSellingOut}: ${s.event.name} · ${s.category} · ${s.wave}: ${fillIn(t.leftInWave, { left: f.num(s.left), cap: f.num(s.capacity) })}`}
                   to={`/admin/events/${s.event.id}`}
                   action={t.review}
                 />

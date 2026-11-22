@@ -83,7 +83,7 @@ export function UserPage() {
       </div>
       <div className="cx-stack">
         <Card title="Account"><KeyValue items={[
-          ['Email', u.email], ['Phone', u.phone ?? '—'], ['Signs in with', u.google ? 'Google' : 'Email and password'],
+          ['Email', u.email], ['Phone', u.phone ?? '-'], ['Signs in with', u.google ? 'Google' : 'Email and password'],
           ['Marketing emails', u.marketingOptIn ? 'Yes' : 'No'], ['Role', u.role === 'ADMIN' ? 'Administrator' : 'Customer'],
         ]} /></Card>
         <Card title="Refunds">{u.refundsAsPayee.length ? <div className="cx-list">{u.refundsAsPayee.map((r) =>

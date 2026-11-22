@@ -12,7 +12,7 @@ export const chatStrings = {
     retry: 'Try again', unavailable: 'That reply could not be loaded. Try again or ask another question.',
     timeout: 'The reply took too long. Try again or ask another question.',
     voiceStart: 'Talk to Hafletna', voiceStop: 'Stop talking', voicePlaceholder: 'Voice chat is on…',
-    voiceConnecting: 'Connecting…', voiceListening: 'Listening — speak now', voiceSpeaking: 'Hafletna is speaking — talk to interrupt',
+    voiceConnecting: 'Connecting…', voiceListening: 'Listening, speak now', voiceSpeaking: 'Hafletna is speaking. Talk to interrupt',
     voiceProblems: {
       microphone: 'Allow the microphone in your browser to talk to Hafletna.',
       unavailable: 'Voice chat is not available right now. You can type your question instead.',
@@ -34,7 +34,7 @@ export const chatStrings = {
     retry: 'حاول مرة أخرى', unavailable: 'تعذّر تحميل الرد. حاول مرة أخرى أو اطرح سؤالاً آخر.',
     timeout: 'استغرق الرد وقتاً طويلاً. حاول مرة أخرى أو اطرح سؤالاً آخر.',
     voiceStart: 'تحدّث مع حفلتنا', voiceStop: 'إيقاف المحادثة الصوتية', voicePlaceholder: 'المحادثة الصوتية تعمل…',
-    voiceConnecting: 'جارٍ الاتصال…', voiceListening: 'أستمع إليك — تحدّث الآن', voiceSpeaking: 'حفلتنا يتحدث — تحدّث لمقاطعته',
+    voiceConnecting: 'جارٍ الاتصال…', voiceListening: 'أستمع إليك، تحدّث الآن', voiceSpeaking: 'حفلتنا يتحدث، تحدّث لمقاطعته',
     voiceProblems: {
       microphone: 'اسمح للمتصفح باستخدام الميكروفون لتتحدث مع حفلتنا.',
       unavailable: 'المحادثة الصوتية غير متاحة الآن. يمكنك كتابة سؤالك بدلاً من ذلك.',

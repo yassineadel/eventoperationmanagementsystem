@@ -453,7 +453,7 @@ test('homepage retains its controls and themes without rendering fictional conte
     assert.match(html, /href="\/login"/)
     assert.match(html, /href="\/register"/)
     assert.match(html, /class="board-discovery-layout home-container"/)
-    assert.match(html, /class="board-feature"/)
+    assert.match(html, /class="board-carousel[ "]/)
     const footer = html.match(/<footer class="board-footer">[\s\S]*?<\/footer>/)?.[0]
     assert.ok(footer)
     assert.doesNotMatch(footer, /href="\/login"|href="\/register"|href="\/cart"|home-navigation|hf-controls|hf-segmented/)

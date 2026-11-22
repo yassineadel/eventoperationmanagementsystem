@@ -2,7 +2,7 @@ import prisma from '../../config/db'
 import { getVenueCategories } from '../venues/venues.service'
 
 /**
- * Get all ticket categories for a published (or cancelled) event — public
+ * Get all ticket categories for a published (or cancelled) event (public)
  */
 export const getTicketCategories = async (eventId: string) => {
   return await prisma.ticketCategory.findMany({
@@ -12,7 +12,7 @@ export const getTicketCategories = async (eventId: string) => {
 }
 
 /**
- * Get a single ticket category by id — public
+ * Get a single ticket category by id (public)
  */
 export const getTicketCategoryById = async (id: string) => {
   const category = await prisma.ticketCategory.findFirst({
@@ -90,7 +90,7 @@ export const updateTicketCategory = async (id: string, data: {
 }
 
 /**
- * Delete a ticket category (admin only) — drafts only
+ * Delete a ticket category (admin only, drafts only)
  */
 export const deleteTicketCategory = async (id: string) => {
   const category = await prisma.ticketCategory.findUnique({ where: { id }, include: { event: true } })

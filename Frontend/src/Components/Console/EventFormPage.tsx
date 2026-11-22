@@ -9,6 +9,7 @@ type Form = {
   name: string; category: string; performer: string; venueId: string; description: string; about: string; image: string
   startAt: string; doorsOpenAt: string; durationMinutes: string; salesOpenAt: string; salesCloseAt: string
   refundPolicy: string; transferPolicy: string; entryPolicy: string
+  featured: boolean
 }
 const EMPTY: Form = {
   name: '', category: 'concerts', performer: '', venueId: '', description: '', about: '', image: '', startAt: '', doorsOpenAt: '', durationMinutes: '120',
@@ -16,6 +17,7 @@ const EMPTY: Form = {
   refundPolicy: 'You can request a refund up to 7 days before the event. Refunds need approval, and the service fee is not refunded. If the event is cancelled, you get a full refund.',
   transferPolicy: 'A ticket can be transferred to another Hafletna account at most 3 times. The old QR code stops working.',
   entryPolicy: '',
+  featured: false,
 }
 
 const fromEvent = (e: EventDetail): Form => ({
@@ -23,6 +25,7 @@ const fromEvent = (e: EventDetail): Form => ({
   startAt: toInput(e.startAt), doorsOpenAt: toInput(e.doorsOpenAt), durationMinutes: String(e.durationMinutes),
   salesOpenAt: toInput(e.salesOpenAt), salesCloseAt: toInput(e.salesCloseAt),
   refundPolicy: e.policies?.refundPolicy?.en ?? '', transferPolicy: e.policies?.transferPolicy?.en ?? '', entryPolicy: e.policies?.entryPolicy?.en ?? '',
+  featured: !!e.featured,
 })
 
 /** Create an event, or edit one (`/admin/events/:id/edit`). New events start as drafts. */
@@ -97,6 +100,11 @@ export default function EventFormPage() {
         <Field label="Short description" wide><textarea className="cx-input" required rows={2} value={form.description} onChange={set('description')} /></Field>
         <Field label="About (longer text, optional)" wide><textarea className="cx-input" rows={4} value={form.about} onChange={set('about')} /></Field>
         <Field label="Poster image link (optional)" hint="An https link to an image." wide><input className="cx-input" value={form.image} onChange={set('image')} placeholder="https://…" /></Field>
+        <label className="cx-switch is-wide">
+          <input type="checkbox" checked={form.featured} onChange={(ev) => setForm((f) => ({ ...f, featured: ev.target.checked }))} />
+          <span className="cx-switch-track" aria-hidden="true"><span /></span>
+          <span className="cx-switch-copy"><b>Show in homepage carousel</b><small>Featured events rotate at the top of the homepage once they are published. Use a poster image so it looks good.</small></span>
+        </label>
       </div></Card>
 
       <Card title="Date and sales"><div className="cx-form">

@@ -29,12 +29,12 @@ const getStripe = (key: string) => {
 function siteAppearance(el: HTMLElement, dark: boolean): Appearance {
   const css = getComputedStyle(el)
   const v = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback
-  const surface = v('--home-surface', dark ? '#11162d' : '#fffdfa')
-  const ink = v('--home-ink', dark ? '#f8f3fb' : '#0a0b23')
-  const muted = v('--home-muted', dark ? '#c1bdd3' : '#59586c')
-  const line = v('--home-line', dark ? '#2d3154' : '#e7e0e8')
-  const purple = v('--home-purple', dark ? '#ad76ff' : '#7200f5')
-  const paper = v('--home-paper', dark ? '#090c20' : '#fbf8f3')
+  const surface = v('--home-surface', '#ffffff')
+  const ink = v('--home-ink', '#17123a')
+  const muted = v('--home-muted', '#5b6478')
+  const line = v('--home-line', '#d2dcf5')
+  const purple = v('--home-purple', '#4c7dff')
+  const paper = v('--home-paper', '#eef3ff')
   return {
     theme: dark ? 'night' : 'stripe',
     variables: {

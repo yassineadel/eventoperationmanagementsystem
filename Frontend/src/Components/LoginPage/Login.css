@@ -1,5 +1,5 @@
 /* =========================================================
-   Login page — scoped tokens
+   Login page: scoped tokens
    Every selector below is nested under a component class so
    nothing leaks into the rest of the app.
    ========================================================= */
@@ -7,7 +7,7 @@
 .MainContainer {
   --panel-top: #12414d;
   --panel-bottom: #0a1c2b;
-  --cream: #f2f0ea;
+  --cream: #ecf0f8;
   --green: #0d8f68;
   --green-hi: #0fa87a;
   --ink: #10202c;

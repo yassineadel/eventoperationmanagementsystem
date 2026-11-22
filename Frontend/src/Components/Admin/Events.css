@@ -1,21 +1,13 @@
 /* Events & users pages. Builds on Admin.css and Orders.css (status badges, reason banner, dialogs). */
 
 .ad-root {
-  --ev-track: #ece6dc;
-  --ev-fill: #7200f5;
+  --ev-track: #e2e8f4;
+  --ev-fill: #4c7dff;
+  --ev-fill-text: #2f5bd8;
   --ev-full: #b42318;
-  --ev-user-bg: #f3f1ec;
-  --ev-user-line: #ddd7cc;
+  --ev-user-bg: #eef2fa;
+  --ev-user-line: #d3dbea;
   --ev-user-ink: #45445a;
-}
-
-.ad-root[data-theme='dark'] {
-  --ev-track: #252a5c;
-  --ev-fill: #ad76ff;
-  --ev-full: #ff8a80;
-  --ev-user-bg: #1a1e3c;
-  --ev-user-line: #343a6b;
-  --ev-user-ink: #c1bdd3;
 }
 
 /* ------------------------------------------------------------------ lists */
@@ -142,7 +134,7 @@
 .ad-field select:focus {
   outline: none;
   border-color: var(--ad-focus);
-  box-shadow: 0 0 0 4px rgba(114, 0, 245, 0.16);
+  box-shadow: 0 0 0 4px rgba(76, 125, 255, 0.16);
 }
 
 .ad-field textarea[aria-invalid='true'],

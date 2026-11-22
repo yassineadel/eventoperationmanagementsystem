@@ -507,8 +507,8 @@ function EventTable({ rows, totals, t, f, c }: { rows: EventRow[]; totals: Retur
               <td className="ad-num">{c.decimal(r.perDay)}</td>
               <td className="ad-num">{f.money(r.ownersDue)}</td>
               <td className="ad-num">{f.money(r.platformNet)}</td>
-              <td className="ad-num">{r.refundTotal ? f.money(r.refundTotal) : '—'}</td>
-              <td className="ad-num">{r.transfers ? f.num(r.transfers) : '—'}</td>
+              <td className="ad-num">{r.refundTotal ? f.money(r.refundTotal) : '-'}</td>
+              <td className="ad-num">{r.transfers ? f.num(r.transfers) : '-'}</td>
             </tr>
           ))}
         </tbody>

@@ -62,7 +62,7 @@ model User {
 // ─── Catalogue ──────────────────────────────────────────────────────────────
 // Venue layouts are authored as JSON in src/modules/venues/layouts and seeded into
 // venues + seats/venue_zones. Seats and zones carry a categoryKey (e.g. "VIP") and are
-// matched to an event's TicketCategory by (venue, categoryKey) — a venue is reused by
+// matched to an event's TicketCategory by (venue, categoryKey); a venue is reused by
 // many events, each pricing its own categories.
 
 enum VenueType {
@@ -155,7 +155,7 @@ model Event {
   durationMinutes Int       @map("duration_minutes")
   // age restrictions, prohibited items, entry conditions, refund policy (FR-EVT-07)
   policies        Json?
-  // [{ question, answer }] — also feeds the chatbot retrieval layer (FR-EVT-08)
+  // [{ question, answer }], also feeds the chatbot retrieval layer (FR-EVT-08)
   faqs            Json?
   salesOpenAt     DateTime? @map("sales_open_at") @db.Timestamptz(6)
   salesCloseAt    DateTime? @map("sales_close_at") @db.Timestamptz(6)
@@ -166,6 +166,8 @@ model Event {
   cancelledAt        DateTime?   @map("cancelled_at") @db.Timestamptz(6)
   cancellationReason String?     @map("cancellation_reason")
 
+  // shown in the homepage carousel; admins switch it on and off in the console
+  featured    Boolean  @default(false) @map("is_featured")
   isSynthetic Boolean  @default(false) @map("is_synthetic")
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -427,7 +429,7 @@ model Refund {
   status             RefundStatus @default(SUBMITTED)
   // null for involuntary refunds started by the system/admin
   requestedById      String?      @map("requested_by_id") @db.Uuid
-  // who receives the money: the current holder at the time of refund (BR-13, Q24 —
+  // who receives the money: the current holder at the time of refund (BR-13, Q24,
   // decided Oct 2026); for transferred tickets settlement is handled manually
   payeeId            String       @map("payee_id") @db.Uuid
   reason             String?

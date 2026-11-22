@@ -72,7 +72,7 @@ const server = createServer(async (req, res) => {
   if (url.pathname === '/api/auth/logout' && req.method === 'POST') { signedIn = false; return send(200, { message: 'Signed out' }) }
   if (url.pathname === '/api/tickets' && signedIn) return send(200, { upcoming: process.env.FIXTURE_EMPTY_TICKETS === '1' ? [] : [{
     id: '00000000-0000-4000-8000-000000000101', status: 'VALID', attendeeName: 'Fixture ticket holder', qrToken: 'HAFLETNA-FIXTURE:NO-ENTRY', orderReference: 'QA-ORDER', category: 'VIP', seat: null,
-    event: { id: eventId, name: 'Cairo Jazz Night', startAt: summaries[0].startAt, doorsOpenAt: '2030-10-21T16:00:00.000Z', endsAt: '2030-10-21T19:00:00.000Z', venue: { name: 'Cairo Opera House — Small Hall', city: 'Cairo', address: 'Fixture address' } }, transferCount: 0, transfersLeft: 3, usedAt: null,
+    event: { id: eventId, name: 'Cairo Jazz Night', startAt: summaries[0].startAt, doorsOpenAt: '2030-10-21T16:00:00.000Z', endsAt: '2030-10-21T19:00:00.000Z', venue: { name: 'Cairo Opera House - Small Hall', city: 'Cairo', address: 'Fixture address' } }, transferCount: 0, transfersLeft: 3, usedAt: null,
   }], past: [] })
   if (url.pathname === '/api/events') {
     const p = url.searchParams, query = (p.get('q') ?? '').toLowerCase()

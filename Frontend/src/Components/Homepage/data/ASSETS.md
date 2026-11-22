@@ -54,7 +54,7 @@ The selected homepage concept is implemented in the existing app. The following 
 
 The existing `jazz.jpg` supplies the remaining selected-design event photo. Original generated PNGs were retained in the tool's generated-images directory; the application uses the project-local JPEGs.
 
-## Real venue photography — 29 October 2026
+## Real venue photography (29 October 2026)
 
 The two generated architectural venue images were replaced at the user's request. The current files contain real photographs, preserved without retouching; responsive cards apply their existing CSS crop. Uploaded venue images still take priority. The illustrative-photo label remains because these frontend reference photos are not uploads supplied with the backend venue records, and the Opera photo shows the complex rather than the Small Hall interior.
 

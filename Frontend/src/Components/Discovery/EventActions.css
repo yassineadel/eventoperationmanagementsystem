@@ -1,4 +1,4 @@
-.home-root .event-save-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex-shrink: 0; width: 44px; min-height: 44px; padding: 0; border: 1px solid var(--home-line); border-radius: 999px; background: var(--home-surface); color: var(--home-purple); font-size: 12px; cursor: pointer; }
+.home-root .event-save-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex-shrink: 0; width: 44px; min-height: 44px; padding: 0; border: 1px solid var(--home-line); border-radius: 999px; background: var(--home-surface); color: var(--home-purple-text); font-size: 12px; cursor: pointer; }
 .event-save-button:hover { background: var(--home-tint); border-color: var(--home-purple); }
 .event-save-button[aria-pressed='true'] { background: var(--home-tint); border-color: var(--home-purple); }
 .event-save-button[aria-pressed='true'] svg { fill: currentColor; }
@@ -10,9 +10,7 @@
 .home-root .event-status--available { background: #e5f6ed; border-color: #b8dcc7; color: #175a36; }
 .home-root .event-status--sold-out { background: #fff1d6; border-color: #e3c787; color: #73500d; }
 .home-root .event-status--cancelled { background: #fde8ec; border-color: #e6b3be; color: #94243c; }
-.home-root[data-theme='dark'] .event-status--available { background: #17382a; border-color: #367653; color: #b0edc8; }
-.home-root[data-theme='dark'] .event-status--sold-out { background: #3b2e15; border-color: #80662e; color: #f8d78c; }
-.home-root[data-theme='dark'] .event-status--cancelled { background: #421e2b; border-color: #824252; color: #ffb8c8; }
+
 @media (max-width: 760px) {
   .home-hero-ticket > .event-status { bottom: 15px; inset-inline-start: 20px; }
 }

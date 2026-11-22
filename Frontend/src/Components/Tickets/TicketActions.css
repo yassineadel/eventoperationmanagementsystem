@@ -1,8 +1,8 @@
 .tickets-action-page { padding-block: 14px 30px; }
 .ta-heading { display: flex; align-items: center; gap: 17px; padding-block: 19px; }
 .ta-heading > div { min-width: 0; }
-.ta-heading-icon { display: grid; place-items: center; flex-shrink: 0; width: 48px; height: 48px; border: 1px solid var(--home-line); border-radius: 14px; color: var(--home-purple); background: var(--home-tint); }
-.tickets-action-page .ta-eyebrow { color: var(--home-purple); font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.ta-heading-icon { display: grid; place-items: center; flex-shrink: 0; width: 48px; height: 48px; border: 1px solid var(--home-line); border-radius: 14px; color: var(--home-purple-text); background: var(--home-tint); }
+.tickets-action-page .ta-eyebrow { color: var(--home-purple-text); font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
 .ta-heading h1 { font: clamp(34px,4vw,49px)/1.1 var(--home-display); letter-spacing: -.04em; margin-block: 9px 8px; }
 .ta-heading .ta-lead { color: var(--home-muted); font-size: 12px; line-height: 1.8; }
 .tickets-action-page .tickets-sample-notice { padding: 10px 15px; margin-bottom: 18px; }
@@ -39,10 +39,10 @@
 .ta-form-panel .tickets-recipient-card strong { font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
 .ta-form-panel .tickets-recipient-card > bdi { font-size: 10px; line-height: 1.8; }
 .ta-form-panel .tickets-recipient-card small { color: var(--tickets-mint); font-size: 9px; line-height: 1.7; }
-.ta-form-panel .tickets-recipient-card svg { color: var(--home-purple); }
+.ta-form-panel .tickets-recipient-card svg { color: var(--home-purple-text); }
 .ta-form-panel .tickets-sample-recipients button[aria-pressed='true'] { border-color: var(--home-purple); background: var(--home-tint); box-shadow: inset 0 0 0 1px var(--home-purple); }
 .ta-how { border: 1px solid var(--home-line); border-radius: 10px; background: var(--home-paper); }
-.ta-how > summary { min-height: 44px; padding: 11px 13px; color: var(--home-purple); font-size: 11px; font-weight: 700; line-height: 1.8; cursor: pointer; }
+.ta-how > summary { min-height: 44px; padding: 11px 13px; color: var(--home-purple-text); font-size: 11px; font-weight: 700; line-height: 1.8; cursor: pointer; }
 .ta-how > summary > svg { margin-inline: 5px 7px; }
 .ta-form-panel .ta-how > p { padding: 0 14px 13px; color: var(--home-muted); font-size: 11px; line-height: 1.9; }
 .ta-ownership { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr); align-items: center; gap: 12px; }
@@ -51,7 +51,7 @@
 .ta-ownership > div > span { color: var(--home-muted); font-size: 9px; }
 .ta-ownership strong { font-size: 13px; line-height: 1.8; overflow-wrap: anywhere; }
 .ta-ownership > div > bdi { color: var(--home-muted); font-size: 10px; line-height: 1.8; overflow-wrap: anywhere; }
-.ta-ownership > svg { color: var(--home-purple); }
+.ta-ownership > svg { color: var(--home-purple-text); }
 .ta-refund-amount { padding: 15px 18px; border: 1px solid var(--home-line); border-radius: 12px; background: var(--home-paper); }
 .ta-refund-amount .tickets-quote { margin: 0; }
 .ta-refund-amount .tickets-quote > div { padding-block: 7px; font-size: 11px; line-height: 1.8; }
@@ -61,7 +61,7 @@
 .ta-form-panel .tickets-refund-policy { padding: 0; margin-block: 15px 0; border: 0; border-radius: 0; background: none; font-size: 11px; line-height: 1.9; }
 .ta-form-panel .tickets-refund-policy .tickets-review-list { margin: 0 0 6px; padding: 3px 12px; border: 1px solid var(--home-line); border-radius: 8px; background: var(--home-tint); }
 .tickets-refund-policy .ta-policy { margin-bottom: 7px; }
-.ta-policy > summary { min-height: 42px; padding-block: 10px; color: var(--home-purple); font-size: 11px; font-weight: 700; cursor: pointer; }
+.ta-policy > summary { min-height: 42px; padding-block: 10px; color: var(--home-purple-text); font-size: 11px; font-weight: 700; cursor: pointer; }
 .ta-policy > p { padding-bottom: 9px; font-size: 11px; color: var(--home-muted); }
 .tickets-action-page .ta-result { color: var(--home-ink) !important; background: linear-gradient(120deg,var(--home-surface),var(--home-tint)); border-color: var(--home-line); }
 .ta-form-panel > .tickets-success-mark { width: 48px; height: 48px; margin-bottom: 18px; }
@@ -74,21 +74,21 @@
 .ta-result-details .tickets-review-list dd { text-align: start; }
 .ta-result-details .tickets-review-list > div:first-child dd { color: var(--tickets-amber); }
 .ta-unavailable > .home-outline-button { display: inline-flex; margin-top: 18px; }
-.ta-summary { position: relative; min-width: 0; border: 1px solid var(--home-line); border-radius: 17px; background: var(--home-surface); box-shadow: 0 14px 45px -35px #42157699; }
-.ta-summary-brand { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 17px 19px; border-radius: 16px 16px 0 0; color: #fff; background: radial-gradient(ellipse at 100% 0,#a267ea88,transparent 70%),linear-gradient(135deg,#281342,#571b90); }
+.ta-summary { position: relative; min-width: 0; border: 1px solid var(--home-line); border-radius: 17px; background: var(--home-surface); box-shadow: 0 14px 45px -35px #17123a99; }
+.ta-summary-brand { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 17px 19px; border-radius: 16px 16px 0 0; color: #17123a; background: radial-gradient(ellipse at 100% 0,#8fb0ff88,transparent 70%),linear-gradient(135deg,#6b94ff,#6b94ff); }
 .ta-summary-brand > span:first-child { display: inline-flex; align-items: center; gap: 7px; font: 700 22px/1 var(--home-display); letter-spacing: -.04em; }
-.ta-summary-brand svg { color: #d5b4ff; }
-.ta-summary-brand > span:last-child { padding: 4px 7px; border: 1px solid #ffffff50; border-radius: 100px; color: #eee0ff; font-size: 7px; }
-.ta-summary-photo { position: relative; isolation: isolate; display: flex; align-items: end; min-height: 135px; padding: 17px 19px; overflow: hidden; color: #fff; background: #131125; }
+.ta-summary-brand svg { color: #8fb0ff; }
+.ta-summary-brand > span:last-child { padding: 4px 7px; border: 1px solid #ffffff50; border-radius: 100px; color: #eef3ff; font-size: 7px; }
+.ta-summary-photo { position: relative; isolation: isolate; display: flex; align-items: end; min-height: 135px; padding: 17px 19px; overflow: hidden; color: #fff; background: #17123a; }
 .ta-summary-photo img { position: absolute; inset: 0; z-index: -2; display: block; width: 100%; height: 100%; object-fit: cover; }
-.ta-summary-photo::before { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(#090c2025,#090c20e8); }
+.ta-summary-photo::before { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(#17123a25,#17123ae8); }
 .ta-summary-photo > div { min-width: 0; }
 .ta-summary-photo p { font-size: 8px; letter-spacing: .1em; text-transform: uppercase; }
 .ta-summary-photo h2 { font: 28px/1.1 var(--home-display); letter-spacing: -.035em; margin-top: 7px; }
 .ta-summary-body { padding: 17px 19px; }
 .ta-summary-body .tickets-status { max-width: 100%; }
 .ta-summary-body .ta-summary-line { display: flex; align-items: start; gap: 8px; color: var(--home-muted); font-size: 10px; line-height: 1.8; margin-top: 11px; }
-.ta-summary-line > svg { color: var(--home-purple); margin-top: 2px; }
+.ta-summary-line > svg { color: var(--home-purple-text); margin-top: 2px; }
 .ta-summary-facts { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--home-line); }
 .ta-summary-facts .tickets-facts { gap: 13px; }
 .ta-summary-facts .tickets-facts dt { font-size: 9px; margin-bottom: 4px; }
@@ -105,7 +105,7 @@
 .ta-summary-grand dt { color: var(--home-ink); }
 .ta-summary-grand dd { font-size: 22px; line-height: 1.4; letter-spacing: -.03em; }
 .ta-summary-footer { padding: 5px 19px; }
-.ta-summary-footer .home-text-link { display: flex; justify-content: space-between; color: var(--home-purple); font-size: 11px; min-height: 44px; }
+.ta-summary-footer .home-text-link { display: flex; justify-content: space-between; color: var(--home-purple-text); font-size: 11px; min-height: 44px; }
 .home-root[lang='ar'] .ta-heading h1 { font-family: var(--home-body); font-size: clamp(29px,3.2vw,42px); line-height: 1.5; }
 .home-root[lang='ar'] .ta-heading .ta-eyebrow, .home-root[lang='ar'] .ta-summary-photo p { letter-spacing: 0; }
 .home-root[lang='ar'] .ta-form-panel .tickets-panel-header h2, .home-root[lang='ar'] .ta-result > h2, .home-root[lang='ar'] .ta-unavailable > h2 { font-size: 28px; line-height: 1.5; }

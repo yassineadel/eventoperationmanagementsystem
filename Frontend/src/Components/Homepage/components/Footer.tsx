@@ -8,7 +8,7 @@ export default function Footer({ t, appearance = 'default' }: { t: HomeStrings; 
   const dialog = useRef<HTMLDialogElement>(null)
   const titleId = useId()
   useEffect(() => { if (info && !dialog.current?.open) dialog.current?.showModal() }, [info])
-  if (appearance === 'default') return <footer className="home-footer home-container"><p><Link to="/">{t.brand}</Link><span> — {t.footerTagline}</span></p><p>© {new Date().getFullYear()} {t.brand}</p></footer>
+  if (appearance === 'default') return <footer className="home-footer home-container"><p><Link to="/">{t.brand}</Link><span> · {t.footerTagline}</span></p><p>© {new Date().getFullYear()} {t.brand}</p></footer>
   const openHelp = () => window.dispatchEvent(new Event('hafletna:open-help'))
   return <>
     <footer className="board-footer"><div className="home-container"><div className="board-footer-brand"><Brand name={t.brand} /><p>© {new Date().getFullYear()} {t.brand}. {t.rights}</p></div>

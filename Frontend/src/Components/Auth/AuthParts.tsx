@@ -1,5 +1,4 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import concertPanel from '../../assets/hafletna-concert.webp'
 import { authApi } from '../../lib/authApi'
 import { CODE_LENGTH, passwordChecks } from '../../lib/validation'
 import { rememberAccountReturn } from '../../lib/sessionUser'
@@ -66,8 +65,7 @@ export const BackArrow = () => (
 
 export function PreferenceControls({ variant }: { variant: 'main' | 'panel' }) {
   const t = useStrings()
-  const { lang, theme, setLang, setTheme } = usePreferences()
-  const dark = theme === 'dark'
+  const { lang, setLang } = usePreferences()
 
   return (
     <div className={cx('hf-controls', `hf-controls--${variant}`)}>
@@ -79,23 +77,6 @@ export function PreferenceControls({ variant }: { variant: 'main' | 'panel' }) {
           العربية
         </button>
       </div>
-      <button
-        type="button"
-        className="hf-icon-btn"
-        aria-label={dark ? t.toLight : t.toDark}
-        onClick={() => setTheme(dark ? 'light' : 'dark')}
-      >
-        {dark ? (
-          <StrokeIcon>
-            <circle cx="12" cy="12" r="4" />
-            <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-          </StrokeIcon>
-        ) : (
-          <StrokeIcon>
-            <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
-          </StrokeIcon>
-        )}
-      </button>
     </div>
   )
 }
@@ -119,7 +100,13 @@ export function AuthLayout({ title, lead, children }: AuthLayoutProps) {
   return (
     <div className="hf-root" lang={lang} dir={lang === 'ar' ? 'rtl' : 'ltr'} data-theme={theme}>
       <aside className="hf-brand" aria-label={t.brandName}>
-        <img className="hf-brand-photo" src={concertPanel} alt={t.brandPhotoAlt} />
+        <div className="hf-brand-copy">
+          <span className="hf-brand-logo"><img src="/favicon.svg" alt="" width="40" height="40" />{lang === 'ar' ? 'حفلتنا' : 'Hafletna'}</span>
+          <p className="hf-brand-eyebrow">{lang === 'ar' ? 'الفعاليات تجمعنا' : 'Events bring us together'}</p>
+          <p className="hf-brand-headline">{lang === 'ar' ? <>لحظات لا تُنسى <em>تبدأ هنا.</em></> : <>Unforgettable moments start <em>here.</em></>}</p>
+          <p className="hf-brand-lead">{lang === 'ar' ? 'اكتشف الفعاليات واحجز تذاكرك وكن جزءًا من تجارب لا تُنسى مع حفلتنا.' : 'Discover events, book your tickets and be part of unforgettable experiences with Hafletna.'}</p>
+        </div>
+        <img className="hf-brand-photo" src="/event-images/oud.jpg" alt={t.brandPhotoAlt} />
         <div className="hf-brand-top">
           <PreferenceControls variant="panel" />
         </div>

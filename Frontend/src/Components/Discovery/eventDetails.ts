@@ -3,14 +3,14 @@ import { getBookingCatalogue } from '../Booking/catalogue.ts'
 
 type VenueDetails = { address: LocalizedText; coordinates: readonly [number, number]; duration: number; capacity: number; gallery: string[] }
 const venueDetails: Record<string, VenueDetails> = {
-  'cairo-after-dark': { address: { en: 'Garden Quarter, Cairo — sample venue', ar: 'حي الحدائق، القاهرة — مكان تجريبي' }, coordinates: [30.0444, 31.2357], duration: 180, capacity: 500, gallery: ['/event-images/hero-ticket.png', '/event-images/concert.jpg', '/event-images/venue-garden.jpg'] },
-  'coastal-weekender': { address: { en: 'Seafront promenade, Alexandria — sample venue', ar: 'ممشى الواجهة البحرية، الإسكندرية — مكان تجريبي' }, coordinates: [31.2001, 29.9187], duration: 360, capacity: 1200, gallery: ['/event-images/festival.jpg', '/event-images/venue-seafront.jpg', '/event-images/concert.jpg'] },
-  'creative-canvas': { address: { en: 'Arts Quarter, Downtown Cairo — sample venue', ar: 'حي الفنون، وسط القاهرة — مكان تجريبي' }, coordinates: [30.0483, 31.2392], duration: 150, capacity: 200, gallery: ['/event-images/art.jpg', '/event-images/workshop.jpg', '/event-images/venue-garden.jpg'] },
-  'city-strides': { address: { en: 'Riverside walkway, Giza — sample venue', ar: 'ممشى ضفاف النيل، الجيزة — مكان تجريبي' }, coordinates: [30.0131, 31.2089], duration: 90, capacity: 350, gallery: ['/event-images/sports.jpg', '/event-images/venue-riverside.jpg', '/event-images/festival.jpg'] },
-  'design-together': { address: { en: 'Creative Quarter, Alexandria — sample venue', ar: 'الحي الإبداعي، الإسكندرية — مكان تجريبي' }, coordinates: [31.204, 29.924], duration: 180, capacity: 80, gallery: ['/event-images/workshop.jpg', '/event-images/art.jpg', '/event-images/conference.jpg'] },
-  'next-perspectives': { address: { en: 'City Centre, Cairo — sample venue', ar: 'وسط المدينة، القاهرة — مكان تجريبي' }, coordinates: [30.0544, 31.244], duration: 480, capacity: 800, gallery: ['/event-images/conference.jpg', '/event-images/workshop.jpg', '/event-images/venue-garden.jpg'] },
-  'sunset-beats': { address: { en: 'Garden Quarter, Cairo — sample venue', ar: 'حي الحدائق، القاهرة — مكان تجريبي' }, coordinates: [30.0444, 31.2357], duration: 120, capacity: 150, gallery: ['/event-images/venue-garden.jpg', '/event-images/concert.jpg', '/event-images/hero-ticket.png'] },
-  'nile-nights': { address: { en: 'Riverside walkway, Giza — sample venue', ar: 'ممشى ضفاف النيل، الجيزة — مكان تجريبي' }, coordinates: [30.0131, 31.2089], duration: 150, capacity: 120, gallery: ['/event-images/venue-riverside.jpg', '/event-images/art.jpg', '/event-images/venue-seafront.jpg'] },
+  'cairo-after-dark': { address: { en: 'Garden Quarter, Cairo (sample venue)', ar: 'حي الحدائق، القاهرة (مكان تجريبي)' }, coordinates: [30.0444, 31.2357], duration: 180, capacity: 500, gallery: ['/event-images/hero-ticket.png', '/event-images/concert.jpg', '/event-images/venue-garden.jpg'] },
+  'coastal-weekender': { address: { en: 'Seafront promenade, Alexandria (sample venue)', ar: 'ممشى الواجهة البحرية، الإسكندرية (مكان تجريبي)' }, coordinates: [31.2001, 29.9187], duration: 360, capacity: 1200, gallery: ['/event-images/festival.jpg', '/event-images/venue-seafront.jpg', '/event-images/concert.jpg'] },
+  'creative-canvas': { address: { en: 'Arts Quarter, Downtown Cairo (sample venue)', ar: 'حي الفنون، وسط القاهرة (مكان تجريبي)' }, coordinates: [30.0483, 31.2392], duration: 150, capacity: 200, gallery: ['/event-images/art.jpg', '/event-images/workshop.jpg', '/event-images/venue-garden.jpg'] },
+  'city-strides': { address: { en: 'Riverside walkway, Giza (sample venue)', ar: 'ممشى ضفاف النيل، الجيزة (مكان تجريبي)' }, coordinates: [30.0131, 31.2089], duration: 90, capacity: 350, gallery: ['/event-images/sports.jpg', '/event-images/venue-riverside.jpg', '/event-images/festival.jpg'] },
+  'design-together': { address: { en: 'Creative Quarter, Alexandria (sample venue)', ar: 'الحي الإبداعي، الإسكندرية (مكان تجريبي)' }, coordinates: [31.204, 29.924], duration: 180, capacity: 80, gallery: ['/event-images/workshop.jpg', '/event-images/art.jpg', '/event-images/conference.jpg'] },
+  'next-perspectives': { address: { en: 'City Centre, Cairo (sample venue)', ar: 'وسط المدينة، القاهرة (مكان تجريبي)' }, coordinates: [30.0544, 31.244], duration: 480, capacity: 800, gallery: ['/event-images/conference.jpg', '/event-images/workshop.jpg', '/event-images/venue-garden.jpg'] },
+  'sunset-beats': { address: { en: 'Garden Quarter, Cairo (sample venue)', ar: 'حي الحدائق، القاهرة (مكان تجريبي)' }, coordinates: [30.0444, 31.2357], duration: 120, capacity: 150, gallery: ['/event-images/venue-garden.jpg', '/event-images/concert.jpg', '/event-images/hero-ticket.png'] },
+  'nile-nights': { address: { en: 'Riverside walkway, Giza (sample venue)', ar: 'ممشى ضفاف النيل، الجيزة (مكان تجريبي)' }, coordinates: [30.0131, 31.2089], duration: 150, capacity: 120, gallery: ['/event-images/venue-riverside.jpg', '/event-images/art.jpg', '/event-images/venue-seafront.jpg'] },
 }
 
 export function getEventDetails(event: Event) {
@@ -35,7 +35,7 @@ export function getEventDetails(event: Event) {
     { question: { en: 'Is the map an exact venue address?', ar: 'هل تعرض الخريطة عنوان المكان بدقة؟' }, answer: { en: 'The venue is fictional. The map marks an approximate city location to demonstrate the location feature.', ar: 'المكان غير حقيقي. تعرض الخريطة موقعًا تقريبيًا داخل المدينة لتوضيح ميزة عرض الموقع.' } },
   ]
   const capacity = getBookingCatalogue(event.id)!.categories.reduce((total, category) => total + category.capacity, 0)
-  return { ...details, capacity, doorsOpen, organiser: { en: 'Hafletna Experiences — sample organiser', ar: 'تجارب حفلتنا — منظّم تجريبي' }, policies, faqs }
+  return { ...details, capacity, doorsOpen, organiser: { en: 'Hafletna Experiences (sample organiser)', ar: 'تجارب حفلتنا (منظّم تجريبي)' }, policies, faqs }
 }
 
 export function venueMapLinks(coordinates: readonly [number, number], lang: Language) {

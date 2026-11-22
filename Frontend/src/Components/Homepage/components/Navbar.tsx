@@ -12,7 +12,7 @@ import { useBooking } from '../../Booking/bookingContext'
 import { bookingNumber, bookingStrings } from '../../Booking/strings'
 
 export function Brand({ name }: { name: string }) {
-  return <Link className="home-brand" to="/" aria-label={name}><span className="home-brand-mark"><Icon name="ticket" size={27} /></span><span>{name}</span></Link>
+  return <Link className="home-brand" to="/" aria-label={name}><img className="home-brand-mark" src="/favicon.svg" alt="" /><span>{name}</span></Link>
 }
 export default function Navbar({ t, onViewChange }: { t: HomeStrings; onViewChange?: (view: EventView) => void }) {
   const { pathname, search, hash } = useLocation()

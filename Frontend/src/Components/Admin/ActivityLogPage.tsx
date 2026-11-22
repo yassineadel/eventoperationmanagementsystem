@@ -174,7 +174,7 @@ export default function ActivityLogPage() {
                             {e.target.label}
                           </Link>
                         </td>
-                        <td className="ad-hide-sm al-details">{details(e) || <span className="ad-muted">—</span>}</td>
+                        <td className="ad-hide-sm al-details">{details(e) || <span className="ad-muted">-</span>}</td>
                       </tr>
                     ))}
                   </tbody>

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { PreferencesContext, type Lang, type Theme } from './preferences'
 
-// Language and theme are per-browser conveniences, so localStorage is enough.
+// Language is a per-browser convenience, so localStorage is enough.
+// Hafletna has one fixed light identity, so the theme is always 'light'.
 // Reads and writes are guarded because storage can be blocked (private mode, policies).
 function readStored<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
   try {
@@ -20,14 +21,9 @@ function writeStored(key: string, value: string) {
   }
 }
 
-function initialTheme(): Theme {
-  const prefersDark = typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches
-  return readStored<Theme>('hafletna.theme', ['light', 'dark'], prefersDark ? 'dark' : 'light')
-}
-
 export default function PreferencesProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<Lang>(() => readStored<Lang>('hafletna.lang', ['en', 'ar'], 'en'))
-  const [theme, setThemeState] = useState<Theme>(initialTheme)
+  const theme: Theme = 'light'
 
   useEffect(() => {
     document.documentElement.lang = lang
@@ -42,12 +38,9 @@ export default function PreferencesProvider({ children }: { children: ReactNode 
         setLangState(next)
         writeStored('hafletna.lang', next)
       },
-      setTheme: (next: Theme) => {
-        setThemeState(next)
-        writeStored('hafletna.theme', next)
-      },
+      setTheme: () => {},
     }),
-    [lang, theme],
+    [lang],
   )
 
   return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>

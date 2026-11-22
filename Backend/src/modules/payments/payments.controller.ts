@@ -6,7 +6,7 @@ import { SimulatedOutcome, SimulatorProvider } from './simulator.provider'
 import { StripeProvider } from './stripe.provider'
 
 /**
- * Which provider is active and whether it is test mode (FR-PAY-07) — public
+ * Which provider is active and whether it is test mode (FR-PAY-07), public
  * GET /api/payments/config
  */
 export const config = (req: Request, res: Response) => {

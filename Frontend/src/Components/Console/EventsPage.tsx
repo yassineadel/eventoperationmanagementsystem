@@ -15,13 +15,15 @@ export default function EventsPage() {
   const set = (k: string, v: string) => { const p = new URLSearchParams(params); if (v) p.set(k, v); else p.delete(k); if (k !== 'page') p.delete('page'); setParams(p) }
 
   const lookups = useLoad(() => api.get<Lookups>('/lookups'), [])
-  const { data, error, loading, reload } = useLoad(() => api.get<Paged<EventRow>>(`/events${qs({ status, q, category, when, page })}`), [status, q, category, when, page])
+  // "In carousel" is a tab like the statuses, but it filters on the featured switch instead
+  const featured = status === 'FEATURED'
+  const { data, error, loading, reload } = useLoad(() => api.get<Paged<EventRow>>(`/events${qs({ status: featured ? '' : status, featured: featured ? 'true' : '', q, category, when, page })}`), [status, q, category, when, page])
 
   return <>
     <PageHeader title="Events" sub="Every event in the database: drafts, on sale, cancelled and past." actions={<Link className="cx-btn is-primary" to="/admin/events/new">+ New event</Link>} />
     <Card>
       <div className="cx-toolbar">
-        <Tabs value={status} onChange={(v) => set('status', v)} options={[{ value: '', label: 'All' }, { value: 'PUBLISHED', label: 'On sale' }, { value: 'DRAFT', label: 'Drafts' }, { value: 'CANCELLED', label: 'Cancelled' }]} />
+        <Tabs value={status} onChange={(v) => set('status', v)} options={[{ value: '', label: 'All' }, { value: 'PUBLISHED', label: 'On sale' }, { value: 'DRAFT', label: 'Drafts' }, { value: 'CANCELLED', label: 'Cancelled' }, { value: 'FEATURED', label: 'In carousel' }]} />
         <SearchBox value={q} onChange={(v) => set('q', v)} placeholder="Search by name or performer…" />
         <select className="cx-input" value={category} onChange={(e) => set('category', e.target.value)}>
           <option value="">All categories</option>{lookups.data?.categories.map((c) => <option key={c} value={c}>{title(c)}</option>)}
@@ -41,9 +43,9 @@ export default function EventsPage() {
             </span></td>
             <td><span className="cx-two"><span>{date(e.startAt)}</span>{e.isPast && <span className="cx-muted cx-small">Past</span>}</span></td>
             <td><span className="cx-two"><span>{e.venue.name}</span><span className="cx-muted cx-small">{e.venue.city} · {title(e.venue.type)}</span></span></td>
-            <td><Badge value={e.status} label={e.status === 'PUBLISHED' ? 'On sale' : undefined} /></td>
+            <td><span style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}><Badge value={e.status} label={e.status === 'PUBLISHED' ? 'On sale' : undefined} />{e.featured && <span className="cx-badge is-blue">In carousel</span>}</span></td>
             <td><Progress value={e.sold} max={e.capacity} /></td>
-            <td className="num">{e.fromPrice === null ? '—' : e.fromPrice === 0 ? 'Free' : egp(e.fromPrice)}</td>
+            <td className="num">{e.fromPrice === null ? '-' : e.fromPrice === 0 ? 'Free' : egp(e.fromPrice)}</td>
           </tr>)}</tbody>
         </table></div>
         <Pager page={data.page} pageCount={data.pageCount} total={data.total} onPage={(p) => set('page', String(p))} />

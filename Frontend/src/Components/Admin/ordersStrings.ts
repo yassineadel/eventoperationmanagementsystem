@@ -466,7 +466,7 @@ export function useOrdersFormat() {
     // Any date shape reads as Cairo wall time; something unreadable shows a dash instead of crashing.
     const show = (format: Intl.DateTimeFormat) => (value: string | undefined) => {
       const wall = toWall(value)
-      return wall ? format.format(wallDate(wall)) : '—'
+      return wall ? format.format(wallDate(wall)) : '-'
     }
     const digits = (s: string) => (lang === 'ar' ? s.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[Number(d)]) : s)
     return {

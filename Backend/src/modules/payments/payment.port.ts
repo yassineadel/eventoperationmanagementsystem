@@ -20,12 +20,12 @@ export interface PaymentSession {
 
 export interface PaymentProvider {
   readonly name: 'simulator' | 'stripe'
-  /** true when no real money can move — drives the admin test-mode banner (FR-PAY-07) */
+  /** true when no real money can move; drives the admin test-mode banner (FR-PAY-07) */
   readonly testMode: boolean
   createPayment(input: CreatePaymentInput): Promise<PaymentSession>
   /** Same session again, e.g. when the buyer retries checkout with the same idempotency key */
   resumePayment(providerTxId: string): Promise<PaymentSession>
-  /** Asks the provider directly — used by reconciliation when a confirmation never arrived (FR-PAY-05) */
+  /** Asks the provider directly. Used by reconciliation when a confirmation never arrived (FR-PAY-05) */
   getStatus(providerTxId: string): Promise<PaymentOutcome>
   /** Best effort: stop a payment that has not completed */
   cancel(providerTxId: string): Promise<void>

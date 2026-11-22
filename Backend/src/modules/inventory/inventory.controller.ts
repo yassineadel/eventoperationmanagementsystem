@@ -75,7 +75,7 @@ export const deleteHold = async (req: Request, res: Response) => {
 }
 
 /**
- * Live availability for an event — public
+ * Live availability for an event (public)
  * GET /api/inventory/events/:eventId/availability
  */
 export const availability = async (req: Request, res: Response) => {
